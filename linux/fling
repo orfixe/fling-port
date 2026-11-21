@@ -5,6 +5,7 @@
 #   fling cast-tab   send current Firefox tab to TV
 #   fling clip       send link from clipboard
 #   fling quit       exit
+#   fling help       how-to-use guide
 #   fling tui ...    terminal controller (fling-tui)
 APP="$HOME/.local/share/fling/fling_app.py"
 PY="$HOME/.local/share/fling/venv/bin/python"

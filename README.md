@@ -92,6 +92,7 @@ Commands:
 fling             open the panel (starts Fling if needed)
 fling tray        start only the tray icon
 fling setup       open the Connect TV window
+fling help        open the "How to use" guide
 fling screenshot  save a TV screenshot (needs ADB)
 fling cast-tab    cast the current Firefox tab
 fling clip        cast the link from the clipboard
@@ -168,6 +169,7 @@ Pairing certificates live in `~/.local/share/fling/atv/` (Linux) or the app's pr
 ```text
 linux/
   fling_app.py     tray + panel + Connect TV window (PyQt6)
+  fling_help.py    texts of the built-in "How to use" guide (EN + RU)
   bt_remote.py     Bluetooth LE HID remote service (BlueZ D-Bus)
   sf_icons.py      line icons in SF-Symbols style
   fling            launcher (single instance, commands)
