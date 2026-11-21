@@ -43,6 +43,8 @@ final class L {
     private static void e(String ru, String en) { EN.put(ru, en); }
 
     static {
+        e("Как пользоваться", "How to use");
+        e("Понятно", "Got it");
         e("пульт ✓", "remote ✓");
         e("по IP", "by IP");
         e("ТВ не найдены", "No TVs found");
