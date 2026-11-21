@@ -3,7 +3,7 @@
 ## Getting Started
 
 ### Linux
-    git clone https://github.com/wsisyeqr/fling-linux-android.git
+    git clone https://github.com/orfixe/fling-linux-android.git
     cd fling-linux-android/linux
     ./install.sh   # installs dependencies and launchers
 

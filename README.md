@@ -76,7 +76,7 @@ Tested on Kubuntu 26.04 (KDE Plasma 6, Wayland). Other desktops with a system tr
 the global shortcut and blur are KDE-specific.
 
 ```sh
-git clone https://github.com/wsisyeqr/fling-linux-android.git && cd fling-linux-android/linux
+git clone https://github.com/orfixe/fling-linux-android.git && cd fling-linux-android/linux
 ./install.sh
 fling            # opens the panel; the icon lives in the system tray
 ```

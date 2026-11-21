@@ -40,6 +40,6 @@ which means all rights are reserved by its authors. This repository is therefore
 
 ## Contributors
 
-- [wsisyeqr](https://github.com/wsisyeqr) — maintains this unofficial port, tests it on a real Google TV.
+- [orfixe](https://github.com/orfixe) — maintains this unofficial port, tests it on a real Google TV.
   Not the author of Fling.
 - Claude (Anthropic) — implementation, with help from a local LLM (gpt-oss-20b) for icons and translations.
