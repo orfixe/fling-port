@@ -2723,14 +2723,23 @@ class Tray(QObject):
                 self.state.toggle_play()
 
     def poll(self):
-        self.state.poll_bt()
-        self.state.poll_tvm()
-        if self.state.yt_live:
-            self.state.changed.emit()
-        if self.panel.isVisible():
-            self.state.refresh()
-        elif self.state.panel == "casting":
-            self.state.refresh(with_tab=False)
+        """Every 2 s while the panel is open; every 10 s in the background, and then
+        only the cheap ADB read (catt costs ~0.2 s CPU per call)."""
+        st = self.state
+        self._tick = getattr(self, "_tick", 0) + 1
+        visible = self.panel.isVisible()
+        if not visible and self._tick % 5:
+            if st.yt_live:
+                st.changed.emit()          # keep the tray tooltip clock moving
+            return
+        st.poll_bt()
+        st.poll_tvm()
+        if st.yt_live:
+            st.changed.emit()
+        if visible:
+            st.refresh()
+        elif st.panel == "casting" and not st.tvm_live and not st.cast_stuck:
+            st.refresh(with_tab=False)     # a real Cast session ADB can't see
 
     def sync(self):
         s = self.state
