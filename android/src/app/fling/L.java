@@ -43,6 +43,16 @@ final class L {
     private static void e(String ru, String en) { EN.put(ru, en); }
 
     static {
+        e("пульт ✓", "remote ✓");
+        e("по IP", "by IP");
+        e("ТВ не найдены", "No TVs found");
+        e("Найти ТВ заново", "Find TVs again");
+        e("Добавить ТВ по IP…", "Add TV by IP…");
+        e("Убрать добавленный вручную", "Remove a manually added TV");
+        e("Найдите его на ТВ: Настройки → Сеть.", "Find it on the TV: Settings → Network.");
+        e("Добавить", "Add");
+        e("Это не похоже на IP-адрес (пример: 192.168.1.50).", "That doesn't look like an IP address (e.g. 192.168.1.50).");
+        e("По адресу %s нет Chromecast / Google TV.", "No Chromecast / Google TV at %s.");
         e("Снимок экрана ТВ", "TV screenshot");
         e("Делаю снимок экрана ТВ…", "Taking a TV screenshot…");
         e("Сохранено в Pictures/Fling", "Saved to Pictures/Fling");

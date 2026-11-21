@@ -16,6 +16,14 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   Connect TV window; find TVs again; add a TV by IP address (named from its
   own device description); TVs with identical names are told apart by address;
   paired TVs are marked.
+- Android: the same TV chooser — paired / by-IP marks, identical names told
+  apart by address, TVs added by IP are remembered and can be removed.
+
+### Fixed
+
+- IP validation accepts only 0–255 per number; the TV-name request closes its
+  connection; removing the only TV on Android disconnects from it
+  (found in a local-LLM code review, verified by hand).
 
 ### Changed
 

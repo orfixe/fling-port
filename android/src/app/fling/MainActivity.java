@@ -288,10 +288,10 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     @Override public void onDevices(List<Discovery.Device> list) {
         main.post(() -> {
-            devices = new ArrayList<>(list);
+            devices = withManual(list);   // discovered TVs + the ones the user added by IP
             if (host == null && !devices.isEmpty()) selectDevice(devices.get(0));
             else {
-                for (Discovery.Device d : devices) if (d.host.equals(host)) devName = d.name;
+                for (Discovery.Device d : devices) if (d.host.equals(host)) devName = displayName(d);   // refresh shown name
                 sync();
             }
         });
@@ -471,7 +471,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     // ================================================================ device
 
-    private void selectDevice(Discovery.Device d) { selectHost(d.host, d.name); }
+    private void selectDevice(Discovery.Device d) { selectHost(d.host, displayName(d)); }
 
     private void selectHost(String h, String name) {
         if (h.equals(host)) return;
@@ -480,24 +480,96 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         host = h;
         devName = name;
         st = null; tvOn = null; tvApp = null; pairState = "idle";
+        adbSt = null; adbNext = 0;   // now-playing came from the old TV; read the new one right away
         prefs.edit().putString("host", h).putString("name", name).apply();
         connectDevice();
         if (pendingAutoCast && link != null) { pendingAutoCast = false; castLink(link, linkTitle); }
         sync();
     }
 
+    // ================================================================ several TVs
+
+    /** TVs added by IP are stored as a JSON array [{name, host}] in prefs "manual". */
+    private List<Discovery.Device> manualDevices() {
+        List<Discovery.Device> out = new ArrayList<>();
+        try {
+            org.json.JSONArray a = new org.json.JSONArray(prefs.getString("manual", "[]"));
+            for (int i = 0; i < a.length(); i++) {
+                org.json.JSONObject o = a.getJSONObject(i);
+                out.add(new Discovery.Device(o.getString("name"), o.getString("host"), "manual"));   // model "manual" marks them
+            }
+        } catch (Exception ignored) {}
+        return out;
+    }
+
+    private void saveManual(List<Discovery.Device> list) {
+        org.json.JSONArray a = new org.json.JSONArray();
+        for (Discovery.Device d : list) {
+            try { a.put(new org.json.JSONObject().put("name", d.name).put("host", d.host)); } catch (Exception ignored) {}
+        }
+        prefs.edit().putString("manual", a.toString()).apply();   // survives app restarts
+    }
+
+    /** Discovered TVs first, then manual ones that discovery didn't see (no duplicates by address). */
+    private List<Discovery.Device> withManual(List<Discovery.Device> found) {
+        List<Discovery.Device> out = new ArrayList<>(found);
+        for (Discovery.Device m : manualDevices()) {
+            boolean seen = false;
+            for (Discovery.Device d : out) if (d.host.equals(m.host)) seen = true;
+            if (!seen) out.add(m);
+        }
+        return out;
+    }
+
+    private boolean isManual(Discovery.Device d) { return "manual".equals(d.model); }
+
+    /** IPv4 check: exactly 4 numbers separated by dots, each 0..255. */
+    private static boolean validIp(String ip) {
+        String[] p = ip.split("\\.", -1);
+        if (p.length != 4) return false;
+        for (String x : p) {
+            if (!x.matches("\\d{1,3}") || Integer.parseInt(x) > 255) return false;
+        }
+        return true;
+    }
+
+    /** True when another TV in the list has exactly the same name. */
+    private boolean nameClash(Discovery.Device d) {
+        int n = 0;
+        for (Discovery.Device x : devices) if (x.name.equals(d.name)) n++;
+        return n > 1;
+    }
+
+    /** Name shown in the header/footer: adds the address when two TVs share a name. */
+    private String displayName(Discovery.Device d) {
+        return nameClash(d) ? d.name + " (" + d.host + ")" : d.name;
+    }
+
+    /** Menu line: name + hints (address on a name clash, remote paired, added by IP). */
+    private String menuLabel(Discovery.Device d) {
+        List<String> marks = new ArrayList<>();
+        if (nameClash(d)) marks.add(d.host);                 // tell identical names apart
+        if (atv.paired(d.host)) marks.add(L.t("пульт ✓"));   // network remote already paired
+        if (isManual(d)) marks.add(L.t("по IP"));            // not found by discovery
+        return (d.host.equals(host) ? "✓  " : "") + d.name + (marks.isEmpty() ? "" : "  ·  " + String.join(", ", marks));
+    }
+
     private void showDeviceMenu(View anchor) {
         PopupMenu pm = new PopupMenu(this, anchor);
-        for (int i = 0; i < devices.size(); i++) {
-            Discovery.Device d = devices.get(i);
-            pm.getMenu().add(0, i, i, (d.host.equals(host) ? "✓  " : "") + d.name);
+        for (int i = 0; i < devices.size(); i++) pm.getMenu().add(0, i, i, menuLabel(devices.get(i)));   // ids 0..n-1 = TVs
+        if (devices.isEmpty()) pm.getMenu().add(0, 999, 0, L.t("ТВ не найдены")).setEnabled(false);
+        pm.getMenu().add(1, 1001, 1001, L.t("Найти ТВ заново"));
+        pm.getMenu().add(1, 1000, 1000, L.t("Добавить ТВ по IP…"));
+        List<Discovery.Device> manual = manualDevices();
+        if (!manual.isEmpty()) {
+            android.view.SubMenu sm = pm.getMenu().addSubMenu(1, 1002, 1002, L.t("Убрать добавленный вручную"));
+            for (int i = 0; i < manual.size(); i++) sm.add(2, 2000 + i, i, manual.get(i).name);   // ids 2000+ = manual TVs
         }
-        pm.getMenu().add(1, 1000, 1000, L.t("Указать IP вручную…"));
-        pm.getMenu().add(1, 1001, 1001, L.t("Искать заново"));
         pm.setOnMenuItemClickListener(it -> {
             int id = it.getItemId();
             if (id == 1000) askIp();
-            else if (id == 1001) { discovery.stop(); discovery.start(); toast(L.t("Ищу устройства…")); }
+            else if (id == 1001) { discovery.stop(); discovery.start(); toast(L.t("Ищу устройства…")); }   // restart mDNS search
+            else if (id >= 2000) forgetManual(manual.get(id - 2000));
             else if (id < devices.size()) selectDevice(devices.get(id));
             return true;
         });
@@ -505,21 +577,70 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     }
 
     private void askIp() {
-        EditText e = ui.field("192.168.1.50", false);
+        EditText e = ui.field("192.168.1.50", false);   // example address, not a real one
         e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        if (host != null) e.setText(host);
         FrameLayout f = new FrameLayout(this);
         f.setPadding(ui.dp(20), ui.dp(8), ui.dp(20), 0);
         f.addView(e);
         new AlertDialog.Builder(this)
                 .setTitle(L.t("IP-адрес телевизора"))
+                .setMessage(L.t("Найдите его на ТВ: Настройки → Сеть."))
                 .setView(f)
-                .setPositiveButton(L.t("Подключить"), (dlg, w) -> {
-                    String ip = e.getText().toString().trim();
-                    if (!ip.isEmpty()) selectHost(ip, ip);
-                })
+                .setPositiveButton(L.t("Добавить"), (dlg, w) -> addByIp(e.getText().toString().trim()))
                 .setNegativeButton(L.t("Отмена"), null)
                 .show();
+    }
+
+    /** Checks there is a Cast device at the address, asks the TV its name, saves and selects it. */
+    private void addByIp(String ip) {
+        if (!validIp(ip)) { showError(L.t("Это не похоже на IP-адрес (пример: 192.168.1.50).")); return; }   // 4 numbers, each 0..255
+        net.execute(() -> {
+            String name = ip;
+            try (java.net.Socket s = new java.net.Socket()) {
+                s.connect(new java.net.InetSocketAddress(ip, 8009), 2500);   // 8009 = Google Cast port
+            } catch (Exception e) {
+                main.post(() -> showError(L.f("По адресу %s нет Chromecast / Google TV.", ip)));
+                return;
+            }
+            try {   // the TV's own name from its DIAL device description
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection)
+                        new java.net.URL("http://" + ip + ":8008/ssdp/device-desc.xml").openConnection();
+                c.setConnectTimeout(3000); c.setReadTimeout(3000);
+                String xml;
+                try (java.io.InputStream in = c.getInputStream()) {          // stream closed automatically
+                    xml = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                } finally {
+                    c.disconnect();                                          // release the HTTP connection
+                }
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("<friendlyName>([^<]+)</friendlyName>").matcher(xml);
+                if (m.find()) name = m.group(1).trim();
+            } catch (Exception ignored) {}   // keep the IP as the name
+            final Discovery.Device d = new Discovery.Device(name, ip, "manual");
+            main.post(() -> {
+                List<Discovery.Device> manual = manualDevices();
+                manual.removeIf(x -> x.host.equals(ip));   // replace an older entry for the same address
+                manual.add(d);
+                saveManual(manual);
+                devices = withManual(devices);              // show it in the list right away
+                selectDevice(d);
+            });
+        });
+    }
+
+    private void forgetManual(Discovery.Device d) {
+        List<Discovery.Device> manual = manualDevices();
+        manual.removeIf(x -> x.host.equals(d.host));
+        saveManual(manual);
+        devices.removeIf(x -> x.host.equals(d.host) && isManual(x));   // discovered copies stay
+        if (d.host.equals(host)) {
+            if (!devices.isEmpty()) selectDevice(devices.get(0));   // fall back to another TV
+            else {                                                  // that was the only TV: disconnect and forget it
+                cast.disconnect(); atv.disconnect();
+                host = null; devName = null; st = null; adbSt = null;
+                prefs.edit().remove("host").remove("name").apply();
+            }
+        }
+        sync();
     }
 
     // ================================================================ playback actions
