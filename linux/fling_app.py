@@ -693,6 +693,7 @@ class State(QObject):
         self.devices = self.conf.get("devices", [])
         self.device = self.conf.get("device") or (self.devices[0] if self.devices else None)
         self.cast_in_flight = False
+        self.scanning = False
         self.last_error = None
         self.tv_pairing = "idle"     # idle | starting | pin | verifying | failed
         self.tv_pairing_msg = ""
@@ -957,8 +958,15 @@ class State(QObject):
 
     def scan(self):
         self._scanned = True
+        self.scanning = True
+        self.changed.emit()
         def done(found, e):
+            self.scanning = False                      # search finished (UI stops showing "Searching…")
+            found = list(found or [])                  # catt scan result, may be empty
+            known = {d["ip"] for d in found}           # IPs seen on the network right now
+            found += [d for d in self.conf.get("manual", []) if d["ip"] not in known]   # TVs added by IP
             if not found:
+                self.changed.emit()
                 return
             self.devices = found
             if not self.device or self.device["ip"] not in [d["ip"] for d in found]:
@@ -972,14 +980,77 @@ class State(QObject):
         self.bg(catt_scan, done)
 
     def select_device(self, d):
+        if self.device and d["ip"] == self.device["ip"]:   # already on this TV: nothing to do
+            return
         self.device = d
         self.status = {}
+        self.tvm = {}                      # now-playing, remote state and screenshots belong to the old TV
+        self.tv_on = self.tv_app = None
+        self.tv_pairing, self.tv_pairing_msg = "idle", ""
         self.conf["device"] = d
         save_conf(self.conf)
         self.last_error = None
         self.atv.connect(self.ip)
         self.changed.emit()
         self.refresh()
+
+    def device_label(self, d):
+        """Menu text for one TV: its name plus hints (address if names clash, remote paired, added by IP)."""
+        marks = []
+        if sum(1 for x in self.devices if x["name"] == d["name"]) > 1:
+            marks.append(d["ip"])          # identical names: tell them apart by address
+        if self.atv.paired(d["ip"]):               # network remote already paired with this TV
+            marks.append("пульт ✓")
+        if d.get("manual"):                        # added by hand, not found by discovery
+            marks.append("по IP")
+        return d["name"] + (f"  ·  {', '.join(marks)}" if marks else "")
+
+    def add_device_ip(self, ip):
+        """Add a TV that discovery can't see (other subnet, mDNS blocked) by its IP address."""
+        ip = ip.strip()
+        if not re.fullmatch(r"\d{1,3}(\.\d{1,3}){3}", ip):
+            self._set(last_error="Это не похоже на IP-адрес (пример: 192.168.1.50).")
+            return
+        def work():
+            import socket as _s
+            c = _s.socket(); c.settimeout(2)           # quick check: is there a Cast device at all?
+            try:
+                c.connect((ip, 8009))                  # 8009 = Google Cast port
+            except OSError:
+                raise RuntimeError(f"по адресу {ip} нет Chromecast / Google TV (порт 8009 закрыт)")
+            finally:
+                c.close()
+            name = ip
+            try:   # the TV's own name from its DIAL device description
+                import urllib.request
+                xml = urllib.request.urlopen(f"http://{ip}:8008/ssdp/device-desc.xml", timeout=4).read().decode("utf-8", "ignore")
+                m = re.search(r"<friendlyName>([^<]+)</friendlyName>", xml)
+                name = m[1].strip() if m else ip
+            except Exception:
+                pass
+            return {"ip": ip, "name": name, "model": "", "manual": True}
+        def done(d, e):
+            if e or not d:
+                self._set(last_error=f"Добавить ТВ: {e}")
+                return
+            manual = [x for x in self.conf.get("manual", []) if x["ip"] != ip] + [d]   # replace an older entry
+            self.conf["manual"] = manual                                               # kept across restarts
+            if ip not in [x["ip"] for x in self.devices]:
+                self.devices = self.devices + [d]
+            self.conf["devices"] = self.devices
+            save_conf(self.conf)
+            self.select_device(d)                      # switch to the TV that was just added
+        self.bg(work, done)                            # network checks run off the UI thread
+
+    def forget_device(self, d):
+        """Remove a TV that was added by IP (discovered TVs come back on the next search)."""
+        self.conf["manual"] = [x for x in self.conf.get("manual", []) if x["ip"] != d["ip"]]
+        self.devices = [x for x in self.devices if x["ip"] != d["ip"]]
+        self.conf["devices"] = self.devices
+        save_conf(self.conf)
+        if self.device and self.device["ip"] == d["ip"] and self.devices:   # removed the current TV:
+            self.select_device(self.devices[0])                              # fall back to the first one
+        self.changed.emit()
 
     # actions
     def _catt(self, args, timeout=25, after=None):
@@ -1886,6 +1957,33 @@ class VolumeRow(QWidget):
 
 # ---------------------------------------------------------------- the panel (PanelView.swift)
 
+def fill_device_menu(menu: QMenu, s: "State", parent=None):
+    """Device chooser used by the panel footer, the tray menu and the Connect TV window."""
+    menu.clear()
+    for d in s.devices:
+        a = menu.addAction(s.device_label(d))
+        a.setCheckable(True)
+        a.setChecked(bool(s.device) and d["ip"] == s.device["ip"])
+        a.setToolTip(d["ip"])
+        a.triggered.connect(lambda _=False, d=d: s.select_device(d))
+    if not s.devices:
+        a = menu.addAction("ТВ не найдены"); a.setEnabled(False)
+    menu.addSeparator()
+    menu.addAction("Ищу…" if s.scanning else "Найти ТВ заново", s.scan).setEnabled(not s.scanning)
+    def ask_ip():
+        from PyQt6.QtWidgets import QInputDialog
+        ip, ok = QInputDialog.getText(parent, tr("Добавить ТВ по IP"),
+                                      tr("IP-адрес телевизора (Настройки → Сеть на ТВ):"), text="192.168.1.")
+        if ok and ip:
+            s.add_device_ip(ip)
+    menu.addAction("Добавить ТВ по IP…", ask_ip)
+    manual = [d for d in s.devices if d.get("manual")]
+    if manual:
+        fm = menu.addMenu("Убрать добавленный вручную")
+        for d in manual:
+            fm.addAction(d["name"], lambda d=d: s.forget_device(d))
+
+
 class Panel(QWidget):
     def __init__(self, state: State):
         super().__init__(None, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint |
@@ -2134,6 +2232,7 @@ class Panel(QWidget):
         self.switch.setStyleSheet(f"QToolButton{{border:none;color:{Theme.css(T.accent)};background:transparent}}"
                                   "QToolButton::menu-indicator{image:none}")
         self.switch_menu = QMenu(self.switch)
+        self.switch_menu.aboutToShow.connect(lambda: fill_device_menu(self.switch_menu, self.state, None))
         self.switch.setMenu(self.switch_menu)
         ft.addWidget(self.dot); ft.addWidget(self.dev_name, 1); ft.addWidget(self.switch)
         fw = QWidget(); fw.setLayout(ft)
@@ -2360,13 +2459,11 @@ class Panel(QWidget):
         # footer
         col = T.green if s.device else T.fg_a(0.4)
         self.dot.setStyleSheet(f"background:{Theme.css(col)};border-radius:3px")
-        self.dev_name.setText(s.device["name"] if s.device else "Устройство не найдено")
-        self.switch.setVisible(len(s.devices) > 1)
-        self.switch_menu.clear()
-        for d in s.devices:
-            a = self.switch_menu.addAction(d["name"])
-            a.setCheckable(True); a.setChecked(bool(s.device) and d["ip"] == s.device["ip"])
-            a.triggered.connect(lambda _=False, d=d: s.select_device(d))
+        dup = bool(s.device) and sum(1 for x in s.devices if x["name"] == s.device["name"]) > 1
+        self.dev_name.setText((s.device["name"] + (f" ({s.device['ip']})" if dup else "")) if s.device
+                              else ("Ищу ТВ…" if s.scanning else "Устройство не найдено"))
+        self.switch.setVisible(True)                   # always available: rescan / add by IP even with one TV
+        self.switch.setText("Сменить ТВ" if len(s.devices) > 1 else "ТВ…")
         if self.isVisible():
             QTimer.singleShot(0, self.place)
 
@@ -2531,8 +2628,12 @@ class SetupWindow(QWidget):
         extra.hide()
         self.rows[key] = {"mark": mark, "btn": btn, "info": info, "extra": extra, "el": el}
         if key == "find":
-            self.dev_menu = QMenu(btn)
             btn.clicked.connect(self.find)
+            choose = small_button("Выбрать ТВ…", lambda: None)
+            self.dev_menu = QMenu(choose)
+            self.dev_menu.aboutToShow.connect(lambda: fill_device_menu(self.dev_menu, self.state, self))
+            choose.setMenu(self.dev_menu)
+            top.insertWidget(top.count() - 1, choose)
         elif key == "remote":
             btn.clicked.connect(self.state.start_pairing)
             self.pin = field("Код с экрана ТВ, 6 символов", mono=True)
@@ -2594,7 +2695,7 @@ class SetupWindow(QWidget):
             s.devices = found
             if not s.device or s.device["ip"] not in [d["ip"] for d in found]:
                 s.select_device(found[0])
-            s.conf.update(devices=found); save_conf(s.conf)
+            s.conf.update(devices=s.devices); save_conf(s.conf)
             s.changed.emit()
             if self.auto:
                 QTimer.singleShot(200, self.auto_next)
@@ -2762,11 +2863,8 @@ class Tray(QObject):
         a.setShortcut(QKeySequence(GLOBAL_SHORTCUT)); a.setEnabled(castable)
         m.addAction("Отправить ссылку из буфера", s.cast_clipboard)
         m.addSeparator()
-        if s.devices:
-            dm = m.addMenu("Устройство")
-            for d in s.devices:
-                da = dm.addAction(d["name"], lambda d=d: s.select_device(d))
-                da.setCheckable(True); da.setChecked(bool(s.device) and d["ip"] == s.device["ip"])
+        dm = m.addMenu("Телевизор" + (f" — {s.device['name']}" if s.device else ""))
+        fill_device_menu(dm, s, None)
         m.addSeparator()
         m.addAction("Пауза" if s.is_playing else "Играть", s.toggle_play).setEnabled(casting)
         m.addAction(f"Назад {SEEK} с", lambda: s.seek(-SEEK)).setEnabled(casting)
