@@ -1,0 +1,7 @@
+android/build/
+*.apk
+*.keystore
+__pycache__/
+*.pyc
+.idea/
+.vscode/

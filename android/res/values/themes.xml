@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="FlingTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:colorAccent">#007AFF</item>
+        <item name="android:colorPrimary">#F2F2F7</item>
+        <item name="android:windowBackground">@color/page</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+    <color name="page">#F2F2F7</color>
+</resources>
