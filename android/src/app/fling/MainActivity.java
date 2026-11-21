@@ -162,6 +162,10 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     @Override protected void onResume() {
         super.onResume();
         resumed = true;
+        if (!prefs.getBoolean("help_seen", false)) {                  // first launch: show the guide once
+            prefs.edit().putBoolean("help_seen", true).apply();
+            main.postDelayed(() -> Help.show(this, ui), 600);         // after the screen has been laid out
+        }
         discovery.start();
         connectDevice();
         main.post(poll);
@@ -870,6 +874,12 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         subtitleHeader.setPadding(0, ui.dp(3), 0, 0);
         ht.addView(subtitleHeader);
         header.addView(ht, Ui.lpW(1));
+        TextView help = ui.text("?", 20, ui.accent, true);           // opens the "How to use" guide
+        help.setGravity(Gravity.CENTER);
+        help.setBackground(ui.round(Ui.alpha(ui.accent, 0.12f), 18));
+        help.setContentDescription(L.t("Как пользоваться"));
+        help.setOnClickListener(v -> Help.show(this, ui));
+        header.addView(help, new LinearLayout.LayoutParams(ui.dp(36), ui.dp(36)));
         root.addView(header);
 
         errorView = ui.text("", 14, ui.orange, false);

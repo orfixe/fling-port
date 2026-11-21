@@ -16,6 +16,8 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   Connect TV window; find TVs again; add a TV by IP address (named from its
   own device description); TVs with identical names are told apart by address;
   paired TVs are marked.
+- Android: built-in "How to use" guide ("?" button, shown once on first
+  launch), English and Russian; drafted by a local LLM, checked and completed.
 - Android: the same TV chooser — paired / by-IP marks, identical names told
   apart by address, TVs added by IP are remembered and can be removed.
 
