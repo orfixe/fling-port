@@ -20,6 +20,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-NOTE: this license covers the code in this repository only. The design and
-wording of the original macOS Fling belong to its author (see CREDITS.md);
-public release is pending their permission.
+NOTE: this license covers only the new Linux/Android code in this repository.
+Fling itself — the original macOS app, its idea, design and wording — is the
+work of Damion Rashford (author) and Tatiana (repository owner), see
+CREDITS.md. Public release of this port is pending their permission.

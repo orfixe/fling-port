@@ -2,8 +2,15 @@
 
 ## Original work
 
-**Fling — "Your TV, from the Mac menu bar."**
-by **tatianathevisionary** — <https://github.com/tatianathevisionary/fling>
+**Fling — "Your TV, from the Mac menu bar."** — <https://github.com/tatianathevisionary/fling>
+
+| Who | Role |
+|---|---|
+| **[Damion Rashford](https://github.com/damionrashford)** | Author of the original Fling code (all commits in the original repository) |
+| **[Tatiana](https://github.com/tatianathevisionary)** | Owner and publisher of the original repository |
+
+Fling is **their** project. This repository is an unofficial port and is not affiliated with or
+endorsed by them.
 
 This project is a re-implementation of Fling for Linux (KDE Plasma) and Android. It follows
 the original closely:
@@ -17,8 +24,8 @@ the original closely:
 No Swift source was copied; everything was rewritten in Python/Qt and Java.
 
 **Licensing note.** At the time of writing the original repository has no license file,
-which means all rights are reserved by its author. This repository is therefore kept
-**private** until the author gives permission to publish it.
+which means all rights are reserved by its authors. This repository is therefore kept
+**private** until they give permission to publish it.
 
 ## Libraries and tools
 
@@ -33,5 +40,6 @@ which means all rights are reserved by its author. This repository is therefore 
 
 ## Contributors
 
-- The repository owner — idea, testing on a real Google TV, direction.
+- [wsisyeqr](https://github.com/wsisyeqr) — maintains this unofficial port, tests it on a real Google TV.
+  Not the author of Fling.
 - Claude (Anthropic) — implementation, with help from a local LLM (gpt-oss-20b) for icons and translations.
