@@ -31,6 +31,8 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ### Changed
 
+- Linux: on battery, no background polling while the panel is closed; the
+  Bluetooth remote service starts only when you ask for it.
 - Linux: switching TVs resets now-playing and remote state for the new TV.
 - Linux: background polling every 10 s instead of 2 s, using the cheap ADB read;
   `catt` is only polled for a live Cast session ADB can't see (≈10% of a CPU

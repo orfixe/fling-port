@@ -565,6 +565,17 @@ BT_NAMES = {26: "power", 3: "home", 4: "back", 19: "up", 20: "down", 21: "left",
             23: "ok", 24: "vol_up", 25: "vol_down", 164: "mute", 85: "play_pause", 89: "rewind", 90: "ffwd"}
 
 
+def on_battery() -> bool:
+    """True when the laptop runs on battery (no AC adapter online)."""
+    for f in glob.glob("/sys/class/power_supply/*/online"):
+        try:
+            if "AC" in f or "ADP" in f or "ACAD" in f:
+                return open(f).read().strip() == "0"
+        except Exception:
+            pass
+    return False
+
+
 def bt_call(cmd: str, timeout=1.5) -> dict:
     import socket as _s
     c = _s.socket(_s.AF_UNIX, _s.SOCK_STREAM)
@@ -715,7 +726,8 @@ class State(QObject):
         self.tvm = {}            # now-playing from the TV over ADB
         self._tvm_busy = False
         self.bt_setup = False
-        bt_ensure_running()
+        # Bluetooth remote service is started only on demand ("Connect as Bluetooth remote"):
+        # advertising all the time costs battery when nothing is paired.
         self.yt_pairing = "idle"   # idle | entry | linking
         self.lounge = Lounge(self.atv.loop, self.conf)
         self.lounge.update.connect(self._on_yt)
@@ -2877,6 +2889,8 @@ class Tray(QObject):
         st = self.state
         self._tick = getattr(self, "_tick", 0) + 1
         visible = self.panel.isVisible()
+        if not visible and on_battery():          # on battery with the panel closed: no background polling
+            return
         if not visible and self._tick % 5:
             if st.yt_live:
                 st.changed.emit()          # keep the tray tooltip clock moving
