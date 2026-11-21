@@ -43,6 +43,7 @@ final class L {
     private static void e(String ru, String en) { EN.put(ru, en); }
 
     static {
+        e("Fling создан Damion Rashford и Tatiana · неофициальный порт", "Fling by Damion Rashford & Tatiana · unofficial port");
         e("%s на ТВ", "%s on the TV");
         e("ТВ не сообщает, что сейчас играет — показываю только приложение.", "The TV doesn't report what's playing — showing the app only.");
         // errors: Cast / Atv

@@ -229,7 +229,9 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         net.execute(() -> {
             Cast.Status r = null;
             try { r = adb.nowPlaying(h); } catch (Exception e) {
-                if ("closed".equals(Adb.lastState)) adbNext = SystemClock.elapsedRealtime() + 30000;
+                // ADB off, or waiting for "Allow debugging" on the TV: don't re-prompt every 3 s
+                if ("closed".equals(Adb.lastState) || "unauthorized".equals(Adb.lastState))
+                    adbNext = SystemClock.elapsedRealtime() + 30000;
             }
             if (r != null && r.hasMedia()) {
                 String app = appName(r.appId);
@@ -1024,6 +1026,15 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         TextView hint = ui.text(L.t("Fling для Android · телефон и ТВ должны быть в одной сети Wi-Fi"), 12, ui.fgA(0.3f), false);
         hint.setGravity(Gravity.CENTER);
         root.addView(hint, ui.margins(Ui.lp(-1, -2), 0, 6, 0, 0));
+        // authorship: Fling is Damion Rashford's and Tatiana's app; this is an unofficial port
+        TextView credit = ui.text(L.t("Fling создан Damion Rashford и Tatiana · неофициальный порт"), 12, ui.fgA(0.45f), false);
+        credit.setGravity(Gravity.CENTER);
+        credit.setPadding(0, ui.dp(6), 0, ui.dp(6));
+        credit.setOnClickListener(v -> {
+            try { startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse("https://github.com/tatianathevisionary/fling"))); } catch (Exception ignored) {}
+        });
+        root.addView(credit, ui.margins(Ui.lp(-1, -2), 0, 2, 0, 0));
 
         // language: RU | EN (saved; "auto" until the user picks)
         LinearLayout langRow = new LinearLayout(this);

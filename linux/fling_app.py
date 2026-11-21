@@ -2090,6 +2090,12 @@ class Panel(QWidget):
         ft.addWidget(self.dot); ft.addWidget(self.dev_name, 1); ft.addWidget(self.switch)
         fw = QWidget(); fw.setLayout(ft)
         v.addWidget(fw)
+        # authorship: Fling is Damion Rashford's and Tatiana's app; this is an unofficial port
+        credit = label(f'<a href="https://github.com/tatianathevisionary/fling" style="color:{Theme.css(T.fg_a(0.45))};text-decoration:none">'
+                       'Fling создан Damion Rashford и Tatiana · неофициальный порт</a>', 10, T.fg_a(0.4))
+        credit.setOpenExternalLinks(True)
+        credit.setToolTip("github.com/tatianathevisionary/fling")
+        v.addWidget(padded(credit, 14, 0, 14, 8))
 
         # keyboard (menu equivalents)
         for seq, fn in (("Space", self._space), ("Left", lambda: self._casting_only(lambda: state.seek(-SEEK))),
@@ -2451,6 +2457,10 @@ class SetupWindow(QWidget):
                            ("bt", "Bluetooth-пульт (запасной)")):
             v.addWidget(self._row(key, title))
         v.addStretch(1)
+        c2 = label(f'<a href="https://github.com/tatianathevisionary/fling" style="color:{Theme.css(T.fg_a(0.55))}">'
+                   'Fling создан Damion Rashford и Tatiana · неофициальный порт</a>', 10.5, T.fg_a(0.45))
+        c2.setOpenExternalLinks(True)
+        v.addWidget(c2)
         self.timer = QTimer(self, interval=2000); self.timer.timeout.connect(self.refresh)
         state.changed.connect(self.sync)
 
