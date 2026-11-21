@@ -1008,7 +1008,8 @@ class State(QObject):
     def add_device_ip(self, ip):
         """Add a TV that discovery can't see (other subnet, mDNS blocked) by its IP address."""
         ip = ip.strip()
-        if not re.fullmatch(r"\d{1,3}(\.\d{1,3}){3}", ip):
+        parts = ip.split(".")                      # IPv4: 4 numbers, each 0..255
+        if len(parts) != 4 or not all(x.isdigit() and int(x) <= 255 for x in parts):
             self._set(last_error="Это не похоже на IP-адрес (пример: 192.168.1.50).")
             return
         def work():
@@ -1023,7 +1024,8 @@ class State(QObject):
             name = ip
             try:   # the TV's own name from its DIAL device description
                 import urllib.request
-                xml = urllib.request.urlopen(f"http://{ip}:8008/ssdp/device-desc.xml", timeout=4).read().decode("utf-8", "ignore")
+                with urllib.request.urlopen(f"http://{ip}:8008/ssdp/device-desc.xml", timeout=4) as r:   # closes the connection
+                    xml = r.read().decode("utf-8", "ignore")
                 m = re.search(r"<friendlyName>([^<]+)</friendlyName>", xml)
                 name = m[1].strip() if m else ip
             except Exception:
