@@ -10,6 +10,12 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+### Changed
+
+- Linux: background polling every 10 s instead of 2 s, using the cheap ADB read;
+  `catt` is only polled for a live Cast session ADB can't see (≈10% of a CPU
+  core saved while the panel is closed).
+
 ## [0.1.0] - 2026-11-21
 
 ### Added
