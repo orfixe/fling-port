@@ -297,6 +297,56 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         });
     }
 
+    /** TV screenshot over ADB → Pictures/Fling, then shown full-screen. */
+    private void tvScreenshot() {
+        final String h = host;
+        if (h == null) { showError(L.t("Устройство не выбрано")); return; }
+        showError(L.t("Делаю снимок экрана ТВ…"));
+        net.execute(() -> {
+            try {
+                byte[] png = adb.shellBytes(h, "exec:screencap -p");
+                if (png.length < 8 || (png[0] & 0xFF) != 0x89 || png[1] != 'P') throw new java.io.IOException("no image");
+                android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeByteArray(png, 0, png.length);
+                android.graphics.Bitmap small = android.graphics.Bitmap.createScaledBitmap(bmp, 48, 27, true);
+                int max = 0;
+                for (int x = 0; x < 48; x++) for (int y = 0; y < 27; y++) {
+                    int c = small.getPixel(x, y);
+                    max = Math.max(max, Math.max(android.graphics.Color.red(c), Math.max(android.graphics.Color.green(c), android.graphics.Color.blue(c))));
+                }
+                final boolean black = max < 8;
+                android.content.ContentValues cv = new android.content.ContentValues();
+                cv.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME,
+                        new java.text.SimpleDateFormat("'tv-'yyyyMMdd-HHmmss'.png'", java.util.Locale.US).format(new java.util.Date()));
+                cv.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png");
+                if (Build.VERSION.SDK_INT >= 29) cv.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Fling");
+                android.net.Uri uri = null;
+                try {
+                    uri = getContentResolver().insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv);
+                    if (uri != null) try (java.io.OutputStream o = getContentResolver().openOutputStream(uri)) { o.write(png); }
+                } catch (Exception ignored) {}   // pre-Android 10 without storage permission: just show it
+                main.post(() -> {
+                    android.widget.ImageView iv = new android.widget.ImageView(this);
+                    iv.setImageBitmap(bmp);
+                    iv.setAdjustViewBounds(true);
+                    new android.app.AlertDialog.Builder(this)
+                            .setTitle(L.t("Снимок экрана ТВ"))
+                            .setMessage(black ? L.t("Снимок чёрный: видео защищено от снимков (DRM у YouTube/Netflix). Меню и главный экран ТВ снимаются нормально.")
+                                              : L.t("Сохранено в Pictures/Fling"))
+                            .setView(iv)
+                            .setPositiveButton("OK", null)
+                            .show();
+                    showError(null);
+                });
+            } catch (Exception e) {
+                String st = Adb.lastState;
+                main.post(() -> showError("unauthorized".equals(st)
+                        ? L.t("Снимок экрана: подтвердите на ТВ «Разрешить отладку».")
+                        : "closed".equals(st) ? L.t("Снимок экрана работает через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети».")
+                        : L.t("Снимок экрана не получился: ") + e.getMessage()));
+            }
+        });
+    }
+
     private void showError(String m) {
         error = m;
         sync();
@@ -813,6 +863,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         linkCastRow = ui.row(L.t("Отправить на ТВ"), "tv_play", null, true, v -> { if (link != null) castLink(link, linkTitle); });
         linkCard.addView(linkCastRow);
         linkCard.addView(ui.row(L.t("Вставить ссылку из буфера"), "clipboard", null, false, v -> pasteLink()));
+        linkCard.addView(ui.row(L.t("Снимок экрана ТВ"), "clipboard", null, false, v -> tvScreenshot()));
         recentBox = ui.col();
         linkCard.addView(recentBox);
         addCard(linkCard);

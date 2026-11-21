@@ -43,6 +43,13 @@ final class L {
     private static void e(String ru, String en) { EN.put(ru, en); }
 
     static {
+        e("Снимок экрана ТВ", "TV screenshot");
+        e("Делаю снимок экрана ТВ…", "Taking a TV screenshot…");
+        e("Сохранено в Pictures/Fling", "Saved to Pictures/Fling");
+        e("Снимок чёрный: видео защищено от снимков (DRM у YouTube/Netflix). Меню и главный экран ТВ снимаются нормально.", "The screenshot is black: the video is protected (DRM in YouTube/Netflix). Menus and the home screen capture fine.");
+        e("Снимок экрана: подтвердите на ТВ «Разрешить отладку».", "Screenshot: accept “Allow debugging” on the TV.");
+        e("Снимок экрана работает через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети».", "Screenshots need ADB — on the TV enable Developer options → Network debugging.");
+        e("Снимок экрана не получился: ", "Screenshot failed: ");
         e("Fling создан Damion Rashford и Tatiana · неофициальный порт", "Fling by Damion Rashford & Tatiana · unofficial port");
         e("%s на ТВ", "%s on the TV");
         e("ТВ не сообщает, что сейчас играет — показываю только приложение.", "The TV doesn't report what's playing — showing the app only.");

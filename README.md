@@ -51,6 +51,7 @@ power, apps, d-pad, volume, typing, voice search.
 | Quick Settings tile "Pause on TV" | — | ✓ |
 | English / Russian UI (auto, switchable) | ✓ | ✓ |
 | Terminal remote (`fling-tui`) | ✓ | — |
+| TV screenshot over ADB (saved to Pictures/Fling) | ✓ | ✓ |
 
 ## How it works
 
@@ -91,6 +92,7 @@ Commands:
 fling             open the panel (starts Fling if needed)
 fling tray        start only the tray icon
 fling setup       open the Connect TV window
+fling screenshot  save a TV screenshot (needs ADB)
 fling cast-tab    cast the current Firefox tab
 fling clip        cast the link from the clipboard
 fling quit        exit

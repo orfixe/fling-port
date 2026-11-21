@@ -117,6 +117,11 @@ final class Adb {
 
     /** Runs one shell command; returns its output. Throws with a readable state on failure. */
     synchronized String shell(String host, String command) throws Exception {
+        return new String(shellBytes(host, command), StandardCharsets.UTF_8);
+    }
+
+    /** Raw shell output (binary-safe, e.g. `screencap -p`). */
+    synchronized byte[] shellBytes(String host, String command) throws Exception {
         keys();
         try (Socket s = new Socket()) {
             try {
@@ -158,20 +163,22 @@ final class Adb {
             s.setSoTimeout(8000);
             lastState = "ok";
             int local = 1;
-            send(o, OPEN, local, 0, ("shell:" + command + "\0").getBytes(StandardCharsets.UTF_8));
-            StringBuilder out = new StringBuilder();
+            // "exec:" is raw (no PTY newline mangling) — needed for binary output like PNGs
+            String service = command.startsWith("exec:") ? command : "shell:" + command;
+            send(o, OPEN, local, 0, (service + "\0").getBytes(StandardCharsets.UTF_8));
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
             int remote = 0;
             while (true) {
                 Msg m = read(in);
                 if (m.cmd == OKAY) { remote = m.a0; continue; }
                 if (m.cmd == WRTE) {
-                    out.append(new String(m.data, StandardCharsets.UTF_8));
+                    out.write(m.data, 0, m.data.length);
                     send(o, OKAY, local, m.a0, null);
                     continue;
                 }
                 if (m.cmd == CLSE) { send(o, CLSE, local, remote, null); break; }
             }
-            return out.toString();
+            return out.toByteArray();
         }
     }
 
