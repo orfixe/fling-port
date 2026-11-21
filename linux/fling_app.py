@@ -1552,6 +1552,13 @@ def glyph(name, size=14, color=None, weight=1.7):
         p.drawArc(QRectF(s*.12, s*.12, s*.76, s*.76), 135*16, 90*16)
     elif name == "bt":
         path((s*.3, s*.3), (s*.68, s*.66), (c, s*.86), (c, s*.14), (s*.68, s*.34), (s*.3, s*.7))
+    elif name == "help":                                     # question mark in a circle
+        p.drawEllipse(QRectF(s*.12, s*.12, s*.76, s*.76))
+        pa = QPainterPath(); pa.moveTo(s*.38, s*.4)
+        pa.arcTo(QRectF(s*.38, s*.26, s*.24, s*.22), 180, -270)  # the hook of the "?"
+        pa.lineTo(c, s*.6)
+        p.drawPath(pa)
+        p.drawPoint(QPoint(int(c), int(s*.72)))              # the dot
     elif name == "camera":
         p.drawRoundedRect(QRectF(s*.12, s*.3, s*.76, s*.52), s*.08, s*.08)
         path((s*.36, s*.3), (s*.42, s*.18), (s*.58, s*.18), (s*.64, s*.3))
@@ -2214,6 +2221,8 @@ class Panel(QWidget):
         v.addWidget(Separator())
         self.shot_row = MenuRow("Снимок экрана ТВ", icon="camera", on=state.tv_screenshot)
         v.addWidget(self.shot_row)
+        self.help_row = MenuRow("Как пользоваться", icon="help", on=lambda: (self.hide(), open_help(self)))   # opens the guide
+        v.addWidget(self.help_row)
         self.setup_row = MenuRow("Подключение ТВ…", icon="tv", on=lambda: (self.hide(), self.open_setup()))
         v.addWidget(self.setup_row)
         self.login = MenuRow("Запускать при входе", on=self._toggle_login)
@@ -2800,6 +2809,43 @@ class SetupWindow(QWidget):
             self._set("bt", "off", "Не нужен, если пульт по сети связан.", "Подключить")
 
 
+# ---------------------------------------------------------------- "How to use" window
+
+class HelpWindow(QWidget):
+    """Scrollable guide built from fling_help.HELP, in the app's current language."""
+    def __init__(self):
+        super().__init__(None, Qt.WindowType.Window)
+        from PyQt6.QtWidgets import QScrollArea
+        import fling_help                                    # texts live in their own file
+        self.setWindowTitle(tr("Fling — как пользоваться"))
+        self.resize(520, 680)
+        pal = self.palette(); pal.setColor(self.backgroundRole(), T.bg); self.setPalette(pal)
+        self.setAutoFillBackground(True)
+        outer = QVBoxLayout(self); outer.setContentsMargins(0, 0, 0, 0)
+        area = QScrollArea(); area.setWidgetResizable(True)  # long text: scroll inside the window
+        area.setFrameShape(QFrame.Shape.NoFrame)
+        area.setStyleSheet("QScrollArea{background:transparent}")
+        body = QWidget(); v = QVBoxLayout(body); v.setContentsMargins(22, 18, 22, 18); v.setSpacing(4)
+        v.addWidget(label(tr("Как пользоваться"), 19, weight=QFont.Weight.Bold))
+        for title, text in fling_help.HELP["en" if LANG == "en" else "ru"]:   # follow the language switch
+            t = label(title, 14, weight=QFont.Weight.DemiBold)
+            t.setContentsMargins(0, 14, 0, 2)                # space above each section
+            v.addWidget(t)
+            b = label(text, 12.5, T.fg_a(0.78), wrap=True)   # bullet steps, already translated
+            b.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)   # commands can be copied
+            v.addWidget(b)
+        v.addStretch(1)
+        area.setWidget(body)
+        outer.addWidget(area)
+
+
+def open_help(holder):
+    """Open (or raise) the single help window; `holder` keeps a reference so it isn't garbage-collected."""
+    if not getattr(holder, "_help", None):
+        holder._help = HelpWindow()
+    holder._help.show(); holder._help.raise_(); holder._help.activateWindow()
+
+
 class Tray(QObject):
     def __init__(self, state: State, panel: Panel):
         super().__init__()
@@ -2880,6 +2926,7 @@ class Tray(QObject):
         m.addSeparator()
         la = m.addAction("Запускать при входе", toggle_login)
         la.setCheckable(True); la.setChecked(login_enabled())
+        m.addAction("Как пользоваться", lambda: open_help(self.panel))   # guide from the tray menu
         m.addAction("Снимок экрана ТВ", s.tv_screenshot)
         m.addAction("Подключение ТВ…", self.panel.open_setup)
         m.addAction("Выйти из Fling", QApplication.quit)
@@ -2924,6 +2971,8 @@ def main():
             state.cast_tab(notify=not panel.isVisible())
         elif c == "clip":
             state.cast_clipboard(notify=not panel.isVisible())
+        elif c == "help":                                    # `fling help`
+            open_help(panel)
         elif c == "screenshot":
             state.tv_screenshot()
         elif c == "setup":
@@ -2946,6 +2995,10 @@ def main():
     state.refresh()
     if cmd not in ("tray", "background"):
         QTimer.singleShot(300, lambda: handle(cmd))
+    if not state.conf.get("help_seen"):                      # very first start: show the guide once
+        state.conf["help_seen"] = True
+        save_conf(state.conf)
+        QTimer.singleShot(1200, lambda: open_help(panel))
     return app.exec()
 
 

@@ -16,6 +16,8 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   Connect TV window; find TVs again; add a TV by IP address (named from its
   own device description); TVs with identical names are told apart by address;
   paired TVs are marked.
+- Linux: built-in "How to use" guide (13 sections, English and Russian):
+  panel row, tray menu, `fling help`, shown once on first start.
 - Android: built-in "How to use" guide ("?" button, shown once on first
   launch), English and Russian; drafted by a local LLM, checked and completed.
 - Android: the same TV chooser — paired / by-IP marks, identical names told
