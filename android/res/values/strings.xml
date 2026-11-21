@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Fling</string>
+    <string name="share_label">Cast to TV</string>
+    <string name="tile_label">Pause on TV</string>
+</resources>

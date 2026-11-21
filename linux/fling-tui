@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# fling — terminal remote for Chromecast / Google TV on top of catt (Linux/KDE).
+#   fling              interactive remote
+#   fling clip         send link from clipboard to TV (for hotkey)
+#   fling cast <URL|file>
+#   fling window       open remote in separate Konsole window
+set -uo pipefail
+
+CATT="${CATT:-$HOME/.local/bin/catt}"
+DEVICE_NAME="${FLING_DEVICE:-}"
+CACHE="$HOME/.cache/fling"; mkdir -p "$CACHE"
+IPFILE="$CACHE/device-ip"
+
+# --- device: cache IP to avoid scanning network on every command ---
+device() {
+    local ip
+    if [[ -s $IPFILE ]]; then cat "$IPFILE"; return; fi
+    ip=$(timeout 20 "$CATT" scan 2>/dev/null | awk -v n="$DEVICE_NAME" -F' - ' '$2==n{print $1; exit}')
+    [[ -z $ip ]] && ip=$(timeout 20 "$CATT" scan 2>/dev/null | awk -F' - ' '/^[0-9]/{print $1; exit}')
+    [[ -n $ip ]] && echo "$ip" > "$IPFILE"
+    echo "${ip:-$DEVICE_NAME}"
+}
+c() {   # catt with retry via rescanning if IP changed
+    "$CATT" -d "$(device)" "$@" 2>&1 && return 0
+    rm -f "$IPFILE"; "$CATT" -d "$(device)" "$@" 2>&1
+}
+
+clipboard() { qdbus6 org.kde.klipper /klipper org.kde.klipper.klipper.getClipboardContents 2>/dev/null; }
+notify()    { command -v notify-send >/dev/null && notify-send -a Fling -i video-display "Fling" "$1"; }
+
+cast_target() {
+    local t="$1"
+    t="${t#"${t%%[![:space:]]*}"}"; t="${t%"${t##*[![:space:]]}"}"   # trim
+    [[ $t == file://* ]] && t="${t#file://}"
+    if [[ $t =~ ^https?:// || -f $t ]]; then
+        echo "→ Sending: $t"
+        c cast "$t"
+    else
+        echo "Not a link or file: ${t:0:80}"; return 1
+    fi
+}
+
+# --- non-interactive commands ---
+case "${1:-}" in
+    clip)
+        u=$(clipboard)
+        if out=$(cast_target "$u"); then notify "On TV: ${u:0:100}"; else notify "${out:-Clipboard empty}"; exit 1; fi
+        exit ;;
+    cast)   shift; cast_target "$*"; exit ;;
+    window) exec konsole --hide-menubar -p tabtitle=Fling -e "$0" ;;
+    -h|--help) sed -n 2,6p "$0"; exit ;;
+    "") ;;
+    *) c "$@"; exit ;;   # everything else — directly to catt: fling pause, fling volume 30 ...
+esac
+
+# --- interactive remote ---
+B=$'\e[1m'; D=$'\e[2m'; G=$'\e[32m'; Y=$'\e[33m'; R=$'\e[0m'
+msg=""
+draw() {
+    local st
+    st=$(timeout 10 "$CATT" -d "$(device)" status 2>&1 | sed 's/^/   /')
+    clear
+    echo "${B}  📺 Fling — remote for \"$DEVICE_NAME\"${R}  ${D}($(device))${R}"
+    echo "  ─────────────────────────────────────────────"
+    echo "${G}${st:-   (no response)}${R}"
+    echo "  ─────────────────────────────────────────────"
+    echo "  ${B}c${R} link from clipboard   ${B}u${R} enter link   ${B}f${R} choose file"
+    echo "  ${B}space${R} pause/play   ${B}x${R} stop   ${B}i${R} details"
+    echo "  ${B}← →${R} -/+ 30 sec        ${B}↑ ↓${R} volume ±5   ${B}m${R} mute/unmute"
+    echo "  ${B}s${R} subtitles   ${B}r${R} refresh   ${B}d${R} find TV again   ${B}q${R} exit"
+    [[ -n $msg ]] && echo -e "\n  ${Y}${msg}${R}"
+    msg=""
+}
+muted=0
+while true; do
+    draw
+    IFS= read -rsn1 k
+    if [[ $k == $'\e' ]]; then read -rsn2 -t 0.05 k2; k="$k$k2"; fi
+    case "$k" in
+        c) msg=$(cast_target "$(clipboard)" | tail -2) ;;
+        u) printf '\n  Link or path: '; read -r u; msg=$(cast_target "$u" | tail -2) ;;
+        f) p=$(kdialog --getopenfilename "$HOME" "Video and audio (*.mp4 *.mkv *.webm *.avi *.mov *.mp3 *.flac *.m4a *.ogg)" 2>/dev/null)
+           [[ -n $p ]] && msg=$(cast_target "$p" | tail -2) ;;
+        ' ') msg=$(c play_toggle) ;;
+        x) msg=$(c stop) ;;
+        $'\e[C') msg=$(c ffwd 30) ;;
+        $'\e[D') msg=$(c rewind 30) ;;
+        $'\e[A') msg=$(c volumeup 5) ;;
+        $'\e[B') msg=$(c volumedown 5) ;;
+        m) if ((muted)); then msg=$(c volumemute false); muted=0; else msg=$(c volumemute true); muted=1; fi ;;
+        s) clear; c subs; printf '\n  Enter — back'; read -r ;;
+        i) clear; c info | less -R ;;
+        d) rm -f "$IPFILE"; msg="Found: $(device)" ;;
+        r) ;;
+        q) clear; exit 0 ;;
+    esac
+done
