@@ -1,0 +1,64 @@
+# Development
+
+## Layout
+
+```text
+linux/      fling_app.py, bt_remote.py, sf_icons.py, fling, fling-tui, install.sh, requirements.txt
+android/    src/app/fling/*.java, res/, AndroidManifest.xml, build.sh
+docs/       this documentation and screenshots
+```
+
+## Linux
+
+```sh
+cd linux && ./install.sh      # packages, catt, venv, launchers, shortcut
+fling                          # run (logs: ~/.cache/fling/app.log)
+fling quit && fling            # restart after editing ~/.local/share/fling/fling_app.py
+```
+
+Quick checks before committing:
+
+```sh
+python3 -m py_compile linux/*.py
+bash -n linux/install.sh linux/fling linux/fling-tui
+```
+
+The Bluetooth service runs on its own: `python3 linux/bt_remote.py serve`, then
+`python3 linux/bt_remote.py status` (log: `~/.cache/fling/bt.log`).
+
+## Android
+
+Requirements: a JDK 17 or newer and the Android SDK with `platforms/android-36` and
+current build-tools (`ANDROID_HOME`, default `~/Android/Sdk`).
+
+```sh
+cd android && ./build.sh       # aapt2 → javac → d8 → zipalign → apksigner (debug key)
+adb install -r Fling.apk
+```
+
+An emulator (AVD) is enough for layout and crash checks: `adb logcat -b crash`.
+Note that the emulator reaches devices on your network, so it can trigger prompts on
+a real TV.
+
+## Testing on a real TV
+
+There is no automated test suite yet. When testing against a TV, remember that several
+steps show something on its screen — the pairing code, *Allow debugging?*, Bluetooth
+pairing — and that play / pause / stop affect whoever is watching.
+
+## Translations
+
+Every new user-visible string needs English and Russian:
+
+- **Linux:** strings are written in Russian in `fling_app.py`; add the English text to
+  `EN_PHRASES` in the same file.
+- **Android:** wrap the string in `L.t(...)` and add the pair to `L.java`; labels used
+  in the manifest live in `res/values/strings.xml` and `res/values-ru/strings.xml`.
+
+## Releasing
+
+1. Update `CHANGELOG.md` (move items from *Unreleased* to a new version).
+2. Build the APK and check it on a device or emulator.
+3. Make sure no personal data is in the code, screenshots or APK
+   (IP addresses, device names, home paths).
+4. `gh release create vX.Y.Z android/Fling.apk --notes-file …`

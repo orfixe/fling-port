@@ -31,7 +31,7 @@ power, apps, d-pad, volume, typing, voice search.
 **Contents** · [Features](#features) · [How it works](#how-it-works) ·
 [Install — Linux](#install--linux) · [Install — Android](#install--android) ·
 [Connecting the TV](#connecting-the-tv) · [Usage](#usage) · [Troubleshooting](#troubleshooting) ·
-[Privacy](#privacy) · [Project layout](#project-layout) · [Credits](#credits) · [License](#license)
+[Privacy](#privacy) · [Project layout](#project-layout) · [Documentation](#documentation) · [Credits](#credits) · [License](#license)
 
 ## Features
 
@@ -179,6 +179,15 @@ android/
   res/, AndroidManifest.xml, build.sh
 docs/screenshots/
 ```
+
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| [Architecture](docs/architecture.md) | Components, threading, now-playing sources, files |
+| [Protocols](docs/protocols.md) | Cast v2, Android TV Remote v2, ADB, YouTube Lounge, Bluetooth LE HID |
+| [Development](docs/development.md) | Building, checks, testing on a real TV, translations, releases |
+| [Changelog](CHANGELOG.md) | What changed in each version |
 
 ## Credits
 
