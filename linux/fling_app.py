@@ -749,6 +749,48 @@ class State(QObject):
     def tvm_live(self):
         return self.tvm.get("state") in ("PLAYING", "PAUSED", "BUFFERING")
 
+    def tv_screenshot(self):
+        """Grab the TV screen over ADB → ~/Pictures/Fling/tv-*.png and open it."""
+        ip = self.ip
+        if not ip:
+            self._set(last_error="Устройство не выбрано")
+            return
+        def work():
+            st = adb_state(ip)
+            if st != "device":
+                return {"error": {"unauthorized": "Снимок экрана: подтвердите на ТВ «Разрешить отладку».",
+                                  "closed": "Снимок экрана работает через ADB — включите его: «Подключение ТВ…» → ADB."}
+                        .get(st, "Снимок экрана: ADB не подключён — откройте «Подключение ТВ…».")}
+            r = subprocess.run([_ADB, "-s", f"{ip}:5555", "exec-out", "screencap", "-p"],
+                               capture_output=True, timeout=20)
+            if r.returncode != 0 or not r.stdout.startswith(b"\x89PNG"):
+                return {"error": "Снимок экрана не получился: " + (r.stderr.decode(errors="ignore").strip() or "нет данных")}
+            pics = subprocess.run(["xdg-user-dir", "PICTURES"], capture_output=True, text=True).stdout.strip() or f"{HOME}/Pictures"
+            folder = os.path.join(pics, "Fling")
+            os.makedirs(folder, exist_ok=True)
+            path = os.path.join(folder, time.strftime("tv-%Y%m%d-%H%M%S.png"))
+            with open(path, "wb") as f:
+                f.write(r.stdout)
+            from PyQt6.QtGui import QImage
+            im = QImage(path).scaled(48, 27)
+            bright = max(im.pixelColor(x, y).lightness() for x in range(im.width()) for y in range(im.height()))
+            return {"path": path, "black": bright < 8}
+        def done(r, e):
+            if e or not r:
+                self._set(last_error=f"Снимок экрана: {e}")
+                return
+            if r.get("error"):
+                self._set(last_error=r["error"])
+                return
+            subprocess.Popen(["xdg-open", r["path"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if r["black"]:
+                self._set(last_error="Снимок чёрный: видео защищено от снимков (DRM у YouTube/Netflix). "
+                                     "Меню и главный экран ТВ снимаются нормально.")
+            else:
+                notify_send(f"Снимок экрана ТВ: {r['path']}")
+                self._set(last_error=None)
+        self.bg(work, done)
+
     def poll_tvm(self):
         ip = self.ip
         if not ip or self._tvm_busy:
@@ -1437,6 +1479,10 @@ def glyph(name, size=14, color=None, weight=1.7):
         p.drawArc(QRectF(s*.12, s*.12, s*.76, s*.76), 135*16, 90*16)
     elif name == "bt":
         path((s*.3, s*.3), (s*.68, s*.66), (c, s*.86), (c, s*.14), (s*.68, s*.34), (s*.3, s*.7))
+    elif name == "camera":
+        p.drawRoundedRect(QRectF(s*.12, s*.3, s*.76, s*.52), s*.08, s*.08)
+        path((s*.36, s*.3), (s*.42, s*.18), (s*.58, s*.18), (s*.64, s*.3))
+        p.drawEllipse(QRectF(c - s*.14, s*.42, s*.28, s*.28))
     elif name == "tv":
         p.drawRoundedRect(QRectF(s*.1, s*.2, s*.8, s*.54), s*.08, s*.08)
         p.drawLine(QPoint(int(s*.32), int(s*.86)), QPoint(int(s*.68), int(s*.86)))
@@ -2066,6 +2112,8 @@ class Panel(QWidget):
         v.addWidget(self.err_box)
 
         v.addWidget(Separator())
+        self.shot_row = MenuRow("Снимок экрана ТВ", icon="camera", on=state.tv_screenshot)
+        v.addWidget(self.shot_row)
         self.setup_row = MenuRow("Подключение ТВ…", icon="tv", on=lambda: (self.hide(), self.open_setup()))
         v.addWidget(self.setup_row)
         self.login = MenuRow("Запускать при входе", on=self._toggle_login)
@@ -2723,6 +2771,7 @@ class Tray(QObject):
         m.addSeparator()
         la = m.addAction("Запускать при входе", toggle_login)
         la.setCheckable(True); la.setChecked(login_enabled())
+        m.addAction("Снимок экрана ТВ", s.tv_screenshot)
         m.addAction("Подключение ТВ…", self.panel.open_setup)
         m.addAction("Выйти из Fling", QApplication.quit)
 
@@ -2766,6 +2815,8 @@ def main():
             state.cast_tab(notify=not panel.isVisible())
         elif c == "clip":
             state.cast_clipboard(notify=not panel.isVisible())
+        elif c == "screenshot":
+            state.tv_screenshot()
         elif c == "setup":
             panel.open_setup()
         elif c == "quit":
