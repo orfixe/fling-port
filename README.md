@@ -4,8 +4,9 @@
 
 **Your TV, from the KDE tray and from your phone.**
 
-A Linux (KDE Plasma) and Android port of [Fling](https://github.com/tatianathevisionary/fling),
-the macOS menu-bar caster and TV remote by **tatianathevisionary**.
+An **unofficial** Linux (KDE Plasma) and Android port of **[Fling](https://github.com/tatianathevisionary/fling)** —
+the macOS menu-bar caster and TV remote created by
+**[Damion Rashford](https://github.com/damionrashford)** and published by **[Tatiana](https://github.com/tatianathevisionary)**.
 Cast a browser tab or a link to a Chromecast / Google TV — and drive the TV itself:
 power, apps, d-pad, volume, typing, voice search.
 
@@ -15,6 +16,11 @@ power, apps, d-pad, volume, typing, voice search.
 
 </div>
 
+> **Authorship.** Fling — its idea, design, wording, app catalog and protocol work — belongs to
+> **Damion Rashford** (author of the original code) and **Tatiana** (owner of the original repository).
+> This repository is not their project and is not affiliated with or endorsed by them; it only
+> brings their app to Linux and Android.
+>
 > **Status:** private preview. This is an independent re-implementation (Python/Qt and Java),
 > not a fork: no Swift code was copied. The look, wording and app catalog follow the original
 > Fling, whose repository has no license yet — the project stays private until its author agrees.
@@ -174,8 +180,10 @@ docs/screenshots/
 
 ## Credits
 
-- **[Fling](https://github.com/tatianathevisionary/fling)** by **tatianathevisionary** — the
-  original macOS app, its design, wording and protocol research. This project exists because of it.
+- **[Fling](https://github.com/tatianathevisionary/fling)** — the original macOS app, its idea,
+  design, wording and protocol research. Created by **[Damion Rashford](https://github.com/damionrashford)**
+  (author of the original code) and published by **[Tatiana](https://github.com/tatianathevisionary)**
+  (repository owner). This port exists only because of their work.
 - [catt](https://github.com/skorokithakis/catt) (BSD-2-Clause),
   [androidtvremote2](https://github.com/tronikos/androidtvremote2) (Apache-2.0),
   [pyytlounge](https://github.com/FabioGNR/pyytlounge) (MIT),
@@ -185,5 +193,5 @@ Details in [CREDITS.md](CREDITS.md).
 
 ## License
 
-The code in this repository is [MIT](LICENSE). The original Fling's design and texts belong to
-its author; see the note in [CREDITS.md](CREDITS.md).
+The code in this repository is [MIT](LICENSE). The original Fling — its design, texts and idea —
+belongs to Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
