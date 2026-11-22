@@ -71,6 +71,23 @@ def catt_cmd(catt: str, args: list[str]) -> list[str]:
     return [catt, "--catt", *args] if FROZEN else [catt, *args]
 
 
+# Official Google platform-tools zips (ADB). Used when the binary is missing.
+PLATFORM_TOOLS_PAGE = "https://developer.android.com/tools/releases/platform-tools"
+_PLATFORM_TOOLS_ZIP = {
+    "win": "https://dl.google.com/android/repository/platform-tools-latest-windows.zip",
+    "linux": "https://dl.google.com/android/repository/platform-tools-latest-linux.zip",
+    "mac": "https://dl.google.com/android/repository/platform-tools-latest-darwin.zip",
+}
+
+
+def platform_tools_zip_url() -> str:
+    if IS_WIN:
+        return _PLATFORM_TOOLS_ZIP["win"]
+    if IS_MAC:
+        return _PLATFORM_TOOLS_ZIP["mac"]
+    return _PLATFORM_TOOLS_ZIP["linux"]
+
+
 def find_adb() -> str:
     found = shutil.which("adb")
     if found:
@@ -85,7 +102,13 @@ def find_adb() -> str:
     for p in cands:
         if os.path.exists(p):
             return p
-    return cands[-1]
+    return cands[0] if cands else _exe("adb")
+
+
+def adb_available() -> bool:
+    """True when an adb binary exists on disk (PATH, Fling data, or Android SDK)."""
+    path = find_adb()
+    return bool(path and os.path.exists(path))
 
 
 # ---------------------------------------------------------------- Qt environment (call before importing PyQt6)

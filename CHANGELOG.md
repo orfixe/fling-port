@@ -10,6 +10,15 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- Desktop/Android: stop hammering the TV with ADB “Allow debugging?” prompts — backoff after
+  unauthorized/closed, no auto-connect when opening Connect TV, IPv4-only discovery and sockets.
+- Desktop: fewer stacked windows (no auto-open help; Connect TV and the guide don’t both stay up).
+- Desktop Connect TV and extension options: drop the optional YouTube-code / Bluetooth rows and the
+  unused notify/port settings; panel keeps screenshot + Connect TV + Quit (notify / login stay in the tray).
+- Desktop: if `adb` / platform-tools is missing, Connect TV shows download links (OS zip + Google page).
+
 ## [0.2.0] - 2026-11-21
 
 ### Added
