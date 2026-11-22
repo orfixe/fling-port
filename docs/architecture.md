@@ -2,13 +2,17 @@
 
 ## Overview
 
-Two independent apps share one design and the same TV protocols:
+Three programs share one design and the same TV protocols:
 
-- **Linux** — `linux/fling_app.py` (PyQt6, single file) plus `linux/bt_remote.py`
-  (Bluetooth service, separate process). Uses `catt`, `androidtvremote2`,
-  `pyytlounge` and the `adb` CLI.
-- **Android** — `android/src/app/fling/*.java`, plain Java with its own
-  implementations of every protocol and no third-party libraries.
+- **Desktop** — `desktop/fling_app.py`, one PyQt6 app for Windows and Linux.
+  OS differences live in `desktop/fling_platform.py`. The Bluetooth remote
+  (`linux/bt_remote.py`) is a separate process and only runs on Linux.
+  Casting uses `catt`; the TV remote uses `androidtvremote2`; YouTube Lounge
+  uses `pyytlounge`; now-playing uses the `adb` CLI.
+- **Browser extension** — `extension/src`, one source built for Chrome, Firefox
+  and Safari. It talks only to the desktop app, on `127.0.0.1`.
+- **Android** — `android/src/app/fling/*.java`, plain Java, its own clients for
+  every protocol, no third-party libraries.
 
 ## Desktop app (Linux and Windows)
 

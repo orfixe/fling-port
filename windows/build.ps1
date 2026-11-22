@@ -49,7 +49,7 @@ VSVersionInfo(
     StringStruct('OriginalFilename', 'Fling.exe')])]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])]
 )
-"@ | Set-Content -Encoding utf8 $VerInfo
+"@ | ForEach-Object { [IO.File]::WriteAllText($VerInfo, $_) }
 
 Write-Host '==> PyInstaller' -ForegroundColor Cyan
 $D = Join-Path $Repo 'desktop'
@@ -67,8 +67,17 @@ Exec $Py -m PyInstaller --noconfirm --clean --windowed --name Fling `
 Write-Host '==> extensions' -ForegroundColor Cyan
 Exec $Py (Join-Path $Repo 'extension\build.py')
 
-Write-Host '==> zip' -ForegroundColor Cyan
+Write-Host '==> adb' -ForegroundColor Cyan
 $Out = Join-Path $Work 'out\Fling'
+$Adb = Join-Path $Out 'platform-tools\adb.exe'
+if (-not (Test-Path $Adb)) {
+  $zipAdb = Join-Path $Work 'platform-tools.zip'
+  Invoke-WebRequest 'https://dl.google.com/android/repository/platform-tools-latest-windows.zip' -OutFile $zipAdb
+  Expand-Archive $zipAdb -DestinationPath $Out -Force
+  Remove-Item $zipAdb -Force
+}
+
+Write-Host '==> zip' -ForegroundColor Cyan
 $Zip = Join-Path $Dist "Fling-Windows-$Ver.zip"
 Remove-Item $Zip -ErrorAction SilentlyContinue
 Copy-Item (Join-Path $Repo 'extension\dist\chrome') (Join-Path $Out 'extension\chrome') -Recurse -Force

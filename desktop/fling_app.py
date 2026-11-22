@@ -1052,8 +1052,14 @@ class State(QObject):
         self.devices = [x for x in self.devices if x["ip"] != d["ip"]]
         self.conf["devices"] = self.devices
         save_conf(self.conf)
-        if self.device and self.device["ip"] == d["ip"] and self.devices:   # removed the current TV:
-            self.select_device(self.devices[0])                              # fall back to the first one
+        if self.device and self.device["ip"] == d["ip"]:
+            if self.devices:
+                self.select_device(self.devices[0])
+            else:
+                self.device = None
+                self.status = {}
+                self.conf["device"] = None
+                save_conf(self.conf)
         self.changed.emit()
 
     # actions
@@ -1078,6 +1084,10 @@ class State(QObject):
                 notify_send(f"Нельзя отправить: {reason}")
             return
         if self.cast_in_flight:
+            self._set(last_error="Уже отправляю…")
+            return
+        if not self.ip:
+            self._set(last_error="Устройство не выбрано")
             return
         self.cast_in_flight = True
         self.changed.emit()
@@ -1330,7 +1340,8 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Телевизор не ответил. Убедитесь, что он включён, и попробуйте снова.",
      "The TV did not respond. Make sure it is awake, then try again."),
     ("Телевизор не ответил.", "The TV didn't answer."),
-    ("Устройство не выбрано", "No device selected"), ("Устройство не найдено", "No device found"),
+    ("Устройство не выбрано", "No device selected"), ("Уже отправляю…", "Already sending…"),
+    ("Уже отправляю…", "Already sending…"), ("Устройство не найдено", "No device found"),
     ("Устройство", "Device"), ("Это не веб-страница", "Not a web page"),
     ("catt не ответил вовремя и был остановлен. Попробуйте ещё раз.", "catt did not finish in time and was stopped. Try again."),
     ("catt не установлен", "catt is not installed"), ("Fling нужен catt", "Fling needs catt"),
@@ -3281,6 +3292,7 @@ def send_to_running(cmd: str) -> bool:
     sock.write(cmd.encode())
     sock.flush()
     sock.waitForBytesWritten(400)
+    sock.waitForReadyRead(800)   # server answers "ok" once it has the command
     sock.disconnectFromServer()
     return True
 
@@ -3457,9 +3469,15 @@ def main():
     def incoming():
         conn = server.nextPendingConnection()
         def read():
-            handle(bytes(conn.readAll()).decode(errors="ignore"))
+            data = bytes(conn.readAll())
+            if data:
+                handle(data.decode(errors="ignore"))
+                conn.write(b"ok\n")
+                conn.flush()
         conn.readyRead.connect(read)
         conn.disconnected.connect(conn.deleteLater)
+        if conn.bytesAvailable():
+            read()
     server.newConnection.connect(incoming)
 
     ui = _UiCall()

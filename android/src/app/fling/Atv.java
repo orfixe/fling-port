@@ -90,7 +90,7 @@ final class Atv {
         io.execute(() -> {
             l.onPairing("verifying", "");
             try {
-                if (pairSock == null) throw new IOException(L.t("Сначала начните настройку"));
+                if (pairSock == null) throw new IOException(L.t("Сначала нажмите «Связать с ТВ»"));
                 byte[] pinBytes = hex(pin);
                 RSAPublicKey c = Tls.clientPublic();
                 RSAPublicKey s = (RSAPublicKey) ((X509Certificate) pairSock.getSession().getPeerCertificates()[0]).getPublicKey();
@@ -300,7 +300,7 @@ final class Atv {
 
     void voiceBegin(String host) {
         command(host, () -> {
-            if ((features & F_VOICE) == 0) throw new IOException(L.t("Этот ТВ не принимает голос — используйте ввод текста."));
+            if ((features & F_VOICE) == 0) throw new IOException(L.t("Этот ТВ не принимает голос — напечатайте запрос."));
             voiceLatch = new CountDownLatch(1);
             voiceBegun = -1;
             send(new Proto.W().msg(10, new Proto.W().varint(1, SEARCH).varint(2, 3)).out());

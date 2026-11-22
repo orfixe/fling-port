@@ -1,34 +1,31 @@
 # Contributing
 
-## Getting Started
+Thanks for looking. This is an unofficial port, and a TV someone is watching is not a test device — pairing, ADB and Bluetooth all put a prompt on the screen.
 
-### Linux
-    git clone https://github.com/orfixe/fling-port.git
-    cd fling-port/linux
-    ./install.sh   # installs dependencies and launchers
+## Getting it running
 
-### Android
-    cd android
-    ./build.sh     # requires ANDROID_HOME, JDK 17+, platform android-36
-    adb install -r Fling.apk
+Linux:
 
-## Code Style
+```sh
+git clone https://github.com/orfixe/fling-port.git
+cd fling-port/linux
+./install.sh
+```
 
-- **Python**: PEP 8, single‑file applications (`fling_app.py`, `bt_remote.py`).
-- **Java**: Java 17, no AndroidX or Gradle. Source files under `android/src/app/fling/`. Keep classes small and self‑contained.
+Windows, from source: double-click `windows\install.cmd`.
 
-## Testing on a Real TV
+Android (needs `ANDROID_HOME`, a JDK 17+, platform android-36):
 
-1. Ensure the TV and phone are on the same Wi‑Fi network.
-2. Open *Connect TV…* from the panel or launch `fling setup`.
-3. Use “Find and connect everything” to discover the TV.
-4. Verify that controls (play/pause, volume, d‑pad) work before submitting a PR.
+```sh
+cd android
+./build.sh
+adb install -r Fling.apk
+```
 
-Be considerate when testing on a TV someone is watching: pairing, ADB and Bluetooth steps show prompts on the TV screen.
-Run `./install.sh` after changes to confirm the launchers still work.
+The desktop app lives in `desktop/`, not in `linux/`. Linux-only pieces are the installer, the Bluetooth remote and `fling-tui`.
 
-## Pull Request Checklist
+## Before you send a change
 
-- [ ] Code follows style guidelines.
-- [ ] New UI strings have English and Russian: Linux — `EN_PHRASES` in `linux/fling_app.py`; Android — `L.java` (and `res/values*/strings.xml` for manifest labels).
-- [ ] Tested on a real TV (Linux + Android) – all controls work.
+- New text needs both languages. Desktop strings are Russian in `desktop/fling_app.py`, English in `EN_PHRASES` in the same file. The guide is `desktop/fling_help.py`. Android pairs go in `L.java` (and `res/values/strings.xml` plus `res/values-ru/strings.xml` for manifest labels). Extension strings go in `extension/src/_locales/en` and `ru`.
+- Try it on a real TV if you touched casting, the remote, or discovery. Play, pause, volume and the d-pad are the minimum.
+- Don't leave a real IP, a TV name, or a home path in code, screenshots or the APK.

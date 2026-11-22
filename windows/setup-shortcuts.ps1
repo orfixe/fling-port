@@ -24,7 +24,11 @@ $s.IconLocation = "$Exe,0"; $s.Description = 'Fling - cast to Chromecast / Googl
 $s.Save()
 
 New-Item -ItemType Directory -Force -Path $Bin | Out-Null
-"@echo off`r`nstart `"`" `"$Exe`" %*`r`n" | Set-Content -Encoding ascii (Join-Path $Bin 'fling.cmd')
+# The .cmd stays ASCII. The real path lives in a UTF-8 script, so a Cyrillic profile name still works.
+$run = Join-Path $Bin 'fling-run.ps1'
+$exeLit = $Exe.Replace("'", "''")
+[IO.File]::WriteAllText($run, "Start-Process -FilePath '$exeLit' -ArgumentList `$args`r`n", [Text.UTF8Encoding]::new($true))
+"@echo off`r`npowershell -NoProfile -ExecutionPolicy Bypass -File `"%~dp0fling-run.ps1`" %*`r`n" | Set-Content -Encoding ascii (Join-Path $Bin 'fling.cmd')
 $p = [Environment]::GetEnvironmentVariable('Path', 'User')
 if (-not (($p -split ';') -contains $Bin)) {
   [Environment]::SetEnvironmentVariable('Path', (($p, $Bin) -join ';').TrimStart(';'), 'User')
