@@ -626,6 +626,12 @@ def _adb_cached(ip: str) -> str | None:
     return None
 
 
+def _adb_serial(ip: str, port: int | None = None) -> str:
+    """`ip:port` for adb -s / connect. Wireless debugging often uses a non-5555 port."""
+    p = int(port or load_conf().get("adb_port") or 5555)
+    return f"{ip}:{p}"
+
+
 def adb_now_playing(ip: str) -> dict | None:
     """Parse `dumpsys media_session` on the TV: the active app's real title,
     artist, play state and position. None when ADB isn't authorised."""
@@ -634,7 +640,7 @@ def adb_now_playing(ip: str) -> dict | None:
     cached = _adb_cached(ip)
     if cached in ("unauthorized", "closed", "missing", "offline"):
         return None                       # do not `adb connect` again — that re-prompts the TV
-    serial = f"{ip}:5555"
+    serial = _adb_serial(ip)
     def sh(cmd, t=6):
         return P.run([_ADB, "-s", serial, "shell", cmd], capture_output=True, text=True, timeout=t,
                      encoding="utf-8", errors="replace")
@@ -647,9 +653,10 @@ def adb_now_playing(ip: str) -> dict | None:
         # If devices says unauthorized, remember and stop hammering the TV
         out = P.run([_ADB, "devices"], capture_output=True, text=True, timeout=5).stdout
         for line in out.splitlines():
-            if line.startswith(serial) and "unauthorized" in line:
-                _adb_remember(ip, "unauthorized")
-                return None
+            if serial in line.split()[:1] or line.startswith(serial):
+                if "unauthorized" in line:
+                    _adb_remember(ip, "unauthorized")
+                    return None
         r = sh("dumpsys media_session; echo __UP__; cat /proc/uptime")
         if r.returncode != 0 or "__UP__" not in r.stdout:
             return None
@@ -819,7 +826,7 @@ class State(QObject):
                                   "closed": "Снимок экрана работает через ADB — включите его: «Подключение ТВ…» → ADB.",
                                   "missing": "Снимок экрана: ADB не установлен — откройте «Подключение ТВ…» и скачайте platform-tools."}
                         .get(st, "Снимок экрана: ADB не подключён — откройте «Подключение ТВ…».")}
-            r = P.run([_ADB, "-s", f"{ip}:5555", "exec-out", "screencap", "-p"],
+            r = P.run([_ADB, "-s", _adb_serial(ip), "exec-out", "screencap", "-p"],
                                capture_output=True, timeout=20)
             if r.returncode != 0 or not r.stdout.startswith(b"\x89PNG"):
                 return {"error": "Снимок экрана не получился: " + (r.stderr.decode(errors="ignore").strip() or "нет данных")}
@@ -1461,6 +1468,22 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
     (' в PATH — затем нажмите «Проверить».', ' on your PATH — then press “Check”.'),
     ('Снимок экрана: ADB не установлен — откройте «Подключение ТВ…» и скачайте platform-tools.',
      'Screenshot: ADB is not installed — open “Connect TV…” and download platform-tools.'),
+    ('Сначала найдите или выберите ТВ выше — без IP ADB подключить нельзя.',
+     'Find or select a TV above first — ADB needs an IP.'),
+    ('порт сопряжения', 'pairing port'),
+    ('порт подключения (часто не 5555)', 'connection port (often not 5555)'),
+    ('Порт подключения:', 'Connection port:'),
+    ('Введите порт сопряжения и 6-значный код из «Беспроводной отладки» на ТВ. Порт подключения (строка «IP-адрес и порт») — отдельно, ниже.',
+     'Enter the pairing port and 6-digit code from “Wireless debugging” on the TV. The connection port (“IP address & port”) is the separate field below.'),
+    ('Связано. Подключаюсь по порту подключения…', 'Paired. Connecting on the connection port…'),
+    ('ADB на ТВ не отвечает на этом порту. На ТВ: «Для разработчиков» → включите «Отладка по USB» и «Беспроводная отладка». Возьмите с экрана ТВ порт сопряжения + код (Связать) и отдельно порт из строки «IP-адрес и порт» (поле «Порт подключения», часто не 5555) → Проверить.',
+     'ADB on the TV is not answering on this port. On the TV: Developer options → turn on “USB debugging” and “Wireless debugging”. Use the pairing port + code (Pair), then the port from “IP address & port” (Connection port field, often not 5555) → Check.'),
+    ('На экране ТВ появился запрос — нажмите «Разрешить» (лучше с галочкой «Всегда»). Потом нажмите «Проверить». Пока не разрешите — Fling сам повторно спрашивать не будет.',
+     'The TV is asking for permission — choose “Allow” (ideally with “Always”), then press “Check”. Until you allow it, Fling will not ask again on its own.'),
+    ('Подключено (', 'Connected ('),
+    ('): панель видит, что играет на ТВ.', '): the panel sees what the TV is playing.'),
+    ('Подключаюсь к ТВ по ADB (', 'Connecting to the TV over ADB ('),
+
     ('Найти и подключить всё', 'Find and connect everything'),
     ('Поиск ТВ в локальной сети', 'Find the TV on the local network'),
     ('Пульт ТВ (по сети)', 'TV remote (network)'),
@@ -2937,7 +2960,7 @@ class Panel(QWidget):
 
 # ---------------------------------------------------------------- "Connect TV" window: find / pair remote / ADB / YouTube / BT
 
-def adb_state(ip: str, force: bool = False) -> str:
+def adb_state(ip: str, force: bool = False, port: int | None = None) -> str:
     """device | unauthorized | closed | offline | missing
 
     `force=True` bypasses the backoff (user clicked Check / Pair).
@@ -2949,32 +2972,54 @@ def adb_state(ip: str, force: bool = False) -> str:
         return "missing"
     if not ip or not _is_ipv4(ip):
         return "offline"
-    if not force:
-        cached = _adb_cached(ip)
-        if cached:
-            return cached
+    if force:
+        _ADB_HOST.pop(ip, None)           # user retry — drop stale closed/unauthorized
+    elif (cached := _adb_cached(ip)):
+        return cached
+    conf = load_conf()
+    ports = []
+    if port:
+        ports.append(int(port))
+    conf_port = conf.get("adb_port")
+    if conf_port:
+        try:
+            ports.append(int(conf_port))
+        except (TypeError, ValueError):
+            pass
+    if 5555 not in ports:
+        ports.append(5555)
+    # unique, keep order
+    seen = set(); ports = [p for p in ports if not (p in seen or seen.add(p))]
+
     import socket as _s
-    c = _s.socket(_s.AF_INET, _s.SOCK_STREAM); c.settimeout(1.5)
-    try:
-        c.connect((ip, 5555))
-    except OSError:
-        _adb_remember(ip, "closed")
-        return "closed"
-    finally:
-        c.close()
-    serial = f"{ip}:5555"
-    P.run([_ADB, "connect", serial], capture_output=True, timeout=8)
-    out = P.run([_ADB, "devices"], capture_output=True, text=True, timeout=5).stdout
-    for line in out.splitlines():
-        if line.startswith(serial):
-            st = line.split()[1]
+    last = "closed"
+    for p in ports:
+        c = _s.socket(_s.AF_INET, _s.SOCK_STREAM); c.settimeout(1.5)
+        try:
+            c.connect((ip, p))
+        except OSError:
+            last = "closed"
+            continue
+        finally:
+            c.close()
+        serial = f"{ip}:{p}"
+        P.run([_ADB, "connect", serial], capture_output=True, timeout=8)
+        out = P.run([_ADB, "devices"], capture_output=True, text=True, timeout=5).stdout
+        for line in out.splitlines():
+            if not line.startswith(serial):
+                continue
+            st = line.split()[1] if len(line.split()) > 1 else "offline"
             if st == "device":
+                conf["adb_port"] = p
+                save_conf(conf)
                 _ADB_HOST[ip] = ("device", 0.0)
-            else:
-                _adb_remember(ip, st if st in _ADB_BACKOFF else "offline")
-            return st
-    _adb_remember(ip, "offline")
-    return "offline"
+                return "device"
+            last = st if st in _ADB_BACKOFF else "offline"
+            _adb_remember(ip, last)
+            return last
+        last = "offline"
+    _adb_remember(ip, last)
+    return last
 
 
 def _adb_missing_html() -> str:
@@ -3068,11 +3113,18 @@ class SetupWindow(QWidget):
             el.addWidget(self.pin, 1); el.addWidget(small_button("Связать", self._pin))
         elif key == "adb":
             btn.clicked.connect(self.adb_connect)
-            self.wport = field("порт", mono=True); self.wport.setFixedWidth(80)
+            self.wport = field("порт сопряжения", mono=True); self.wport.setFixedWidth(100)
             self.wcode = field("код из 6 цифр", mono=True)
+            self.wconn = field("порт подключения (часто не 5555)", mono=True)
+            self.wconn.setText(str(load_conf().get("adb_port") or "5555"))
             el.addWidget(label("Беспроводная отладка:", 11, T.fg_a(0.6)))
             el.addWidget(self.wport); el.addWidget(self.wcode, 1)
             el.addWidget(small_button("Связать", self.adb_pair))
+            # second line: connection port from the TV's “IP address & port”
+            row2 = QHBoxLayout(); row2.setContentsMargins(0, 4, 0, 0); row2.setSpacing(6)
+            row2.addWidget(label("Порт подключения:", 11, T.fg_a(0.6)))
+            row2.addWidget(self.wconn, 1)
+            lay.addLayout(row2)
         return box
 
     def _set(self, key, mark, info, btn=None, extra=None):
@@ -3133,31 +3185,47 @@ class SetupWindow(QWidget):
             self.pin.clear()
             self.state.atv.finish_pairing(code)
 
+    def _adb_conn_port(self) -> int | None:
+        t = (self.wconn.text() if hasattr(self, "wconn") else "").strip()
+        return int(t) if t.isdigit() else None
+
     def adb_connect(self):
         ip = self.state.ip
         if not P.adb_available():
             self._adb_result("missing")
             return
         if not ip:
+            self._set("adb", "need", "Сначала найдите или выберите ТВ выше — без IP ADB подключить нельзя.",
+                      "Подключить", False)
             return
-        self._set("adb", "run", "Подключаюсь к ТВ по ADB…", None)
+        port = self._adb_conn_port()
+        self._set("adb", "run", f"Подключаюсь к ТВ по ADB ({ip}:{port or load_conf().get('adb_port') or 5555})…", None)
         # force=True: user clicked Connect/Check — ok to talk to the TV once
-        self.state.bg(lambda: adb_state(ip, force=True), lambda r, e: self._adb_result(r or "offline"))
+        self.state.bg(lambda: adb_state(ip, force=True, port=port),
+                     lambda r, e: self._adb_result(r or "offline"))
 
     def adb_pair(self):
         if not P.adb_available():
             self._adb_result("missing")
             return
-        ip, port, code = self.state.ip, self.wport.text().strip(), re.sub(r"\D", "", self.wcode.text())
-        if not (ip and port.isdigit() and len(code) == 6):
-            self._set("adb", "need", "Введите порт и 6-значный код из «Беспроводной отладки» на ТВ.", "Проверить", True)
+        ip = self.state.ip
+        if not ip:
+            self._set("adb", "need", "Сначала найдите или выберите ТВ выше — без IP ADB подключить нельзя.",
+                      "Подключить", True)
+            return
+        port, code = self.wport.text().strip(), re.sub(r"\D", "", self.wcode.text())
+        if not (port.isdigit() and len(code) == 6):
+            self._set("adb", "need", "Введите порт сопряжения и 6-значный код из «Беспроводной отладки» на ТВ. "
+                      "Порт подключения (строка «IP-адрес и порт») — отдельно, ниже.", "Проверить", True)
             return
         def work():
             r = P.run([_ADB, "pair", f"{ip}:{port}", code], capture_output=True, text=True, timeout=20)
             return (r.stdout + r.stderr).strip()
         def done(out, e):
             ok = out and "Successfully paired" in out
-            self._set("adb", "ok" if ok else "fail", "Связано. Подключаюсь…" if ok else f"Не вышло: {out or e}", "Проверить", not ok)
+            self._set("adb", "ok" if ok else "fail",
+                      "Связано. Подключаюсь по порту подключения…" if ok else f"Не вышло: {out or e}",
+                      "Проверить", not ok)
             if ok:
                 self.adb_connect()
         self.state.bg(work, done)
@@ -3165,19 +3233,24 @@ class SetupWindow(QWidget):
     def _adb_result(self, st):
         self.adb = st
         if st == "device":
-            self._set("adb", "ok", "Подключено: панель видит, что играет на ТВ.", "Проверить", False)
+            p = load_conf().get("adb_port") or 5555
+            self._set("adb", "ok", f"Подключено ({self.state.ip}:{p}): панель видит, что играет на ТВ.", "Проверить", False)
+            if hasattr(self, "wconn"):
+                self.wconn.setText(str(p))
             self.state.poll_tvm()
         elif st == "unauthorized":
             self._set("adb", "need", "На экране ТВ появился запрос — нажмите «Разрешить» (лучше с галочкой «Всегда»). "
-                      "Пока не нажмёте — Fling больше не будет спрашивать сам.",
-                      "Проверить", False)
+                      "Потом нажмите «Проверить». Пока не разрешите — Fling сам повторно спрашивать не будет.",
+                      "Проверить", True)
         elif st == "missing":
             self.rows["adb"]["info"].setOpenExternalLinks(True)
             self._set("adb", "need", _adb_missing_html(), "Проверить", False)
         else:
-            self._set("adb", "need", "ADB на ТВ выключен. На ТВ: Настройки → Система → О системе → 7 раз нажать «Сборка ОС» → "
-                      "Настройки → Система → Для разработчиков → включить «Отладка по USB» и «Беспроводная отладка». "
-                      "Если ТВ показывает код сопряжения — впишите порт и код ниже.", "Проверить", True)
+            self._set("adb", "need",
+                      "ADB на ТВ не отвечает на этом порту. На ТВ: «Для разработчиков» → включите «Отладка по USB» "
+                      "и «Беспроводная отладка». Возьмите с экрана ТВ порт сопряжения + код (Связать) и отдельно "
+                      "порт из строки «IP-адрес и порт» (поле «Порт подключения», часто не 5555) → Проверить.",
+                      "Проверить", True)
 
     # ---- state → rows
     def sync(self):
