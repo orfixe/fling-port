@@ -1473,6 +1473,13 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
     ('порт сопряжения', 'pairing port'),
     ('порт подключения (часто не 5555)', 'connection port (often not 5555)'),
     ('Порт подключения:', 'Connection port:'),
+    ('Порт ADB:', 'ADB port:'),
+    ('Сопряжение:', 'Pairing:'),
+    ('например 5555 или 37123', 'e.g. 5555 or 37123'),
+    ('Порт ADB — только цифры (или вставьте «IP:порт» с экрана ТВ).',
+     'ADB port must be digits (or paste “IP:port” from the TV screen).'),
+    ('Впишите порт ADB с ТВ (Беспроводная отладка → «IP-адрес и порт») и нажмите «Подключить». Если ТВ показывает код сопряжения — заполните строку «Сопряжение» и нажмите «Связать».',
+     'Type the ADB port from the TV (Wireless debugging → “IP address & port”) and press “Connect”. If the TV shows a pairing code, fill in Pairing and press “Pair”.'),
     ('Введите порт сопряжения и 6-значный код из «Беспроводной отладки» на ТВ. Порт подключения (строка «IP-адрес и порт») — отдельно, ниже.',
      'Enter the pairing port and 6-digit code from “Wireless debugging” on the TV. The connection port (“IP address & port”) is the separate field below.'),
     ('Связано. Подключаюсь по порту подключения…', 'Paired. Connecting on the connection port…'),
@@ -3113,18 +3120,26 @@ class SetupWindow(QWidget):
             el.addWidget(self.pin, 1); el.addWidget(small_button("Связать", self._pin))
         elif key == "adb":
             btn.clicked.connect(self.adb_connect)
-            self.wport = field("порт сопряжения", mono=True); self.wport.setFixedWidth(100)
+            # Always-visible editable ports — user types what the TV shows
+            self.wconn = field("например 5555 или 37123", mono=True)
+            self.wconn.setText(str(load_conf().get("adb_port") or ""))
+            self.wconn.setClearButtonEnabled(True)
+            self.wconn.editingFinished.connect(self._save_adb_port)
+            self.wconn.returnPressed.connect(self.adb_connect)
+            port_row = QHBoxLayout(); port_row.setContentsMargins(0, 2, 0, 0); port_row.setSpacing(6)
+            port_row.addWidget(label("Порт ADB:", 11, T.fg_a(0.6)))
+            port_row.addWidget(self.wconn, 1)
+            lay.addLayout(port_row)
+            # Pairing (wireless debugging code) — also always visible so it isn't missed
+            self.wport = field("порт сопряжения", mono=True); self.wport.setFixedWidth(110)
             self.wcode = field("код из 6 цифр", mono=True)
-            self.wconn = field("порт подключения (часто не 5555)", mono=True)
-            self.wconn.setText(str(load_conf().get("adb_port") or "5555"))
-            el.addWidget(label("Беспроводная отладка:", 11, T.fg_a(0.6)))
-            el.addWidget(self.wport); el.addWidget(self.wcode, 1)
-            el.addWidget(small_button("Связать", self.adb_pair))
-            # second line: connection port from the TV's “IP address & port”
-            row2 = QHBoxLayout(); row2.setContentsMargins(0, 4, 0, 0); row2.setSpacing(6)
-            row2.addWidget(label("Порт подключения:", 11, T.fg_a(0.6)))
-            row2.addWidget(self.wconn, 1)
-            lay.addLayout(row2)
+            pair_row = QHBoxLayout(); pair_row.setContentsMargins(0, 2, 0, 0); pair_row.setSpacing(6)
+            pair_row.addWidget(label("Сопряжение:", 11, T.fg_a(0.6)))
+            pair_row.addWidget(self.wport)
+            pair_row.addWidget(self.wcode, 1)
+            pair_row.addWidget(small_button("Связать", self.adb_pair))
+            lay.addLayout(pair_row)
+            # keep extra empty (legacy slot); ports are no longer hidden behind it
         return box
 
     def _set(self, key, mark, info, btn=None, extra=None):
@@ -3187,7 +3202,19 @@ class SetupWindow(QWidget):
 
     def _adb_conn_port(self) -> int | None:
         t = (self.wconn.text() if hasattr(self, "wconn") else "").strip()
+        # allow "192.168.1.5:37123" paste — take the port part
+        if ":" in t:
+            t = t.rsplit(":", 1)[-1].strip()
         return int(t) if t.isdigit() else None
+
+    def _save_adb_port(self):
+        port = self._adb_conn_port()
+        if not port:
+            return
+        c = load_conf()
+        c["adb_port"] = port
+        save_conf(c)
+        self.state.conf = c
 
     def adb_connect(self):
         ip = self.state.ip
@@ -3199,7 +3226,14 @@ class SetupWindow(QWidget):
                       "Подключить", False)
             return
         port = self._adb_conn_port()
-        self._set("adb", "run", f"Подключаюсь к ТВ по ADB ({ip}:{port or load_conf().get('adb_port') or 5555})…", None)
+        if self.wconn.text().strip() and port is None:
+            self._set("adb", "need", "Порт ADB — только цифры (или вставьте «IP:порт» с экрана ТВ).",
+                      "Подключить", False)
+            return
+        if port:
+            self._save_adb_port()
+        shown = port or load_conf().get("adb_port") or 5555
+        self._set("adb", "run", f"Подключаюсь к ТВ по ADB ({ip}:{shown})…", None)
         # force=True: user clicked Connect/Check — ok to talk to the TV once
         self.state.bg(lambda: adb_state(ip, force=True, port=port),
                      lambda r, e: self._adb_result(r or "offline"))
@@ -3278,7 +3312,15 @@ class SetupWindow(QWidget):
             if not P.adb_available():
                 self._adb_result("missing")
             else:
-                self._set("adb", "off", "Не проверено — нажмите «Подключить», когда будете у ТВ.", "Подключить")
+                self._set("adb", "off",
+                          "Впишите порт ADB с ТВ (Беспроводная отладка → «IP-адрес и порт») и нажмите «Подключить». "
+                          "Если ТВ показывает код сопряжения — заполните строку «Сопряжение» и нажмите «Связать».",
+                          "Подключить")
+        # Keep the typed port visible; don't wipe what the user entered
+        if hasattr(self, "wconn") and not self.wconn.hasFocus() and not self.wconn.text().strip():
+            saved = load_conf().get("adb_port")
+            if saved:
+                self.wconn.setText(str(saved))
 
 
 # ---------------------------------------------------------------- "How to use" window
