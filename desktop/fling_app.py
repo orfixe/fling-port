@@ -297,6 +297,16 @@ REMOTE_KEYS = {
 _REMOTE_BY_QT = {qt: name for name, keys in REMOTE_KEYS.items() for qt in keys}
 # Keys that should auto-repeat while held (d-pad + volume)
 _REMOTE_REPEAT = {"up", "down", "left", "right", "vol_up", "vol_down"}
+# RU layout letters on the physical WASD / H / M / P keys (Qt may lack Cyrillic Key_* enums)
+_REMOTE_BY_TEXT = {
+    "ц": "up", "w": "up",
+    "ф": "left", "a": "left",
+    "ы": "down", "s": "down",
+    "в": "right", "d": "right",
+    "р": "home", "h": "home",
+    "ь": "mute", "m": "mute",
+    "з": "play_pause", "p": "play_pause",
+}
 
 TV_APPS = [  # TVApp.swift catalog
     ("YouTube", "vnd.youtube.launch://", "com.google.android.youtube.tv"),
@@ -2794,9 +2804,11 @@ class Panel(QWidget):
             return False
 
         name = _REMOTE_BY_QT.get(k)
-        # Numpad digits: Qt may report Key_8 without keypad flag on some laptops —
-        # only treat 2/4/5/6/8/0 as d-pad when KeypadModifier is set OR remote is ready
-        # and no shift (shift+arrows already used for seek via shortcut).
+        if name is None:
+            # RU/EN letter fallback via the character produced (layout-independent intent)
+            ch = (e.text() or "").lower()
+            if len(ch) == 1:
+                name = _REMOTE_BY_TEXT.get(ch)
         if name in _REMOTE_REPEAT and e.isAutoRepeat():
             pass  # allow hold-to-repeat for d-pad / volume
         elif e.isAutoRepeat() and name not in _REMOTE_REPEAT:
