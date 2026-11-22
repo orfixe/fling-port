@@ -7,7 +7,8 @@
 Fling is an icon next to the clock that sends videos from your browser to the TV
 (Chromecast / Google TV) and turns the PC into a remote: power, apps, d-pad, volume,
 typing, voice search. It's an unofficial port of the macOS app
-[Fling](https://github.com/tatianathevisionary/fling) by Damion Rashford and Tatiana.
+[Fling](https://github.com/tatianathevisionary/fling) — original code by Damion Rashford,
+published by Tatiana (see [CREDITS.md](../CREDITS.md)).
 
 Two parts:
 

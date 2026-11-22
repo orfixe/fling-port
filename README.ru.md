@@ -141,4 +141,5 @@ ADB («Разрешить отладку?» → «Всегда»), по жела
 ## Лицензия
 
 Код этого репозитория — [MIT](LICENSE). Оригинальный Fling — его дизайн, тексты и идея — принадлежит
-Damion Rashford и Tatiana, см. [CREDITS.md](CREDITS.md).
+авторам: код написал **Damion Rashford**, репозиторий принадлежит и публикует **Tatiana**.
+См. [CREDITS.md](CREDITS.md).

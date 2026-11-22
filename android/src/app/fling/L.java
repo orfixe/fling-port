@@ -81,7 +81,8 @@ final class L {
         e("Снимок экрана: подтвердите на ТВ «Разрешить отладку».", "Screenshot: accept “Allow debugging” on the TV.");
         e("Снимок экрана работает через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети».", "Screenshots need ADB — on the TV enable Developer options → Network debugging.");
         e("Снимок экрана не получился: ", "Screenshot failed: ");
-        e("Fling создан Damion Rashford и Tatiana · неофициальный порт", "Fling by Damion Rashford & Tatiana · unofficial port");
+        e("Fling — код Damion Rashford · репозиторий Tatiana · неофициальный порт",
+          "Fling by Damion Rashford · published by Tatiana · unofficial port");
         e("%s на ТВ", "%s on the TV");
         e("ТВ не сообщает, что сейчас играет — показываю только приложение.", "The TV doesn't report what's playing — showing the app only.");
         // errors: Cast / Atv

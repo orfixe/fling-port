@@ -1218,7 +1218,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         hint.setGravity(Gravity.CENTER);
         root.addView(hint, ui.margins(Ui.lp(-1, -2), 0, 6, 0, 0));
         // authorship: Fling is Damion Rashford's and Tatiana's app; this is an unofficial port
-        TextView credit = ui.text(L.t("Fling создан Damion Rashford и Tatiana · неофициальный порт"), 12, ui.fgA(0.45f), false);
+        TextView credit = ui.text(L.t("Fling — код Damion Rashford · репозиторий Tatiana · неофициальный порт"), 12, ui.fgA(0.45f), false);
         credit.setGravity(Gravity.CENTER);
         credit.setPadding(0, ui.dp(6), 0, ui.dp(6));
         credit.setOnClickListener(v -> {

@@ -7,7 +7,8 @@
 Fling — это значок рядом с часами, который отправляет видео из браузера на телевизор
 (Chromecast / Google TV) и превращает компьютер в пульт: питание, приложения, стрелки,
 громкость, ввод текста, голосовой поиск. Это неофициальный порт macOS-приложения
-[Fling](https://github.com/tatianathevisionary/fling) от Damion Rashford и Tatiana.
+[Fling](https://github.com/tatianathevisionary/fling) — код Damion Rashford,
+репозиторий Tatiana (см. [CREDITS.md](../CREDITS.md)).
 
 Установка состоит из двух частей:
 
