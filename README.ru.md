@@ -49,6 +49,10 @@
 
 Компьютер / телефон и телевизор должны быть в одной сети.
 
+**Проверено на:** Windows 11 с Edge и Chrome, Kubuntu 26.04 (KDE Plasma 6), Android 17 (Samsung),
+телевизор TCL с Google TV. Расширение для Firefox и Safari собрано, но ещё не проверялось —
+будем рады отзывам.
+
 ## Возможности
 
 | | Windows | Linux (KDE) | Android | Расширение |
@@ -93,7 +97,7 @@
 |---|---|
 | Chrome, Edge, Яндекс, Brave, Opera, Vivaldi | страница расширений → «Режим разработчика» → **«Загрузить распакованное»** → папка `extension\chrome` |
 | Firefox | `about:debugging` → **«Загрузить временное дополнение»** → `fling-firefox-….zip` |
-| Safari (Mac) | `extension/safari/build-safari.sh` на Mac с Xcode |
+| Safari (Mac) | `extension/safari/build-safari.sh` на Mac с Xcode; нужен Fling на этом же Mac (пока не проверялось) |
 
 Подробно — в [гайде, часть 2](docs/install-windows.ru.md#часть-2-расширение-для-браузера).
 

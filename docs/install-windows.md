@@ -109,7 +109,8 @@ Fling in Safari → Settings → Extensions.
 | Pause / seek | Space, ← / → in the panel or the extension popup |
 | TV arrows | the d-pad, or scroll over the panel |
 | Next-video notifications | on by default (green bell); click "Notify when the video changes" to turn off (red bell) |
-| Language, compact view | **?** (this guide) and ⤡ in the panel's top-right corner; the small flag at the bottom right switches 🇬🇧 / 🇷🇺 |
+| Guide, compact view | the **?** and ⤡ buttons in the panel's top-right corner. Compact view keeps the artwork and ⏪ ⏯ ⏩ ⏹ keys — labels show on hover |
+| Language | the small flag at the bottom right: click it to switch |
 | Start with Windows | "Start at login" |
 | Commands | `fling`, `fling setup`, `fling cast-tab`, `fling clip`, `fling screenshot`, `fling help`, `fling quit` |
 
@@ -117,7 +118,7 @@ Fling in Safari → Settings → Extensions.
 
 | Symptom | Fix |
 |---|---|
-| "No device found" | Same network? Allow Fling/Python on **Private** networks in Windows Firewall; set your network profile to **Private**. VPNs, guest Wi-Fi and router "client isolation" block discovery — add the TV by IP ("TV…" in the panel footer) |
+| "No device found" | Same network? Allow Fling/Python on **Private** networks in Windows Firewall; set your network profile to **Private**. VPNs, guest Wi-Fi and router "client isolation" block discovery — add the TV by IP (**Select** in the panel footer → Add TV by IP…) |
 | Extension says the app isn't running | Start Fling. If port 47613 is taken, set `"bridge_port"` in `fling.json` and the same port in the extension settings |
 | "Cast this tab" is grey | Install the extension and open a video tab |
 | Pause ignored on YouTube | Pair the remote — YouTube on the TV ignores Cast pause |
@@ -126,7 +127,17 @@ Fling in Safari → Settings → Extensions.
 | Black panel corners (Remote Desktop, VM, old graphics driver) | Usually detected automatically; otherwise add `"solid_panel": true` to `fling.json` |
 | Antivirus removed Fling.exe | Restore it and add an exclusion, or use Option B |
 
-Log: `%LOCALAPPDATA%\Fling\logs\app.log`.
+Log: `%LOCALAPPDATA%\Fling\logs\app.log` — attach the last lines when you report a problem.
+
+## Updating and removing
+
+- **Ready-made build:** download the new zip, quit Fling (tray menu → Quit), replace the folder's
+  contents. Pairing and settings are kept. To remove: run
+  `powershell -ExecutionPolicy Bypass -File setup-shortcuts.ps1 -Remove` in the Fling folder, then
+  delete the folder, `%LOCALAPPDATA%\Fling` and `%APPDATA%\Fling` (pairing and settings).
+- **From source:** update with `git pull` and `windows\install.cmd`; remove with `windows\uninstall.cmd`.
+- Remove the extension on the browser's extensions page.
+- The TV keeps "Fling (Windows)" in its list of remotes; you can remove it in the TV's settings.
 
 ## Privacy
 

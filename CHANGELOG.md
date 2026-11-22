@@ -14,44 +14,36 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ### Added
 
-- **Windows port** (Windows 10 1809+ / 11, x64 and ARM64 via emulation): the same tray panel,
-  Connect TV window, remote, voice search and guide as on Linux. Standalone `Fling.exe`
-  (PyInstaller, catt and yt-dlp bundled) or install from source with `windows\install.cmd`
-  (no admin rights); Start menu entry, `fling` command, Start at login, Windows toasts.
-- Windows: system-wide **Win+Shift+C**, falling back to Ctrl+Alt+Shift+C when another app
-  owns it; the panel shows the shortcut that actually works.
-- **Browser extension** for Chrome, Edge, Brave, Opera, Vivaldi, Yandex, Firefox and Safari
-  (one source, `extension/build.py`): popup remote, *Cast this tab* with **resume at the
-  page's position**, the page's own stream for sites yt-dlp can't open, right-click
-  *Cast link / video / page*, Alt+Shift+C, pause in the browser after casting, EN/RU.
-- Desktop ↔ extension bridge on `127.0.0.1:47613` (`desktop/fling_bridge.py`): accepts
-  extension origins and local tools only (Host and Origin checks, `X-Fling` header).
-  The panel's *Cast this tab* now works with any browser that has the extension.
-- Notification when the TV moves to another video or track, with a *Notify about the next
-  video* switch in the panel, the tray menu and the extension settings.
-- A small flag at the bottom of the panel switches 🇬🇧 / 🇷🇺. Panel corner: **?** opens the guide, and a **compact view** button turns playback into one row of icon keys (labels in tooltips) and hides the
-  remote and the housekeeping rows. The notification switch shows a green / red bell;
-  new icons for start at login and quit; clearer labels (*Pair TV remote…*, *Cast copied link*,
-  *Select* next to the TV's name).
-- Android: `Fling.apk` 0.2.0 (version code 2) with the "How to use" guide and the TV chooser.
-  It is signed with a new debug key, so a phone with 0.1.0 must uninstall the old app first
-  (and pair the TV remote again).
-- `android/build.sh` also builds on Windows (Git Bash) and creates the debug key when missing.
-- Step-by-step Windows guide in English and Russian (`docs/install-windows*.md`),
-  Russian README, language flags.
-- Android: first-run tips one at a time over the real screen (spotlight + small card, Material
-  motion) instead of a long dialog; the full guide stays one tap away.
-
-- Linux: choose between several TVs from the panel footer, the tray menu and the
-  Connect TV window; find TVs again; add a TV by IP address (named from its
-  own device description); TVs with identical names are told apart by address;
-  paired TVs are marked.
-- Linux: built-in "How to use" guide (13 sections, English and Russian):
-  panel row, tray menu, `fling help`, shown once on first start.
-- Android: built-in "How to use" guide ("?" button, shown once on first
-  launch), English and Russian; drafted by a local LLM, checked and completed.
-- Android: the same TV chooser — paired / by-IP marks, identical names told
-  apart by address, TVs added by IP are remembered and can be removed.
+- **Windows port** (Windows 10 1809+ / 11, x64; ARM64 through emulation): the same tray panel,
+  Connect TV window, remote, voice search and guide as on Linux. A standalone `Fling.exe`
+  (catt and yt-dlp bundled) or an install from source with `windows\install.cmd`, both without
+  admin rights. Start menu entry, `fling` command, start at login, Windows notifications.
+- Windows: system-wide **Win+Shift+C**; if another app owns it, Ctrl+Alt+Shift+C, and the panel
+  shows which one works.
+- **Browser extension** for Chrome, Edge, Brave, Opera, Vivaldi, Yandex, Firefox and Safari,
+  built from one source (`extension/build.py`): a popup remote, *Cast this tab* that resumes at
+  the page's position, the page's own stream for sites yt-dlp can't open, *Cast link / video /
+  page* in the right-click menu, Alt+Shift+C, pausing the page after casting, English and Russian.
+- A local bridge on `127.0.0.1:47613` between the extension and the app
+  (`desktop/fling_bridge.py`). It accepts browser extensions and local tools only (Host and
+  Origin checks, a required `X-Fling` header). With it the panel's *Cast this tab* works with
+  any browser, not just Firefox.
+- A notification when the TV moves to another video or track. The bell in the panel, the tray
+  menu and the extension settings turn it on (green) or off (red).
+- Panel: a compact view (artwork and playback keys, labels in tooltips), a **?** button for the
+  guide, a small language flag at the bottom, icons for every row, clearer labels
+  (*Pair TV remote…*, *Cast copied link*, *Select* next to the TV's name).
+- Android: short tips on first launch, one at a time over the real screen (a spotlight and a
+  small card with the system's Material motion) instead of a long help page; the full guide is
+  one tap away. Choose between several TVs, add or remove TVs by IP.
+- Android: `Fling.apk` 0.2.0 (version code 2). It is signed with a new key, so a phone with
+  0.1.0 has to uninstall the old app first and pair the TV remote again.
+- `android/build.sh` also works on Windows (Git Bash) and creates the debug key when missing.
+- Linux: choose between several TVs from the panel footer, the tray menu and the Connect TV
+  window; find TVs again; add a TV by IP address; identical names are told apart by address;
+  paired TVs are marked. Built-in "How to use" guide (`fling help`, panel, tray menu).
+- Step-by-step Windows guide in English and Russian (`docs/install-windows*.md`) and a Russian
+  README.
 
 ### Fixed
 

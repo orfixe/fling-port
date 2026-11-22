@@ -175,7 +175,7 @@ $l.Description = 'Fling - cast to Chromecast / Google TV and control the TV'
 $l.Save()
 Note $Lnk
 
-# keep an existing "Open at Login" pointing at the current interpreter
+# keep an existing "Start at login" entry pointing at the current interpreter
 $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 if (Get-ItemProperty -Path $run -Name 'Fling' -ErrorAction SilentlyContinue) {
   Set-ItemProperty -Path $run -Name 'Fling' -Value "`"$Pyw`" `"$Main`" tray"

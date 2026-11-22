@@ -52,6 +52,10 @@ power, apps, d-pad, volume, typing, voice search.
 
 The computer / phone and the TV must be on the same network.
 
+**Tested on:** Windows 11 with Edge and Chrome, Kubuntu 26.04 (KDE Plasma 6), Android 17 (Samsung),
+a TCL Google TV. The Firefox and Safari builds of the extension haven't been tried yet —
+reports are welcome.
+
 **Contents** · [Features](#features) · [How it works](#how-it-works) ·
 [Windows](#install--windows) · [Browser extension](#browser-extension) · [Linux](#install--linux) ·
 [Android](#install--android) · [Connecting the TV](#connecting-the-tv) · [Usage](#usage) ·
@@ -135,7 +139,7 @@ browser extensions and local tools and refuses web pages.
 |---|---|
 | Chrome, Edge, Brave, Opera, Vivaldi, Yandex | `chrome://extensions` → Developer mode → **Load unpacked** → the `extension\chrome` folder of the Windows zip, or `fling-chrome-….zip` from Releases, unzipped |
 | Firefox | `about:debugging` → **Load Temporary Add-on** → `fling-firefox-….zip` (a permanent install needs Developer Edition until it's on AMO) |
-| Safari (Mac) | `extension/safari/build-safari.sh` on a Mac with Xcode; works with Fling running on that Mac |
+| Safari (Mac) | `extension/safari/build-safari.sh` on a Mac with Xcode; needs Fling running on that Mac (not tested yet) |
 
 Details: [Windows guide → Part 2](docs/install-windows.md#part-2-the-browser-extension).
 
