@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a bug in Fling for Linux & Android
+about: Report a bug in Fling for Windows, Linux & Android
 labels:
   - bug
 ---

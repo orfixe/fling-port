@@ -124,6 +124,6 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-linux-android/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/orfixe/fling-linux-android/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/orfixe/fling-linux-android/releases/tag/v0.1.0
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/orfixe/fling-port/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/orfixe/fling-port/releases/tag/v0.1.0

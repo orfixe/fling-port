@@ -29,7 +29,7 @@ Two parts:
 
 ### Option A — ready-made build (easiest)
 
-1. Download **`Fling-Windows-…zip`** from [Releases](https://github.com/orfixe/fling-linux-android/releases).
+1. Download **`Fling-Windows-…zip`** from [Releases](https://github.com/orfixe/fling-port/releases).
 2. Unzip it somewhere permanent, e.g. `Documents\Fling`.
 3. Double-click **`Install shortcuts.cmd`** in that folder: Start menu entry, the `fling`
    command, and Fling starts. (Double-clicking `Fling.exe` also works.)
@@ -41,7 +41,7 @@ No Python needed — everything is bundled.
 
 ### Option B — from source
 
-1. **Code → Download ZIP** (or `git clone https://github.com/orfixe/fling-linux-android.git`).
+1. **Code → Download ZIP** (or `git clone https://github.com/orfixe/fling-port.git`).
 2. Double-click **`windows\install.cmd`**. It installs [uv](https://docs.astral.sh/uv/), a
    private Python 3.12, Qt, [catt](https://github.com/skorokithakis/catt) and Google's ADB
    (≈300 MB, 2–5 min) and starts Fling.
