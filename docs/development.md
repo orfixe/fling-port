@@ -57,6 +57,9 @@ cd android && ./build.sh       # aapt2 → javac → d8 → zipalign → apksign
 adb install -r Fling.apk
 ```
 
+On Windows the same script runs in Git Bash with a portable JDK 17 and the SDK in
+`%LOCALAPPDATA%\Android\Sdk` (found automatically).
+
 An emulator (AVD) is enough for layout and crash checks: `adb logcat -b crash`.
 Note that the emulator reaches devices on your network, so it can trigger prompts on
 a real TV.
