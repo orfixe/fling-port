@@ -24,7 +24,7 @@ import fling_platform as P
 
 P.prepare_qt_env()
 
-from PyQt6.QtCore import (QObject, Qt, QTimer, QRectF, QPoint, QSize, QUrl,
+from PyQt6.QtCore import (QObject, Qt, QTimer, QRectF, QPoint, QPointF, QSize, QUrl,
                           QEvent, QPropertyAnimation, QEasingCurve,
                           QSequentialAnimationGroup, QParallelAnimationGroup,
                           pyqtSignal, pyqtProperty)
@@ -1433,12 +1433,8 @@ class State(QObject):
 
     @property
     def remote_ready(self):
+        # Damion's Fling: d-pad / typing need the Android TV Remote (or BT) session
         return self.tv_paired or self.bt_connected
-
-    @property
-    def remote_input_ready(self) -> bool:
-        """D-pad / keyboard can drive the TV via network remote, BT, or authorised ADB."""
-        return self.remote_ready or self.adb_ok()
 
     def poll_bt(self):
         def done(r, e):
@@ -1466,15 +1462,11 @@ class State(QObject):
         self.bg(lambda: bt_call(cmd), done)
 
     def tv_key(self, code):
+        # Same path as upstream Fling: Android TV Remote / BT — not ADB keyevents
         if self.tv_paired and self.ip:
             self.atv.key(self.ip, code)
         elif self.bt_connected and code in BT_NAMES:
             self._bt(f"key {BT_NAMES[code]}")
-        elif self.adb_ok() and self.ip:
-            # KEY values are Android keycodes — works when only wireless ADB is authorised
-            ip = self.ip
-            self.bg(lambda: adb_cmd(ip, ["shell", "input", "keyevent", str(int(code))]),
-                    lambda r, e: None)
         elif self.ip:
             self.atv.key(self.ip, code)
 
@@ -1570,7 +1562,9 @@ EN_PHRASES = [  # longest first is applied automatically
     ("можно отправить", "castable"), ("можно попробовать", "worth a try"),
     ("Нажмите «Связать с ТВ» ниже — тогда пауза пойдёт как кнопка пульта.",
      "Click “Pair with TV” below and pause will be sent as a remote button."),
-    ("Напечатать на ТВ", "Type on TV"), ("Связать с ТВ", "Pair with TV"), ("Связать с ТВ", "Pair with TV"),
+    ("Напечатать на ТВ", "Type on TV"), ("Печать на ТВ", "Type on TV"),
+    ("Клавиатура — печать на ТВ", "Keyboard — type on the TV"),
+    ("Связать с ТВ", "Pair with TV"), ("Связать с ТВ", "Pair with TV"),
     ("На ТВ: YouTube → Настройки → «Подключить телефон / Связать с ТВ по коду». ",
      "On the TV: YouTube → Settings → “Link with TV code”. "),
     ("НА ТЕЛЕВИЗОРЕ", "ON THE TV"),
@@ -1948,6 +1942,14 @@ def glyph(name, size=14, color=None, weight=1.7):
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawArc(QRectF(s*.26, s*.3, s*.48, s*.42), 180*16, 180*16)
         p.drawLine(QPoint(int(c), int(s*.72)), QPoint(int(c), int(s*.86)))
+    elif name == "keyboard":
+        # Compact keyboard glyph — opens the “type on TV” field
+        p.drawRoundedRect(QRectF(s*.12, s*.28, s*.76, s*.48), s*.08, s*.08)
+        for i in range(3):
+            for j in range(5):
+                x = s * (.22 + j * .12)
+                y = s * (.38 + i * .12)
+                p.drawLine(QPointF(x, y), QPointF(x + s * .06, y))
     elif name == "play_on_tv":
         p.drawRoundedRect(QRectF(s*.12, s*.22, s*.76, s*.52), s*.08, s*.08)
         p.setBrush(color or T.fg)
@@ -2821,17 +2823,32 @@ class Panel(QWidget):
         vu.setToolTip("Громкость +  (+ / ] / VolumeUp)")
         vk.addWidget(vd); vk.addWidget(vm); vk.addWidget(vu)
         rl.addLayout(vk)
+        # Keyboard icon → reveal type field (sendText over Android TV Remote, as in Damion's Fling)
         ty = QVBoxLayout(); ty.setContentsMargins(14, 4, 14, 9); ty.setSpacing(3)
         tr = QHBoxLayout(); tr.setSpacing(6)
-        self.type_edit = field("Напечатать на ТВ")
+        self.kb_btn = QPushButton()
+        self.kb_btn.setFixedSize(24, 22)
+        self.kb_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.kb_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.kb_btn.setIcon(glyph("keyboard", 14, T.fg))
+        self.kb_btn.setIconSize(QSize(14, 14))
+        self.kb_btn.setToolTip("Клавиатура — печать на ТВ")
+        self.kb_btn.setStyleSheet(
+            f"QPushButton{{border:none;border-radius:5px;background:{Theme.css(T.fg_a(0.07))}}}"
+            f"QPushButton:hover{{background:{Theme.css(T.acc_a(0.2))}}}")
+        self.kb_btn.clicked.connect(self._toggle_type)
+        self.type_edit = field("Печать на ТВ")
         self.type_edit.setToolTip("Текст попадёт в активное поле ввода на телевизоре")
         self.type_edit.returnPressed.connect(self._type_submit)
+        self.type_edit.hide()
         self.mic = QPushButton()
         self.mic.setFixedSize(24, 22)
         self.mic.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.mic.setCursor(Qt.CursorShape.PointingHandCursor)
         self.mic.clicked.connect(state.tv_voice_toggle)
-        tr.addWidget(self.type_edit, 1); tr.addWidget(self.mic)
+        tr.addWidget(self.kb_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        tr.addWidget(self.type_edit, 1)
+        tr.addWidget(self.mic, 0, Qt.AlignmentFlag.AlignVCenter)
         ty.addLayout(tr)
         self.listening = label("Слушаю — нажмите микрофон ещё раз, когда закончите.", 10, T.red)
         ty.addWidget(self.listening)
@@ -2911,7 +2928,7 @@ class Panel(QWidget):
                         ("Ctrl+Right", lambda: self._casting_only(lambda: state.seek(SEEK))),
                         ("Ctrl+.", state.stop), ("Ctrl+Q", QApplication.quit),
                         ("Ctrl+Shift+C", state.cast_tab),
-                        ("Escape", self.hide)):
+                        ("Escape", self._escape)):
             sc = QShortcut(QKeySequence(seq), self)
             sc.setContext(Qt.ShortcutContext.WindowShortcut)
             sc.activated.connect(fn)
@@ -2931,8 +2948,8 @@ class Panel(QWidget):
             fn()
 
     def _remote_key(self, name: str) -> bool:
-        """Send a TV remote key if network/BT/ADB input is ready. Returns True if handled."""
-        if not self.state.remote_input_ready:
+        """Send a TV remote key if the Android TV Remote / BT session is ready."""
+        if not self.state.remote_ready:
             return False
         code = KEY.get(name)
         if code is None:
@@ -3004,7 +3021,7 @@ class Panel(QWidget):
         elif e.isAutoRepeat() and name not in _REMOTE_REPEAT:
             return False
 
-        if name and self.state.remote_input_ready:
+        if name and self.state.remote_ready:
             # Space while casting: play/pause is more useful than OK
             if name == "play_pause" and self.state.panel == "casting":
                 self.state.toggle_play()
@@ -3048,10 +3065,43 @@ class Panel(QWidget):
         if len(code) == 6:
             self.state.atv.finish_pairing(code)
 
+    def _toggle_type(self):
+        """Keyboard icon: show/hide the type-on-TV field (Android TV Remote sendText)."""
+        if self.type_edit.isVisible():
+            self._hide_type()
+        else:
+            self._show_type()
+
+    def _show_type(self):
+        self.type_edit.show()
+        self.type_edit.setFocus(Qt.FocusReason.ShortcutFocusReason)
+        self._ungrab_keys()
+        self.kb_btn.setStyleSheet(
+            f"QPushButton{{border:none;border-radius:5px;background:{Theme.css(T.acc_a(0.22))}}}")
+        QTimer.singleShot(0, self.place)
+
+    def _hide_type(self):
+        self.type_edit.clear()
+        self.type_edit.clearFocus()
+        self.type_edit.hide()
+        self.kb_btn.setStyleSheet(
+            f"QPushButton{{border:none;border-radius:5px;background:{Theme.css(T.fg_a(0.07))}}}"
+            f"QPushButton:hover{{background:{Theme.css(T.acc_a(0.2))}}}")
+        self.setFocus(Qt.FocusReason.OtherFocusReason)
+        self._grab_keys()
+        QTimer.singleShot(0, self.place)
+
     def _type_submit(self):
         t = self.type_edit.text()
         self.type_edit.clear()
-        self.state.tv_text(t)
+        if t:
+            self.state.tv_text(t)  # Damion: ATV sendText / BT text — not ADB
+
+    def _escape(self):
+        if getattr(self, "type_edit", None) and self.type_edit.isVisible():
+            self._hide_type()
+            return
+        self.hide()
 
     def _yt_entry(self):
         self.state.yt_pairing = "entry"
@@ -3206,8 +3256,7 @@ class Panel(QWidget):
         self.pin_ok.setEnabled(len(self.pin_edit.text().strip()) == 6)
         idle_like = p in ("idle", "failed")
         ready = s.remote_ready
-        input_ready = s.remote_input_ready
-        self.r_setup.setVisible(show_remote and idle_like and not input_ready and not s.bt_setup)
+        self.r_setup.setVisible(show_remote and idle_like and not ready and not s.bt_setup)
         self.r_bt.setVisible(show_remote and idle_like and not s.tv_paired and s.bt_setup)
         if s.bt.get("connected"):
             self.r_bt_state.setText(f"✓ Подключено: {s.bt.get('peer') or 'ТВ'}")
@@ -3217,17 +3266,16 @@ class Panel(QWidget):
             self.r_bt_state.setText("Служба Bluetooth-пульта не запущена.")
         else:
             self.r_bt_state.setText("Окно сопряжения закрылось — нажмите «Подключить как Bluetooth-пульт» ещё раз.")
-        self.r_ctl.setVisible(show_remote and idle_like and input_ready)
+        self.r_ctl.setVisible(show_remote and idle_like and ready)
         bt_only = ready and not s.tv_paired
-        adb_only = (not ready) and s.adb_ok()
-        self.grid_box.setVisible(s.tv_paired)      # app links need the network remote
-        self.mic.setVisible(s.tv_paired)
+        self.grid_box.setVisible(not bt_only)      # app links need the network remote
+        self.mic.setVisible(not bt_only)
+        self.kb_btn.setVisible(True)
         if bt_only:
             self.r_now.setText(f"Bluetooth-пульт · {s.bt.get('peer') or 'ТВ'}")
             self.r_now.setVisible(True)
-        elif adb_only:
-            self.r_now.setText("ADB-пульт · стрелки с клавиатуры")
-            self.r_now.setVisible(True)
+        if not ready and self.type_edit.isVisible():
+            self._hide_type()
         self.r_fail_box.setVisible(show_remote and p == "failed")
         self.r_fail.setText(s.tv_pairing_msg)
         if p != "pin" and self.pin_edit.text():
@@ -3350,7 +3398,8 @@ class Panel(QWidget):
 
     # ScrollRemote.swift + ScrollNav.swift: wheel/touchpad anywhere → d-pad
     def wheelEvent(self, e):
-        if not self.state.remote_input_ready:
+        # Damion's ScrollRemote: only while the TV remote session is paired
+        if not self.state.tv_paired:
             return
         px = e.pixelDelta()
         if not px.isNull():
