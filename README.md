@@ -52,8 +52,8 @@ power, apps, d-pad, volume, typing, voice search.
 
 The computer / phone and the TV must be on the same network.
 
-**Tested on:** Windows 11 with Edge and Chrome, Kubuntu 26.04 (KDE Plasma 6), Android 17 (Samsung),
-a TCL Google TV. The Firefox and Safari builds of the extension haven't been tried yet —
+**Tested on:** Windows 11 with Edge and Chrome, Kubuntu 26.04 (KDE Plasma 6), Android 17,
+a Google TV set. The Firefox and Safari builds of the extension haven't been tried yet —
 reports are welcome.
 
 **Contents** · [Features](#features) · [How it works](#how-it-works) ·
