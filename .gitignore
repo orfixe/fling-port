@@ -19,3 +19,5 @@ Thumbs.db
 
 # Private author proposal (macOS) — never publish / never push
 proposal-macos-PRIVATE/
+macos/.work/
+macos/dist/
