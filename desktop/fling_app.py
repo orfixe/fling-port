@@ -1474,10 +1474,24 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
     ('порт подключения (часто не 5555)', 'connection port (often not 5555)'),
     ('Порт подключения:', 'Connection port:'),
     ('Порт ADB:', 'ADB port:'),
+    ('IP ТВ:', 'TV IP:'),
+    ('Порт:', 'Port:'),
+    ('порт, напр. 5555', 'port, e.g. 5555'),
     ('Сопряжение:', 'Pairing:'),
     ('например 5555 или 37123', 'e.g. 5555 or 37123'),
+    ('Можно вписать IP и порт вручную или вставить «IP:порт» в любое поле.',
+     'You can type the IP and port by hand, or paste “IP:port” into either field.'),
     ('Порт ADB — только цифры (или вставьте «IP:порт» с экрана ТВ).',
      'ADB port must be digits (or paste “IP:port” from the TV screen).'),
+    ('IP ТВ — четыре числа через точку (пример: 192.168.1.50) или «IP:порт».',
+     'TV IP is four numbers with dots (e.g. 192.168.1.50) or “IP:port”.'),
+    ('IP ТВ — четыре числа через точку (пример: 192.168.1.50).',
+     'TV IP is four numbers with dots (e.g. 192.168.1.50).'),
+    ('Впишите IP телевизора вручную или найдите ТВ выше.',
+     'Type the TV IP by hand, or find a TV above.'),
+    ('Впишите IP и порт с ТВ (Беспроводная отладка → «IP-адрес и порт») и нажмите «Подключить». Если ТВ показывает код сопряжения — заполните «Сопряжение» → «Связать».',
+     'Type the IP and port from the TV (Wireless debugging → “IP address & port”) and press “Connect”. If the TV shows a pairing code, fill in Pairing → Pair.'),
+    ('IP и порт подключения — в полях выше.', 'IP and connection port are in the fields above.'),
     ('Впишите порт ADB с ТВ (Беспроводная отладка → «IP-адрес и порт») и нажмите «Подключить». Если ТВ показывает код сопряжения — заполните строку «Сопряжение» и нажмите «Связать».',
      'Type the ADB port from the TV (Wireless debugging → “IP address & port”) and press “Connect”. If the TV shows a pairing code, fill in Pairing and press “Pair”.'),
     ('Введите порт сопряжения и 6-значный код из «Беспроводной отладки» на ТВ. Порт подключения (строка «IP-адрес и порт») — отдельно, ниже.',
@@ -3120,16 +3134,28 @@ class SetupWindow(QWidget):
             el.addWidget(self.pin, 1); el.addWidget(small_button("Связать", self._pin))
         elif key == "adb":
             btn.clicked.connect(self.adb_connect)
-            # Always-visible editable ports — user types what the TV shows
-            self.wconn = field("например 5555 или 37123", mono=True)
-            self.wconn.setText(str(load_conf().get("adb_port") or ""))
+            # Manual IP + port — user types what the TV shows (discovery optional)
+            self.wip = field("192.168.1.50", mono=True)
+            self.wconn = field("порт, напр. 5555", mono=True)
+            if self.state.ip:
+                self.wip.setText(self.state.ip)
+            saved_port = load_conf().get("adb_port")
+            if saved_port:
+                self.wconn.setText(str(saved_port))
+            self.wip.setClearButtonEnabled(True)
             self.wconn.setClearButtonEnabled(True)
-            self.wconn.editingFinished.connect(self._save_adb_port)
+            self.wip.editingFinished.connect(self._on_adb_endpoint_edited)
+            self.wconn.editingFinished.connect(self._on_adb_endpoint_edited)
+            self.wip.returnPressed.connect(self.adb_connect)
             self.wconn.returnPressed.connect(self.adb_connect)
-            port_row = QHBoxLayout(); port_row.setContentsMargins(0, 2, 0, 0); port_row.setSpacing(6)
-            port_row.addWidget(label("Порт ADB:", 11, T.fg_a(0.6)))
-            port_row.addWidget(self.wconn, 1)
-            lay.addLayout(port_row)
+            ep = QHBoxLayout(); ep.setContentsMargins(0, 2, 0, 0); ep.setSpacing(6)
+            ep.addWidget(label("IP ТВ:", 11, T.fg_a(0.6)))
+            ep.addWidget(self.wip, 2)
+            ep.addWidget(label("Порт:", 11, T.fg_a(0.6)))
+            ep.addWidget(self.wconn, 1)
+            lay.addLayout(ep)
+            tip = label("Можно вписать IP и порт вручную или вставить «IP:порт» в любое поле.", 10.5, T.fg_a(0.45), wrap=True)
+            lay.addWidget(tip)
             # Pairing (wireless debugging code) — also always visible so it isn't missed
             self.wport = field("порт сопряжения", mono=True); self.wport.setFixedWidth(110)
             self.wcode = field("код из 6 цифр", mono=True)
@@ -3139,7 +3165,6 @@ class SetupWindow(QWidget):
             pair_row.addWidget(self.wcode, 1)
             pair_row.addWidget(small_button("Связать", self.adb_pair))
             lay.addLayout(pair_row)
-            # keep extra empty (legacy slot); ports are no longer hidden behind it
         return box
 
     def _set(self, key, mark, info, btn=None, extra=None):
@@ -3200,41 +3225,105 @@ class SetupWindow(QWidget):
             self.pin.clear()
             self.state.atv.finish_pairing(code)
 
-    def _adb_conn_port(self) -> int | None:
-        t = (self.wconn.text() if hasattr(self, "wconn") else "").strip()
-        # allow "192.168.1.5:37123" paste — take the port part
+    def _parse_ip_port(self, text: str) -> tuple[str | None, int | None]:
+        """Accept `192.168.1.50`, `192.168.1.50:37123`, or a bare port."""
+        t = (text or "").strip()
+        if not t:
+            return None, None
         if ":" in t:
-            t = t.rsplit(":", 1)[-1].strip()
-        return int(t) if t.isdigit() else None
+            host, _, rest = t.rpartition(":")
+            host, rest = host.strip(), rest.strip()
+            port = int(rest) if rest.isdigit() else None
+            if host and _is_ipv4(host):
+                return host, port
+            if not host and rest.isdigit():
+                return None, int(rest)
+            return None, None
+        if _is_ipv4(t):
+            return t, None
+        if t.isdigit():
+            return None, int(t)
+        return None, None
 
-    def _save_adb_port(self):
-        port = self._adb_conn_port()
-        if not port:
-            return
+    def _adb_endpoint(self) -> tuple[str | None, int | None, str | None]:
+        """IP + port from the manual fields (and optional IP:port paste). Error string if invalid."""
+        ip_a, port_a = self._parse_ip_port(self.wip.text() if hasattr(self, "wip") else "")
+        ip_b, port_b = self._parse_ip_port(self.wconn.text() if hasattr(self, "wconn") else "")
+        # If user pasted IP:port into the port box, split it across both fields
+        if ip_b and port_b and hasattr(self, "wip") and hasattr(self, "wconn"):
+            if not (self.wip.text() or "").strip():
+                self.wip.setText(ip_b)
+            if self.wconn.text().strip() == f"{ip_b}:{port_b}":
+                self.wconn.setText(str(port_b))
+        ip = ip_a or ip_b or self.state.ip
+        port = port_a or port_b
+        if (self.wip.text() if hasattr(self, "wip") else "").strip() and not ip_a and not ip_b:
+            # typed something in IP box that isn't a valid IPv4 / IP:port
+            raw = self.wip.text().strip()
+            if ":" not in raw and not _is_ipv4(raw):
+                return None, None, "IP ТВ — четыре числа через точку (пример: 192.168.1.50) или «IP:порт»."
+        if (self.wconn.text() if hasattr(self, "wconn") else "").strip() and port_b is None and ip_b is None:
+            return None, None, "Порт ADB — только цифры (или вставьте «IP:порт» с экрана ТВ)."
+        if not ip:
+            return None, None, "Впишите IP телевизора вручную или найдите ТВ выше."
+        if not _is_ipv4(ip):
+            return None, None, "IP ТВ — четыре числа через точку (пример: 192.168.1.50)."
+        return ip, port, None
+
+    def _on_adb_endpoint_edited(self):
+        # Split a pasted "IP:port" into the two boxes and remember the port
+        for box in (getattr(self, "wip", None), getattr(self, "wconn", None)):
+            if box is None:
+                continue
+            ip, port = self._parse_ip_port(box.text())
+            if ip and port and ":" in box.text():
+                self.wip.setText(ip)
+                self.wconn.setText(str(port))
+                break
+        ip, port, _ = self._adb_endpoint()
         c = load_conf()
-        c["adb_port"] = port
-        save_conf(c)
-        self.state.conf = c
+        changed = False
+        if port:
+            c["adb_port"] = port
+            changed = True
+        if ip:
+            c["adb_ip"] = ip
+            changed = True
+        if changed:
+            save_conf(c)
+            self.state.conf = c
+
+    def _use_adb_ip(self, ip: str):
+        """Prefer the typed IP as the current TV for ADB (and the rest of the panel)."""
+        s = self.state
+        if s.device and s.device.get("ip") == ip:
+            return
+        known = next((d for d in s.devices if d.get("ip") == ip), None)
+        if known:
+            s.select_device(known)
+            return
+        d = {"ip": ip, "name": ip, "model": "", "manual": True}
+        s.devices = [x for x in s.devices if x.get("ip") != ip] + [d]
+        manual = [x for x in s.conf.get("manual", []) if x.get("ip") != ip] + [d]
+        s.conf["manual"] = manual
+        s.device = d
+        s.conf["device"] = d
+        save_conf(s.conf)
+        s.atv.connect(ip)
+        s.changed.emit()
 
     def adb_connect(self):
-        ip = self.state.ip
         if not P.adb_available():
             self._adb_result("missing")
             return
-        if not ip:
-            self._set("adb", "need", "Сначала найдите или выберите ТВ выше — без IP ADB подключить нельзя.",
-                      "Подключить", False)
+        ip, port, err = self._adb_endpoint()
+        if err:
+            self._set("adb", "need", err, "Подключить", False)
             return
-        port = self._adb_conn_port()
-        if self.wconn.text().strip() and port is None:
-            self._set("adb", "need", "Порт ADB — только цифры (или вставьте «IP:порт» с экрана ТВ).",
-                      "Подключить", False)
-            return
-        if port:
-            self._save_adb_port()
+        self._on_adb_endpoint_edited()
+        self._use_adb_ip(ip)
         shown = port or load_conf().get("adb_port") or 5555
         self._set("adb", "run", f"Подключаюсь к ТВ по ADB ({ip}:{shown})…", None)
-        # force=True: user clicked Connect/Check — ok to talk to the TV once
         self.state.bg(lambda: adb_state(ip, force=True, port=port),
                      lambda r, e: self._adb_result(r or "offline"))
 
@@ -3242,15 +3331,15 @@ class SetupWindow(QWidget):
         if not P.adb_available():
             self._adb_result("missing")
             return
-        ip = self.state.ip
-        if not ip:
-            self._set("adb", "need", "Сначала найдите или выберите ТВ выше — без IP ADB подключить нельзя.",
-                      "Подключить", True)
+        ip, _, err = self._adb_endpoint()
+        if err:
+            self._set("adb", "need", err, "Подключить", True)
             return
+        self._use_adb_ip(ip)
         port, code = self.wport.text().strip(), re.sub(r"\D", "", self.wcode.text())
         if not (port.isdigit() and len(code) == 6):
             self._set("adb", "need", "Введите порт сопряжения и 6-значный код из «Беспроводной отладки» на ТВ. "
-                      "Порт подключения (строка «IP-адрес и порт») — отдельно, ниже.", "Проверить", True)
+                      "IP и порт подключения — в полях выше.", "Проверить", True)
             return
         def work():
             r = P.run([_ADB, "pair", f"{ip}:{port}", code], capture_output=True, text=True, timeout=20)
@@ -3313,10 +3402,12 @@ class SetupWindow(QWidget):
                 self._adb_result("missing")
             else:
                 self._set("adb", "off",
-                          "Впишите порт ADB с ТВ (Беспроводная отладка → «IP-адрес и порт») и нажмите «Подключить». "
-                          "Если ТВ показывает код сопряжения — заполните строку «Сопряжение» и нажмите «Связать».",
+                          "Впишите IP и порт с ТВ (Беспроводная отладка → «IP-адрес и порт») и нажмите «Подключить». "
+                          "Если ТВ показывает код сопряжения — заполните «Сопряжение» → «Связать».",
                           "Подключить")
-        # Keep the typed port visible; don't wipe what the user entered
+        # Prefill empty fields from the selected TV / saved conf — never overwrite what the user is typing
+        if hasattr(self, "wip") and not self.wip.hasFocus() and not self.wip.text().strip():
+            self.wip.setText(s.ip or str(load_conf().get("adb_ip") or ""))
         if hasattr(self, "wconn") and not self.wconn.hasFocus() and not self.wconn.text().strip():
             saved = load_conf().get("adb_port")
             if saved:
