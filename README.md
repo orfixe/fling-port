@@ -22,13 +22,7 @@ power, apps, d-pad, volume, typing, voice search.
 [![Safari](https://img.shields.io/badge/Safari-extension-006CFF?logo=safari&logoColor=white)](#browser-extension)
 [![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
-<img src="docs/screenshots/windows-panel-en.png" width="250" alt="Fling panel on Windows">
-&nbsp;
-<img src="docs/screenshots/extension-popup-en.png" width="250" alt="Fling browser extension">
-&nbsp;
-<img src="docs/screenshots/linux-panel-en.png" width="250" alt="Fling panel on KDE Plasma">
-&nbsp;
-<img src="docs/screenshots/android-en.png" width="190" alt="Fling on Android">
+<img src="docs/screenshots/hero.png" width="100%" alt="Fling on Windows, in the browser, on KDE Plasma and on Android">
 
 <sub>Windows panel · browser extension · KDE Plasma · Android</sub>
 
