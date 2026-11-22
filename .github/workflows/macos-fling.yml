@@ -1,0 +1,39 @@
+name: macOS Fling (private)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "macos/**"
+      - ".github/workflows/macos-fling.yml"
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Fling.app
+        run: ./macos/build.sh
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fling-macOS-private
+          path: |
+            macos/dist/Fling.app.zip
+            macos/dist/Fling
+          if-no-files-found: error
+      - name: Attach to latest private release (optional)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG=$(gh release list -R "$GITHUB_REPOSITORY" --limit 1 --json tagName -q '.[0].tagName' || true)
+          if [ -n "$TAG" ]; then
+            gh release upload "$TAG" macos/dist/Fling.app.zip \
+              --repo "$GITHUB_REPOSITORY" --clobber || true
+          fi
