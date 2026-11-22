@@ -112,8 +112,17 @@ final class Discovery {
     private void resolved(NsdServiceInfo i) {
         InetAddress addr = i.getHost();
         if (addr == null) return;
+        // IPv4 only — never keep a bare IPv6 host (Cast/ADB prompts and broken routes)
+        if (!(addr instanceof Inet4Address)) {
+            String service = i.getServiceName();
+            synchronized (this) {
+                String oldHost = hostByService.get(service);
+                // If we already have an IPv4 for this service, ignore the IPv6 hit entirely
+                if (oldHost != null && byHost.containsKey(oldHost)) return;
+            }
+            return;
+        }
         String host = addr.getHostAddress();
-        if (addr instanceof java.net.Inet6Address && host != null && host.contains("%")) host = host.substring(0, host.indexOf('%'));
         Map<String, byte[]> attrs = i.getAttributes();
         String name = attr(attrs, "fn");
         if (name == null || name.isEmpty()) name = i.getServiceName();
@@ -121,11 +130,9 @@ final class Discovery {
         List<Device> snapshot;
         synchronized (this) {
             Device prev = byHost.get(host);
-            // prefer IPv4 entries: drop an IPv6 duplicate of the same service
             String oldHost = hostByService.get(i.getServiceName());
             if (oldHost != null && !oldHost.equals(host)) {
-                if (!(addr instanceof Inet4Address) && byHost.containsKey(oldHost)) return;
-                byHost.remove(oldHost);
+                byHost.remove(oldHost);          // replace any previous address with this IPv4
             }
             hostByService.put(i.getServiceName(), host);
             if (prev != null && prev.name.equals(name) && eq(prev.model, model) && oldHost != null) return;

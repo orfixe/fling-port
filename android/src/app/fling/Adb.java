@@ -115,6 +115,9 @@ final class Adb {
         return m;
     }
 
+    /** Host → until-elapsedRealtime: do not send AUTH pubkey again (that re-prompts the TV). */
+    private final Map<String, Long> noPubkeyUntil = new HashMap<>();
+
     /** Runs one shell command; returns its output. Throws with a readable state on failure. */
     synchronized String shell(String host, String command) throws Exception {
         return new String(shellBytes(host, command), StandardCharsets.UTF_8);
@@ -122,10 +125,21 @@ final class Adb {
 
     /** Raw shell output (binary-safe, e.g. `screencap -p`). */
     synchronized byte[] shellBytes(String host, String command) throws Exception {
+        if (host != null && host.indexOf(':') >= 0) {
+            lastState = "closed";
+            throw new IOException("IPv6 ADB is not used");
+        }
+        boolean allowPubkey = true;
+        Long quiet = noPubkeyUntil.get(host);
+        if (quiet != null) {
+            if (SystemClock.elapsedRealtime() < quiet) allowPubkey = false;
+            else noPubkeyUntil.remove(host);
+        }
         keys();
         try (Socket s = new Socket()) {
             try {
-                s.connect(new InetSocketAddress(host, 5555), 2500);
+                // Numeric IPv4 host → IPv4 socket; never open an IPv6 path here
+                s.connect(new InetSocketAddress(java.net.InetAddress.getByName(host), 5555), 2500);
             } catch (IOException e) {
                 lastState = "closed";
                 throw new IOException("ADB is off on the TV");
@@ -139,6 +153,7 @@ final class Adb {
                 Msg m;
                 try { m = read(in); } catch (java.net.SocketTimeoutException e) {
                     lastState = "unauthorized";
+                    noPubkeyUntil.put(host, SystemClock.elapsedRealtime() + 300_000L);
                     throw new IOException("Accept the debugging prompt on the TV");
                 }
                 if (m.cmd == CNXN) break;
@@ -151,15 +166,18 @@ final class Adb {
                     System.arraycopy(m.data, 0, payload, SHA1_PREFIX.length, m.data.length);
                     send(o, AUTH, 2, 0, c.doFinal(payload));
                     sentSig = true;
-                } else if (!sentKey) {
-                    send(o, AUTH, 3, 0, androidPubKey());   // TV shows "Allow debugging?"
+                } else if (!sentKey && allowPubkey) {
+                    // Public key → TV "Allow debugging?" dialog. Only once per quiet window.
+                    send(o, AUTH, 3, 0, androidPubKey());
                     sentKey = true;
                     s.setSoTimeout(30000);
                 } else {
                     lastState = "unauthorized";
+                    noPubkeyUntil.put(host, SystemClock.elapsedRealtime() + 300_000L);
                     throw new IOException("Accept the debugging prompt on the TV");
                 }
             }
+            noPubkeyUntil.remove(host);
             s.setSoTimeout(8000);
             lastState = "ok";
             int local = 1;

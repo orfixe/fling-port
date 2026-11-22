@@ -187,13 +187,22 @@ def catt_run(args: list[str], timeout: float = 25) -> str:
         raise CattError(el[-1] if el else f"catt завершился с ошибкой ({r.returncode})")
     return out
 
+def _is_ipv4(ip: str) -> bool:
+    """Cast/ADB in Fling use IPv4 only — drop IPv6 / scoped addresses from discovery."""
+    parts = (ip or "").split(".")
+    return len(parts) == 4 and all(p.isdigit() and int(p) <= 255 for p in parts)
+
+
 def catt_scan() -> list[dict]:
     out = catt_run(["scan"], timeout=30)
     devs = []
     for l in out.splitlines():
         parts = l.strip().split(" - ")
         if len(parts) >= 3 and not l.startswith("Scanning"):
-            devs.append({"ip": parts[0], "name": " - ".join(parts[1:-1]), "model": parts[-1]})
+            ip = parts[0].strip()
+            if not _is_ipv4(ip):
+                continue                  # ignore IPv6 hits (they re-prompt / fail ADB)
+            devs.append({"ip": ip, "name": " - ".join(parts[1:-1]), "model": parts[-1]})
     return devs
 
 def catt_info(ip: str) -> dict:
@@ -595,20 +604,56 @@ def bt_ensure_running():
 _THUMB: dict = {}
 _ADB = P.find_adb()
 
+# Per-TV ADB state so we don't re-hit the TV's "Allow debugging?" every few seconds.
+# state → device | unauthorized | closed | offline | missing; until → monotonic deadline
+_ADB_HOST: dict[str, tuple[str, float]] = {}
+_ADB_BACKOFF = {"unauthorized": 300.0, "closed": 60.0, "offline": 30.0, "missing": 3600.0}
+
+
+def _adb_remember(ip: str, state: str):
+    _ADB_HOST[ip] = (state, time.monotonic() + _ADB_BACKOFF.get(state, 15.0))
+
+
+def _adb_cached(ip: str) -> str | None:
+    hit = _ADB_HOST.get(ip)
+    if not hit:
+        return None
+    state, until = hit
+    if state == "device":
+        return None                       # always re-check a working link lightly via shell
+    if time.monotonic() < until:
+        return state
+    return None
+
 
 def adb_now_playing(ip: str) -> dict | None:
     """Parse `dumpsys media_session` on the TV: the active app's real title,
     artist, play state and position. None when ADB isn't authorised."""
+    if not _is_ipv4(ip) or not P.adb_available():
+        return None
+    cached = _adb_cached(ip)
+    if cached in ("unauthorized", "closed", "missing", "offline"):
+        return None                       # do not `adb connect` again — that re-prompts the TV
     serial = f"{ip}:5555"
     def sh(cmd, t=6):
         return P.run([_ADB, "-s", serial, "shell", cmd], capture_output=True, text=True, timeout=t,
                      encoding="utf-8", errors="replace")
     r = sh("dumpsys media_session; echo __UP__; cat /proc/uptime")
     if r.returncode != 0 or "__UP__" not in r.stdout:
+        # Only one quiet reconnect attempt; skip if the TV already refused us
+        if _adb_cached(ip) == "unauthorized":
+            return None
         P.run([_ADB, "connect", serial], capture_output=True, timeout=6)
+        # If devices says unauthorized, remember and stop hammering the TV
+        out = P.run([_ADB, "devices"], capture_output=True, text=True, timeout=5).stdout
+        for line in out.splitlines():
+            if line.startswith(serial) and "unauthorized" in line:
+                _adb_remember(ip, "unauthorized")
+                return None
         r = sh("dumpsys media_session; echo __UP__; cat /proc/uptime")
         if r.returncode != 0 or "__UP__" not in r.stdout:
             return None
+    _ADB_HOST[ip] = ("device", 0.0)
     body, up = r.stdout.split("__UP__", 1)
     uptime_ms = float(up.split()[0]) * 1000
     sessions, cur = [], None
@@ -696,8 +741,10 @@ class State(QObject):
         self.panel_visible = lambda: False
         self.status = {}
         self.volume = 50
-        self.devices = self.conf.get("devices", [])
-        self.device = self.conf.get("device") or (self.devices[0] if self.devices else None)
+        # Drop any saved IPv6 entries — Cast/ADB here are IPv4-only
+        self.devices = [d for d in self.conf.get("devices", []) if _is_ipv4(d.get("ip", ""))]
+        saved = self.conf.get("device")
+        self.device = saved if saved and _is_ipv4(saved.get("ip", "")) else (self.devices[0] if self.devices else None)
         self.cast_in_flight = False
         self.scanning = False
         self.last_error = None
@@ -764,10 +811,13 @@ class State(QObject):
             self._set(last_error="Устройство не выбрано")
             return
         def work():
-            st = adb_state(ip)
+            if not P.adb_available():
+                return {"error": "Снимок экрана: ADB не установлен — откройте «Подключение ТВ…» и скачайте platform-tools."}
+            st = adb_state(ip, force=True)           # user asked for a shot — one connect is ok
             if st != "device":
                 return {"error": {"unauthorized": "Снимок экрана: подтвердите на ТВ «Разрешить отладку».",
-                                  "closed": "Снимок экрана работает через ADB — включите его: «Подключение ТВ…» → ADB."}
+                                  "closed": "Снимок экрана работает через ADB — включите его: «Подключение ТВ…» → ADB.",
+                                  "missing": "Снимок экрана: ADB не установлен — откройте «Подключение ТВ…» и скачайте platform-tools."}
                         .get(st, "Снимок экрана: ADB не подключён — откройте «Подключение ТВ…».")}
             r = P.run([_ADB, "-s", f"{ip}:5555", "exec-out", "screencap", "-p"],
                                capture_output=True, timeout=20)
@@ -802,6 +852,11 @@ class State(QObject):
     def poll_tvm(self):
         ip = self.ip
         if not ip or self._tvm_busy:
+            return
+        if not P.adb_available() or not _is_ipv4(ip):
+            return
+        # Quiet while the TV is refusing / ADB is off — polling would re-prompt
+        if _adb_cached(ip) in ("unauthorized", "closed", "missing", "offline"):
             return
         self._tvm_busy = True
         def work():
@@ -1016,7 +1071,7 @@ class State(QObject):
             return
         def work():
             import socket as _s
-            c = _s.socket(); c.settimeout(2)           # quick check: is there a Cast device at all?
+            c = _s.socket(_s.AF_INET, _s.SOCK_STREAM); c.settimeout(2)  # IPv4 only
             try:
                 c.connect((ip, 8009))                  # 8009 = Google Cast port
             except OSError:
@@ -1394,6 +1449,18 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
     ('Fling — подключение ТВ', 'Fling — Connect TV'),
     ('Подключение ТВ', 'Connect TV'),
     ('Одна кнопка находит ТВ в сети и подключает всё, что можно. Шаги, где нужно ваше действие на ТВ, подскажут, что нажать.', 'One button finds the TV on your network and connects everything it can. Steps that need you on the TV say what to press.'),
+    ('Одна кнопка находит ТВ в сети и подключает пульт и ADB. Шаги, где нужно ваше действие на ТВ, подскажут, что нажать.', 'One button finds the TV on your network and connects the remote and ADB. Steps that need you on the TV say what to press.'),
+    ('Не проверено — нажмите «Подключить», когда будете у ТВ.', 'Not checked yet — press “Connect” when you are at the TV.'),
+    ('На экране ТВ появился запрос — нажмите «Разрешить» (лучше с галочкой «Всегда»). Пока не нажмёте — Fling больше не будет спрашивать сам.',
+     'The TV is asking for permission — choose “Allow” (ideally with “Always”). Until you do, Fling will not ask again on its own.'),
+    ('ADB не найден на этом компьютере. Скачайте Android platform-tools ', 'ADB was not found on this computer. Download Android platform-tools '),
+    ('zip для этой ОС', 'zip for this OS'),
+    ('страница Google', 'Google’s page'),
+    ('распакуйте папку platform-tools в ', 'unzip the platform-tools folder into '),
+    (' или положите ', ' or put '),
+    (' в PATH — затем нажмите «Проверить».', ' on your PATH — then press “Check”.'),
+    ('Снимок экрана: ADB не установлен — откройте «Подключение ТВ…» и скачайте platform-tools.',
+     'Screenshot: ADB is not installed — open “Connect TV…” and download platform-tools.'),
     ('Найти и подключить всё', 'Find and connect everything'),
     ('Поиск ТВ в локальной сети', 'Find the TV on the local network'),
     ('Пульт ТВ (по сети)', 'TV remote (network)'),
@@ -2488,10 +2555,7 @@ class Panel(QWidget):
         v.addWidget(self.shot_row)
         self.setup_row = MenuRow("Подключение ТВ…", icon="tv", on=lambda: (self.hide(), self.open_setup()))
         v.addWidget(self.setup_row)
-        self.notify_row = MenuRow("Уведомлять о смене видео", icon="bell", on=self._toggle_notify)
-        v.addWidget(self.notify_row)
-        self.login = MenuRow("Запускать при входе", icon="login", on=self._toggle_login)
-        v.addWidget(self.login)
+        # Notify / start-at-login live only in the tray menu — keeps the panel short
         v.addWidget(MenuRow("Выйти из Fling", icon="quit", shortcut="Ctrl+Q", on=QApplication.quit))
         v = v_main
         v.addWidget(Separator())
@@ -2622,23 +2686,16 @@ class Panel(QWidget):
         QApplication.quit()
 
     def open_setup(self):
+        # One Connect TV window; close the help guide so they don't stack
+        if getattr(self, "_help", None):
+            self._help.hide()
         if not hasattr(self, "_setup"):
             self._setup = SetupWindow(self.state)
         self._setup.show(); self._setup.raise_(); self._setup.activateWindow()
 
-    def _toggle_login(self):
-        toggle_login()
-        self.sync()
-
     def toggle_compact(self):
         s = self.state
         s.conf["compact"] = not s.conf.get("compact")
-        save_conf(s.conf)
-        s.changed.emit()
-
-    def _toggle_notify(self):
-        s = self.state
-        s.conf["notify_track"] = not s.conf.get("notify_track", True)
         save_conf(s.conf)
         s.changed.emit()
 
@@ -2756,11 +2813,6 @@ class Panel(QWidget):
 
         self.err.setText(s.last_error or "")
         self.err_box.setVisible(bool(s.last_error))
-        self.login.setText(("✓ " if login_enabled() else "") + "Запускать при входе")
-        notify_on = s.conf.get("notify_track", True)
-        self.notify_row.setText("Уведомлять о смене видео")
-        self.notify_row.set_icon_color(T.green if notify_on else T.red)
-        self.notify_row.setToolTip("Уведомления включены" if notify_on else "Уведомления выключены")
 
         # compact mode: just what's playing / this tab, volume and the footer
         compact = bool(s.conf.get("compact"))
@@ -2885,13 +2937,28 @@ class Panel(QWidget):
 
 # ---------------------------------------------------------------- "Connect TV" window: find / pair remote / ADB / YouTube / BT
 
-def adb_state(ip: str) -> str:
-    """device | unauthorized | closed | offline"""
+def adb_state(ip: str, force: bool = False) -> str:
+    """device | unauthorized | closed | offline | missing
+
+    `force=True` bypasses the backoff (user clicked Check / Pair).
+    Otherwise we avoid fresh `adb connect` while unauthorized — each connect
+    re-shows the Allow debugging dialog on the TV.
+    """
+    if not P.adb_available():
+        _adb_remember(ip or "", "missing")
+        return "missing"
+    if not ip or not _is_ipv4(ip):
+        return "offline"
+    if not force:
+        cached = _adb_cached(ip)
+        if cached:
+            return cached
     import socket as _s
-    c = _s.socket(); c.settimeout(1.5)
+    c = _s.socket(_s.AF_INET, _s.SOCK_STREAM); c.settimeout(1.5)
     try:
         c.connect((ip, 5555))
     except OSError:
+        _adb_remember(ip, "closed")
         return "closed"
     finally:
         c.close()
@@ -2900,8 +2967,37 @@ def adb_state(ip: str) -> str:
     out = P.run([_ADB, "devices"], capture_output=True, text=True, timeout=5).stdout
     for line in out.splitlines():
         if line.startswith(serial):
-            return line.split()[1]
+            st = line.split()[1]
+            if st == "device":
+                _ADB_HOST[ip] = ("device", 0.0)
+            else:
+                _adb_remember(ip, st if st in _ADB_BACKOFF else "offline")
+            return st
+    _adb_remember(ip, "offline")
     return "offline"
+
+
+def _adb_missing_html() -> str:
+    """Clickable download links when platform-tools / adb is not installed."""
+    zip_url = P.platform_tools_zip_url()
+    page = P.PLATFORM_TOOLS_PAGE
+    dest = P.DATA
+    col = Theme.css(T.accent)
+    if LANG == "en":
+        return (
+            "ADB was not found on this computer. Download Android platform-tools "
+            f'(<a href="{zip_url}" style="color:{col}">zip for this OS</a> · '
+            f'<a href="{page}" style="color:{col}">Google’s page</a>), '
+            f"unzip the <code>platform-tools</code> folder into <code>{dest}</code> "
+            "or put <code>adb</code> on your PATH — then press “Check”."
+        )
+    return (
+        "ADB не найден на этом компьютере. Скачайте Android platform-tools "
+        f'(<a href="{zip_url}" style="color:{col}">zip для этой ОС</a> · '
+        f'<a href="{page}" style="color:{col}">страница Google</a>), '
+        f"распакуйте папку <code>platform-tools</code> в <code>{dest}</code> "
+        "или положите <code>adb</code> в PATH — затем нажмите «Проверить»."
+    )
 
 
 class SetupWindow(QWidget):
@@ -2917,7 +3013,7 @@ class SetupWindow(QWidget):
         self.setAutoFillBackground(True)
         v = QVBoxLayout(self); v.setContentsMargins(18, 16, 18, 16); v.setSpacing(10)
         v.addWidget(label("Подключение ТВ", 17, weight=QFont.Weight.Bold))
-        v.addWidget(label("Одна кнопка находит ТВ в сети и подключает всё, что можно. "
+        v.addWidget(label("Одна кнопка находит ТВ в сети и подключает пульт и ADB. "
                           "Шаги, где нужно ваше действие на ТВ, подскажут, что нажать.", 11.5, T.fg_a(0.6), wrap=True))
         self.go = QPushButton("Найти и подключить всё")
         self.go.setFixedHeight(34); self.go.setFont(font(13, QFont.Weight.DemiBold))
@@ -2927,18 +3023,15 @@ class SetupWindow(QWidget):
         self.go.clicked.connect(self.run_all)
         v.addWidget(self.go)
         self.rows = {}
+        # Only the essentials: find TV, network remote, ADB (no YouTube-code / BT clutter)
         for key, title in (("find", "Поиск ТВ в локальной сети"), ("remote", "Пульт ТВ (по сети)"),
-                           ("adb", "ADB: что играет, название и обложка"), ("yt", "YouTube на ТВ (по коду)"),
-                           ("bt", "Bluetooth-пульт (запасной)")):
-            if key == "bt" and not BT_SUPPORTED:
-                continue
+                           ("adb", "ADB: что играет, название и обложка")):
             v.addWidget(self._row(key, title))
         v.addStretch(1)
         c2 = label(f'<a href="https://github.com/tatianathevisionary/fling" style="color:{Theme.css(T.fg_a(0.55))}">'
                    'Fling создан Damion Rashford и Tatiana · неофициальный порт</a>', 10.5, T.fg_a(0.45))
         c2.setOpenExternalLinks(True)
         v.addWidget(c2)
-        self.timer = QTimer(self, interval=2000); self.timer.timeout.connect(self.refresh)
         state.changed.connect(self.sync)
 
     def _row(self, key, title):
@@ -2954,6 +3047,8 @@ class SetupWindow(QWidget):
         top.addWidget(btn)
         lay.addLayout(top)
         info = label("", 11, T.fg_a(0.6), wrap=True)
+        info.setOpenExternalLinks(True)
+        info.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         lay.addWidget(info)
         extra = QWidget(); el = QHBoxLayout(extra); el.setContentsMargins(0, 0, 0, 0); el.setSpacing(6)
         lay.addWidget(extra)
@@ -2978,18 +3073,11 @@ class SetupWindow(QWidget):
             el.addWidget(label("Беспроводная отладка:", 11, T.fg_a(0.6)))
             el.addWidget(self.wport); el.addWidget(self.wcode, 1)
             el.addWidget(small_button("Связать", self.adb_pair))
-        elif key == "yt":
-            btn.clicked.connect(lambda: (self.rows["yt"]["extra"].show(), self.ytcode.setFocus()))
-            self.ytcode = field("12 цифр с экрана ТВ", mono=True)
-            self.ytcode.returnPressed.connect(self._yt)
-            el.addWidget(self.ytcode, 1); el.addWidget(small_button("Связать", self._yt))
-        elif key == "bt":
-            btn.clicked.connect(self.state.bt_pair)
         return box
 
     def _set(self, key, mark, info, btn=None, extra=None):
         r = self.rows.get(key)
-        if r is None:                      # row not shown on this OS (Bluetooth on Windows)
+        if r is None:
             return
         sym, col = {"ok": ("✓", T.green), "run": ("⏳", T.accent), "need": ("!", T.orange),
                     "fail": ("✗", T.red), "off": ("•", T.fg_a(0.4))}[mark]
@@ -3003,14 +3091,9 @@ class SetupWindow(QWidget):
             r["extra"].setVisible(extra)
 
     def showEvent(self, e):
-        self.timer.start(); self.refresh(); self.sync()
-        if self.adb == "?":
-            QTimer.singleShot(300, self.adb_connect)
+        self.sync()
+        # Do NOT auto-run adb_connect on open — that re-prompts the TV every time
         super().showEvent(e)
-
-    def hideEvent(self, e):
-        self.timer.stop()
-        super().hideEvent(e)
 
     # ---- actions
     def run_all(self):
@@ -3039,7 +3122,9 @@ class SetupWindow(QWidget):
         s = self.state
         if s.ip and not s.tv_paired and s.tv_pairing in ("idle", "failed"):
             s.start_pairing()
-        self.adb_connect()
+        # Only try ADB once from "Find all", and only if we don't already know it's refused
+        if self.adb in ("?", "closed", "offline", "missing") or _adb_cached(s.ip or "") != "unauthorized":
+            self.adb_connect()
         self.auto = False
 
     def _pin(self):
@@ -3050,12 +3135,19 @@ class SetupWindow(QWidget):
 
     def adb_connect(self):
         ip = self.state.ip
+        if not P.adb_available():
+            self._adb_result("missing")
+            return
         if not ip:
             return
         self._set("adb", "run", "Подключаюсь к ТВ по ADB…", None)
-        self.state.bg(lambda: adb_state(ip), lambda r, e: self._adb_result(r or "offline"))
+        # force=True: user clicked Connect/Check — ok to talk to the TV once
+        self.state.bg(lambda: adb_state(ip, force=True), lambda r, e: self._adb_result(r or "offline"))
 
     def adb_pair(self):
+        if not P.adb_available():
+            self._adb_result("missing")
+            return
         ip, port, code = self.state.ip, self.wport.text().strip(), re.sub(r"\D", "", self.wcode.text())
         if not (ip and port.isdigit() and len(code) == 6):
             self._set("adb", "need", "Введите порт и 6-значный код из «Беспроводной отладки» на ТВ.", "Проверить", True)
@@ -3076,21 +3168,16 @@ class SetupWindow(QWidget):
             self._set("adb", "ok", "Подключено: панель видит, что играет на ТВ.", "Проверить", False)
             self.state.poll_tvm()
         elif st == "unauthorized":
-            self._set("adb", "need", "На экране ТВ появился запрос — нажмите «Разрешить» (лучше с галочкой «Всегда»).",
+            self._set("adb", "need", "На экране ТВ появился запрос — нажмите «Разрешить» (лучше с галочкой «Всегда»). "
+                      "Пока не нажмёте — Fling больше не будет спрашивать сам.",
                       "Проверить", False)
+        elif st == "missing":
+            self.rows["adb"]["info"].setOpenExternalLinks(True)
+            self._set("adb", "need", _adb_missing_html(), "Проверить", False)
         else:
             self._set("adb", "need", "ADB на ТВ выключен. На ТВ: Настройки → Система → О системе → 7 раз нажать «Сборка ОС» → "
                       "Настройки → Система → Для разработчиков → включить «Отладка по USB» и «Беспроводная отладка». "
                       "Если ТВ показывает код сопряжения — впишите порт и код ниже.", "Проверить", True)
-
-    def _yt(self):
-        code = re.sub(r"\D", "", self.ytcode.text())
-        if len(code) >= 10:
-            self.ytcode.clear()
-            self.state.yt_link(code)
-
-    def refresh(self):
-        self.state.poll_bt()
 
     # ---- state → rows
     def sync(self):
@@ -3115,21 +3202,10 @@ class SetupWindow(QWidget):
         else:
             self._set("remote", "off", "Не связан.", "Связать", False)
         if self.adb == "?":
-            self._set("adb", "off", "Не проверено.", "Подключить")
-        if s.lounge.is_linked:
-            self._set("yt", "ok", "Связан: видно точное видео и время в YouTube.", None, False)
-        elif s.yt_pairing == "linking":
-            self._set("yt", "run", "Связываю…", None)
-        else:
-            self._set("yt", "off", "Необязательно (ADB уже показывает, что играет). "
-                      "На ТВ: YouTube → Настройки → «Связать с ТВ по коду».", "Ввести код")
-        b = s.bt
-        if b.get("connected"):
-            self._set("bt", "ok", f"Подключён: {b.get('peer') or 'ТВ'}", None)
-        elif b.get("pairing"):
-            self._set("bt", "run", "Виден ТВ 3 минуты. На ТВ: Настройки → Пульты и аксессуары → Добавить → «Fling Remote».", None)
-        else:
-            self._set("bt", "off", "Не нужен, если пульт по сети связан.", "Подключить")
+            if not P.adb_available():
+                self._adb_result("missing")
+            else:
+                self._set("adb", "off", "Не проверено — нажмите «Подключить», когда будете у ТВ.", "Подключить")
 
 
 # ---------------------------------------------------------------- "How to use" window
@@ -3164,6 +3240,10 @@ class HelpWindow(QWidget):
 
 def open_help(holder):
     """Open (or raise) the single help window; `holder` keeps a reference so it isn't garbage-collected."""
+    # Close Connect TV if open — avoid stacking two extra windows on the panel
+    setup = getattr(holder, "_setup", None)
+    if setup is not None:
+        setup.hide()
     if not getattr(holder, "_help", None):
         holder._help = HelpWindow()
     holder._help.show(); holder._help.raise_(); holder._help.activateWindow()
@@ -3504,10 +3584,11 @@ def main():
     state.refresh()
     if cmd not in ("tray", "background"):
         QTimer.singleShot(300, lambda: handle(cmd))
-    if not state.conf.get("help_seen"):                      # very first start: show the guide once
+    # Do not auto-open the help window on first launch — one panel is enough;
+    # the guide stays behind the ? button / tray “How to use”.
+    if not state.conf.get("help_seen"):
         state.conf["help_seen"] = True
         save_conf(state.conf)
-        QTimer.singleShot(1200, lambda: open_help(panel))
     return app.exec()
 
 

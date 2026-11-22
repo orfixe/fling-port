@@ -229,15 +229,19 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         final String h = host;
         long now = SystemClock.elapsedRealtime();
         if (h == null || adbBusy || now < adbNext) return;
+        // Skip IPv6 hosts — ADB/Cast on the TV are used over IPv4 here
+        if (h.indexOf(':') >= 0) return;
         adbBusy = true;
-        // every 3 s; back off to 30 s while ADB is off on the TV
+        // every 3 s while healthy; long quiet period after a refused / closed link
         adbNext = now + 3000;
         net.execute(() -> {
             Cast.Status r = null;
             try { r = adb.nowPlaying(h); } catch (Exception e) {
-                // ADB off, or waiting for "Allow debugging" on the TV: don't re-prompt every 3 s
-                if ("closed".equals(Adb.lastState) || "unauthorized".equals(Adb.lastState))
-                    adbNext = SystemClock.elapsedRealtime() + 30000;
+                // ADB off, or waiting for "Allow debugging": do NOT keep re-prompting the TV
+                if ("unauthorized".equals(Adb.lastState))
+                    adbNext = SystemClock.elapsedRealtime() + 300000;   // 5 min
+                else if ("closed".equals(Adb.lastState))
+                    adbNext = SystemClock.elapsedRealtime() + 120000;   // 2 min
             }
             if (r != null && r.hasMedia()) {
                 String app = appName(r.appId);
