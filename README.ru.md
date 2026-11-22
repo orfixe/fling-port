@@ -49,8 +49,8 @@
 
 Компьютер / телефон и телевизор должны быть в одной сети.
 
-**Проверено на:** Windows 11 с Edge и Chrome, Kubuntu 26.04 (KDE Plasma 6), Android 17 (Samsung),
-телевизор TCL с Google TV. Расширение для Firefox и Safari собрано, но ещё не проверялось —
+**Проверено на:** Windows 11 с Edge и Chrome, Kubuntu 26.04 (KDE Plasma 6), Android 17,
+телевизор с Google TV. Расширение для Firefox и Safari собрано, но ещё не проверялось —
 будем рады отзывам.
 
 ## Возможности
