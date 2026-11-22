@@ -1769,7 +1769,6 @@ class MenuRow(QPushButton):
 
     def setEnabled(self, en):
         super().setEnabled(en)
-        eff = None
         self.setWindowOpacity(1)
         for w in (self.t, self.ic, self.k):
             w.setEnabled(en)

@@ -997,7 +997,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         linkCastRow = ui.row(L.t("Отправить на ТВ"), "tv_play", null, true, v -> { if (link != null) castLink(link, linkTitle); });
         linkCard.addView(linkCastRow);
         linkCard.addView(ui.row(L.t("Вставить ссылку из буфера"), "clipboard", null, false, v -> pasteLink()));
-        linkCard.addView(ui.row(L.t("Снимок экрана ТВ"), "clipboard", null, false, v -> tvScreenshot()));
+        linkCard.addView(ui.row(L.t("Снимок экрана ТВ"), "camera", null, false, v -> tvScreenshot()));
         recentBox = ui.col();
         linkCard.addView(recentBox);
         addCard(linkCard);
@@ -1078,7 +1078,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         TextView sx = ui.text(L.t("Свяжите один раз с ТВ, чтобы открыть приложения, крестовину, ввод текста, голосовой поиск и отправку YouTube-ссылок."), 14, ui.fgA(0.55f), false);
         sx.setLineSpacing(0, 1.2f);
         setupBox.addView(sx, ui.margins(Ui.lp(-1, -2), 10, 0, 10, 6));
-        setupBox.addView(ui.row(L.t("Настроить управление ТВ…"), "waves", null, true, v -> {
+        setupBox.addView(ui.row(L.t("Связать пульт с ТВ…"), "waves", null, true, v -> {
             if (host == null) { showError(L.t("Телевизор ещё не найден.")); return; }
             atv.startPairing(host);
         }));

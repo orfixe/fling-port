@@ -409,6 +409,11 @@ final class Ui {
                     c.drawRoundRect(new RectF(s * .24f, s * .2f, s * .76f, s * .86f), s * .07f, s * .07f, p);
                     c.drawRoundRect(new RectF(s * .38f, s * .12f, s * .62f, s * .26f), s * .04f, s * .04f, p);
                     break;
+                case "camera":
+                    c.drawRoundRect(new RectF(s * .12f, s * .3f, s * .88f, s * .82f), s * .08f, s * .08f, p);
+                    poly(c, false, s, .36f, .3f, .42f, .18f, .58f, .18f, .64f, .3f);
+                    c.drawCircle(m, s * .56f, s * .14f, p);
+                    break;
                 case "waves":
                     c.drawCircle(m, m, s * .06f, p);
                     c.drawArc(new RectF(s * .28f, s * .28f, s * .72f, s * .72f), -45, 90, false, p);

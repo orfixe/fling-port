@@ -125,7 +125,7 @@ final class L {
         e("Поделитесь ссылкой из YouTube или браузера → «Fling» — и видео сразу пойдёт на телевизор. Или скопируйте ссылку и вставьте её здесь.",
           "Share a link from YouTube or your browser → “Fling” and the video goes straight to the TV. Or copy a link and paste it here.");
         e("Отправить на ТВ", "Cast to TV");
-        e("Вставить ссылку из буфера", "Cast clipboard URL");
+        e("Вставить ссылку из буфера", "Paste copied link");
         e("В буфере обмена нет ссылки.", "There's no link on the clipboard.");
         e("Связываюсь с ТВ…", "Contacting TV…");
         e("Введите код с экрана телевизора", "Enter the code on the TV screen");
@@ -133,7 +133,7 @@ final class L {
         e("Телевизор", "TV");
         e("Свяжите один раз с ТВ, чтобы открыть приложения, крестовину, ввод текста, голосовой поиск и отправку YouTube-ссылок.",
           "Pair once with the TV to unlock apps, the d-pad, typing, voice search and sending YouTube links.");
-        e("Настроить управление ТВ…", "Set Up TV Power…");
+        e("Связать пульт с ТВ…", "Pair TV remote…");
         e("Телевизор ещё не найден.", "No TV found yet.");
         e("На телевизоре", "On the TV");
         e("Кнопки", "Buttons");
