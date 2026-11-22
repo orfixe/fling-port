@@ -374,6 +374,148 @@ class GlobalHotkey:
                     print("hotkey:", e, flush=True)
         user32.UnregisterHotKey(None, 1)
 
+
+class RemoteKeyHook:
+    """Windows: the laptop keyboard drives the TV while the Fling panel is open.
+
+    The panel is a tray popup, and Windows never makes a tray popup the active
+    window, so Qt gets no key events at all — the arrows keep going to the browser.
+    A low-level keyboard hook (WH_KEYBOARD_LL) sees the keys whatever window has
+    focus. It is installed only while the panel is open (`start` on show, `stop` on
+    hide) and swallows only the remote keys below, only while `active` is True,
+    and never with Ctrl / Alt / Win held, so normal shortcuts keep working.
+
+    `on_key(vk, shift, repeat)` runs on the hook thread — hop to the Qt thread yourself.
+    """
+    VK_LEFT, VK_UP, VK_RIGHT, VK_DOWN = 0x25, 0x26, 0x27, 0x28
+    VK_RETURN, VK_BACK, VK_SPACE, VK_HOME, VK_ESCAPE = 0x0D, 0x08, 0x20, 0x24, 0x1B
+    VK_OEM_PLUS, VK_OEM_MINUS, VK_ADD, VK_SUBTRACT = 0xBB, 0xBD, 0x6B, 0x6D
+    KEYS = {VK_LEFT, VK_UP, VK_RIGHT, VK_DOWN, VK_RETURN, VK_BACK, VK_SPACE, VK_HOME,
+            VK_ESCAPE, VK_OEM_PLUS, VK_OEM_MINUS, VK_ADD, VK_SUBTRACT}
+
+    def __init__(self, on_key):
+        self.on_key = on_key
+        self.active = False              # set from the Qt thread; read by the hook
+        self._lock = threading.Lock()
+        self._thread = None
+        self._tid = None
+        self._down = set()               # keys we swallowed a key-down for
+
+    def start(self) -> None:
+        if not IS_WIN:
+            return
+        with self._lock:
+            if self._thread and self._thread.is_alive():
+                return
+            self._down.clear()
+            ready = threading.Event()
+            self._thread = threading.Thread(target=self._loop, args=(ready,), daemon=True,
+                                            name="fling-remote-keys")
+            self._thread.start()
+        ready.wait(1)
+
+    def stop(self) -> None:
+        if not IS_WIN:
+            return
+        with self._lock:
+            t, tid = self._thread, self._tid
+        if t and tid:
+            import ctypes
+            ctypes.windll.user32.PostThreadMessageW(tid, 0x0012, 0, 0)   # WM_QUIT
+            t.join(1)
+
+    def _loop(self, ready):
+        import ctypes
+        from ctypes import wintypes
+        user32 = ctypes.WinDLL("user32", use_last_error=True)        # private copy: our argtypes only
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        LRESULT = ctypes.c_ssize_t
+        HOOKPROC = ctypes.WINFUNCTYPE(LRESULT, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+
+        class KBDLLHOOKSTRUCT(ctypes.Structure):
+            _fields_ = [("vkCode", wintypes.DWORD), ("scanCode", wintypes.DWORD),
+                        ("flags", wintypes.DWORD), ("time", wintypes.DWORD),
+                        ("dwExtraInfo", ctypes.c_size_t)]
+
+        user32.SetWindowsHookExW.argtypes = [ctypes.c_int, HOOKPROC, wintypes.HINSTANCE, wintypes.DWORD]
+        user32.SetWindowsHookExW.restype = wintypes.HHOOK
+        user32.CallNextHookEx.argtypes = [wintypes.HHOOK, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM]
+        user32.CallNextHookEx.restype = LRESULT
+        user32.UnhookWindowsHookEx.argtypes = [wintypes.HHOOK]
+        user32.GetAsyncKeyState.restype = ctypes.c_short
+        kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+        WM_KEYDOWN, WM_SYSKEYDOWN = 0x0100, 0x0104
+        LLKHF_INJECTED = 0x10
+
+        def held(vk):
+            return bool(user32.GetAsyncKeyState(vk) & 0x8000)
+
+        def proc(code, wparam, lparam):
+            try:
+                if code == 0 and self.active:
+                    kb = ctypes.cast(lparam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
+                    vk = kb.vkCode
+                    if vk in self.KEYS and not kb.flags & LLKHF_INJECTED:
+                        down = wparam in (WM_KEYDOWN, WM_SYSKEYDOWN)
+                        if down and not (held(0x11) or held(0x12) or held(0x5B) or held(0x5C)):
+                            repeat = vk in self._down
+                            self._down.add(vk)
+                            self.on_key(vk, held(0x10), repeat)
+                            return 1                          # swallow: the TV gets it, not the browser
+                        if not down and vk in self._down:
+                            self._down.discard(vk)
+                            return 1
+            except Exception as e:
+                print("remote keys:", e, flush=True)
+            return user32.CallNextHookEx(None, code, wparam, lparam)
+
+        cb = HOOKPROC(proc)                                   # keep a reference while the hook lives
+        hook = user32.SetWindowsHookExW(13, cb, kernel32.GetModuleHandleW(None), 0)   # WH_KEYBOARD_LL
+        self._tid = kernel32.GetCurrentThreadId()
+        ready.set()
+        if not hook:
+            print("remote keys: SetWindowsHookEx failed", ctypes.get_last_error(), flush=True)
+            self._tid = None
+            return
+        msg = wintypes.MSG()
+        while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+            pass
+        user32.UnhookWindowsHookEx(hook)
+        self._tid = None
+        self._down.clear()
+
+
+def force_foreground(win_id) -> bool:
+    """Windows: make a Fling window the foreground window so its text fields get the
+    keyboard. A tray app isn't allowed to by default; attaching to the current
+    foreground thread's input for a moment is the usual way around it."""
+    if not IS_WIN:
+        return False
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32")
+    user32.GetForegroundWindow.restype = wintypes.HWND
+    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+    user32.BringWindowToTop.argtypes = [wintypes.HWND]
+    user32.SetFocus.argtypes = [wintypes.HWND]
+    hwnd = wintypes.HWND(int(win_id))
+    fg = user32.GetForegroundWindow()
+    if fg and fg == hwnd.value:
+        return True
+    me = kernel32.GetCurrentThreadId()
+    other = user32.GetWindowThreadProcessId(fg, None) if fg else 0
+    attached = bool(other and other != me and user32.AttachThreadInput(other, me, True))
+    try:
+        user32.BringWindowToTop(hwnd)
+        user32.SetForegroundWindow(hwnd)
+        user32.SetFocus(hwnd)
+    finally:
+        if attached:
+            user32.AttachThreadInput(other, me, False)
+    return user32.GetForegroundWindow() == hwnd.value
+
     def stop(self):
         if IS_WIN and self._tid:
             import ctypes
