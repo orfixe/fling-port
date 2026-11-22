@@ -1,12 +1,38 @@
 # Private macOS build (keyboard icon)
 
-Builds official Fling for macOS with the keyboard-icon `RemoteView` change.
-**Private** — not for public upstream PRs unless Damion asks.
+Unofficial build of Fling for macOS with the keyboard-icon `RemoteView` change.
+Original Fling code by Damion Rashford; original repo owned/published by Tatiana —
+see [CREDITS.md](../CREDITS.md). **Not** affiliated with them.
+
+## Why Safari deletes the zip
+
+Browser downloads get a **quarantine** flag. Ad-hoc-signed apps (same as upstream
+Fling without Developer ID) are often blocked or removed as “malware”. Upstream
+avoids this by installing via `curl` / Terminal — we do the same.
+
+## Install on a Mac (recommended)
 
 ```sh
-# on a Mac:
-./macos/build.sh
-# → macos/dist/Fling.app.zip
+# once: gh auth login   (account that can read the private orfixe/fling-port)
+curl -fsSL -H "Authorization: token $(gh auth token)" \
+  "https://raw.githubusercontent.com/orfixe/fling-port/main/macos/install.sh" \
+  -o /tmp/install-fling-port.sh
+bash /tmp/install-fling-port.sh
 ```
 
-CI: `.github/workflows/macos-fling.yml` (macOS runner).
+Or from a clone:
+
+```sh
+./macos/install.sh
+```
+
+Installs to `~/Applications/Fling Port.app`, re-signs locally, strips quarantine.
+
+## Build on a Mac
+
+```sh
+./macos/build.sh
+# → macos/dist/Fling.app.zip + Fling + Info.plist
+```
+
+CI: `.github/workflows/macos-fling.yml`.

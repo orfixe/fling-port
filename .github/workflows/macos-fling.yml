@@ -26,6 +26,7 @@ jobs:
           path: |
             macos/dist/Fling.app.zip
             macos/dist/Fling
+            macos/dist/Info.plist
           if-no-files-found: error
       - name: Attach to latest private release (optional)
         if: github.ref == 'refs/heads/main'
@@ -35,6 +36,7 @@ jobs:
           set -e
           TAG=$(gh release list -R "$GITHUB_REPOSITORY" --limit 1 --json tagName -q '.[0].tagName' || true)
           if [ -n "$TAG" ]; then
-            gh release upload "$TAG" macos/dist/Fling.app.zip \
+            gh release upload "$TAG" \
+              macos/dist/Fling.app.zip macos/dist/Fling macos/dist/Info.plist \
               --repo "$GITHUB_REPOSITORY" --clobber || true
           fi
