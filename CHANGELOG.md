@@ -33,6 +33,10 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   remote and the housekeeping rows. The notification switch shows a green / red bell;
   new icons for start at login and quit; clearer labels (*Pair TV remote…*, *Cast copied link*,
   *Choose TV*).
+- Android: `Fling.apk` 0.2.0 (version code 2) with the "How to use" guide and the TV chooser.
+  It is signed with a new debug key, so a phone with 0.1.0 must uninstall the old app first
+  (and pair the TV remote again).
+- `android/build.sh` also builds on Windows (Git Bash) and creates the debug key when missing.
 - Step-by-step Windows guide in English and Russian (`docs/install-windows*.md`),
   Russian README, language flags.
 
