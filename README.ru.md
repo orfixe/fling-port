@@ -22,13 +22,9 @@
 [![Safari](https://img.shields.io/badge/Safari-расширение-006CFF?logo=safari&logoColor=white)](#расширение-для-браузера)
 [![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
-<img src="docs/screenshots/windows-panel-en.png" width="250" alt="Панель Fling в Windows">
-&nbsp;
-<img src="docs/screenshots/extension-popup-en.png" width="250" alt="Расширение Fling">
-&nbsp;
-<img src="docs/screenshots/linux-panel-en.png" width="250" alt="Панель Fling в KDE Plasma">
-&nbsp;
-<img src="docs/screenshots/android-en.png" width="190" alt="Fling на Android">
+<img src="docs/screenshots/hero.png" width="100%" alt="Fling в Windows, в браузере, в KDE Plasma и на Android">
+
+<sub>Панель в Windows · расширение для браузера · KDE Plasma · Android</sub>
 
 </div>
 
