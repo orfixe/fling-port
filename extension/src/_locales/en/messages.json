@@ -150,7 +150,7 @@
     "message": "✓ Connected to Fling $1 on $2 · TV: $3"
   },
   "credit": {
-    "message": "Fling by Damion Rashford · published by Tatiana · unofficial port"
+    "message": "Fling by Damion Rashford and Tatiana · unofficial port"
   },
   "optNotify": {
     "message": "Notify when the video changes"

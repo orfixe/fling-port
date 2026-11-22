@@ -6,31 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 This is an unofficial port of [Fling](https://github.com/tatianathevisionary/fling)
-(original code by Damion Rashford; repository owned/published by Tatiana);
-see [CREDITS.md](CREDITS.md).
+by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
-### Changed
-
-- Authorship wording aligned with [CREDITS.md](CREDITS.md): Damion Rashford wrote the original
-  Fling code; Tatiana owns and publishes the original repository (footer, docs, GitHub description).
-
 ### Added
 
-- Desktop: Android ADB badge (red / green + «Connected!» animation). When ADB is authorised,
-  Connect TV shows everyday tools — wake, sleep, home, screenshot, settings, apps, force-stop,
-  reboot, disconnect — and the panel footer Android opens the same menu.
+- Desktop: the laptop keyboard works as a TV remote — arrow keys (hold to scroll through menus),
+  WASD, Enter, Backspace, numpad and media keys; WASD also works on a Russian layout.
+- Desktop: the keyboard icon opens a field for typing on the TV.
+- Desktop: an Android badge shows whether ADB is connected. Once the TV allows debugging,
+  Connect TV offers everyday tools: wake, sleep, home, screenshot, settings, apps,
+  force-stop, reboot, disconnect. The Android button in the panel opens the same menu.
+- macOS: a private build of Fling with the keyboard icon, installed from Terminal
+  (`macos/install.sh`) so macOS doesn't quarantine it.
 
 ### Fixed
 
-- Desktop/Android: stop hammering the TV with ADB “Allow debugging?” prompts — backoff after
-  unauthorized/closed, no auto-connect when opening Connect TV, IPv4-only discovery and sockets.
-- Desktop: fewer stacked windows (no auto-open help; Connect TV and the guide don’t both stay up).
-- Desktop Connect TV and extension options: drop the optional YouTube-code / Bluetooth rows and the
-  unused notify/port settings; panel keeps screenshot + Connect TV + Quit (notify / login stay in the tray).
-- Desktop: if `adb` / platform-tools is missing, Connect TV shows download links (OS zip + Google page).
-- Desktop: Connect TV accepts a typed IP and a non-5555 wireless-debug port (or `IP:port` paste).
+- The TV no longer gets a flood of "Allow debugging?" prompts: Fling waits before retrying,
+  doesn't connect by itself when Connect TV opens, and uses IPv4 only.
+- Connect TV accepts a typed IP and a wireless-debugging port other than 5555 (or `IP:port`).
+- If `adb` is missing, Connect TV shows where to download platform-tools.
+- Fewer windows on top of each other: help doesn't open by itself, and Connect TV and the guide
+  don't both stay open.
+
+### Changed
+
+- Connect TV and the extension options no longer show the YouTube-code and Bluetooth rows or the
+  unused notification / port settings. Notifications and start-at-login stay in the tray menu.
 
 ## [0.2.0] - 2026-11-21
 

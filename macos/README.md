@@ -1,8 +1,8 @@
 # Private macOS build (keyboard icon)
 
 Unofficial build of Fling for macOS with the keyboard-icon `RemoteView` change.
-Original Fling code by Damion Rashford; original repo owned/published by Tatiana —
-see [CREDITS.md](../CREDITS.md). **Not** affiliated with them.
+Fling is by Damion Rashford and Tatiana, see [CREDITS.md](../CREDITS.md).
+This build is not affiliated with them.
 
 ## Why Safari deletes the zip
 

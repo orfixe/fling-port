@@ -74,7 +74,7 @@ HELP = {
    "• Крестовина, OK, «Назад», «Домой».\n"
    "• Колёсико или тачпад в любом месте панели двигают меню ТВ.\n"
    "• «Громк −», «Без звука», «Громк +» — звук телевизора.\n"
-   "• Значок клавиатуры открывает строку для печати на ТВ (через Android TV Remote, как в исходнике Damion).\n"
+   "• Значок клавиатуры открывает строку для печати на ТВ.\n"
    "• Микрофон рядом — голосовой поиск. Нажмите ещё раз, когда закончите."
   ],
   [
@@ -186,7 +186,7 @@ HELP = {
    "• D-pad, OK, “Back”, “Home”.\n"
    "• Scroll anywhere on the panel to move around the TV. A touchpad works too.\n"
    "• “Vol −”, “Mute”, “Vol +” are the TV’s volume.\n"
-   "• The keyboard icon opens a field to type on the TV (Android TV Remote, same as Damion’s Fling).\n"
+   "• The keyboard icon opens a field for typing on the TV.\n"
    "• The mic next to it starts voice search. Click it again when you’re done."
   ],
   [
