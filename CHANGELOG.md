@@ -6,9 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 This is an unofficial port of [Fling](https://github.com/tatianathevisionary/fling)
-by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
+(original code by Damion Rashford; repository owned/published by Tatiana);
+see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
+
+### Changed
+
+- Authorship wording aligned with [CREDITS.md](CREDITS.md): Damion Rashford wrote the original
+  Fling code; Tatiana owns and publishes the original repository (footer, docs, GitHub description).
 
 ### Added
 
