@@ -103,12 +103,12 @@ final class L {
         e("Телевизор не открыл голосовой поиск.", "The TV didn't open voice search.");
         e("Код должен быть из 6 символов", "The code must be 6 characters");
         e("Код состоит из цифр 0-9 и букв A-F", "The code uses digits 0-9 and letters A-F");
-        e("Телевизор больше не доверяет этому телефону — настройте управление ТВ заново.", "The TV no longer trusts this phone — run TV power setup again.");
+        e("Телевизор больше не доверяет этому телефону — свяжите его с ТВ заново.", "The TV no longer trusts this phone — pair with the TV again.");
         // main screen
         e("В том, чем поделились, нет ссылки.", "There's no link in what was shared.");
         e("Ищу телевизор…", "Looking for the TV…");
-        e("Чтобы открыть YouTube на ТВ, один раз настройте управление ТВ (ниже).", "To open YouTube on the TV, set up TV power once (below).");
-        e("Эту страницу можно открыть на ТВ только после настройки управления ТВ (ниже).", "This page can open on the TV only after TV power setup (below).");
+        e("Чтобы открыть YouTube на ТВ, один раз нажмите «Связать с ТВ» ниже.", "To open YouTube on the TV, tap “Pair with TV” below once.");
+        e("Эту страницу можно открыть на ТВ после того, как вы нажмёте «Связать с ТВ» ниже.", "This page opens on the TV once you tap “Pair with TV” below.");
         e("Отправлено на ТВ", "Sent to the TV");
         e("Указать IP вручную…", "Enter IP manually…");
         e("Искать заново", "Scan again");
@@ -116,9 +116,9 @@ final class L {
         e("IP-адрес телевизора", "TV IP address");
         e("Подключить", "Connect");
         e("Отмена", "Cancel");
-        e("Телевизор игнорирует паузу по Chromecast (так ведёт себя YouTube на ТВ). Настройте управление ТВ ниже — пауза пойдёт как кнопка пульта.",
-          "The TV ignores pause over Chromecast (YouTube on the TV does this). Set up TV power below — pause will go as a remote key.");
-        e("Перемотка этого видео работает только через управление ТВ — настройте его ниже.", "Seeking this video only works via TV power — set it up below.");
+        e("Телевизор игнорирует паузу по Chromecast (так ведёт себя YouTube на ТВ). Нажмите «Связать с ТВ» ниже — пауза пойдёт как кнопка пульта.",
+          "The TV ignores pause over Chromecast (YouTube on the TV does this). Tap “Pair with TV” below — pause will go as a remote key.");
+        e("Перемотка этого видео работает только после «Связать с ТВ» — кнопка ниже.", "Seeking this video needs “Pair with TV” — the button is below.");
         e("Без доступа к микрофону голосовой поиск не работает.", "Voice search needs microphone access.");
         e("Микрофон недоступен.", "The microphone is unavailable.");
         e("Остановить трансляцию", "Stop casting");
@@ -134,7 +134,7 @@ final class L {
         e("Телевизор", "TV");
         e("Свяжите один раз с ТВ, чтобы открыть приложения, крестовину, ввод текста, голосовой поиск и отправку YouTube-ссылок.",
           "Pair once with the TV to unlock apps, the d-pad, typing, voice search and sending YouTube links.");
-        e("Связать пульт с ТВ…", "Pair TV remote…");
+        e("Связать с ТВ", "Pair with TV");
         e("Телевизор ещё не найден.", "No TV found yet.");
         e("На телевизоре", "On the TV");
         e("Кнопки", "Buttons");
@@ -151,8 +151,8 @@ final class L {
         e("Сейчас на «%s»", "Now on “%s”");
         e("Пульт и трансляция на «%s»", "Remote and casting for “%s”");
         e("Воспроизводится", "Playing");
-        e("ТВ не принимает команды по Chromecast для этого видео. Настройте управление ТВ ниже — пауза и перемотка пойдут как кнопки пульта.",
-          "The TV ignores Chromecast commands for this video. Set up TV power below — pause and seek will go as remote keys.");
+        e("ТВ не принимает команды по Chromecast для этого видео. Нажмите «Связать с ТВ» ниже — пауза и перемотка пойдут как кнопки пульта.",
+          "The TV ignores Chromecast commands for this video. Tap “Pair with TV” below — pause and seek will go as remote keys.");
         e("видеофайл · Chromecast", "video file · Chromecast");
         e("откроется в YouTube на ТВ", "opens in YouTube on the TV");
         e("нужна настройка ТВ", "needs TV setup");

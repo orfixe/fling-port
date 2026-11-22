@@ -69,10 +69,10 @@
     "message": "Pair once with the TV to unlock apps, the d-pad, and typing."
   },
   "turnOn": {
-    "message": "Turn TV On"
+    "message": "Turn on the TV"
   },
   "setUpRemote": {
-    "message": "Pair TV remote…"
+    "message": "Pair with TV"
   },
   "onTheTv": {
     "message": "On the TV"
