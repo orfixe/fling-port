@@ -18,12 +18,21 @@ cp "$ROOT/macos/RemoteView.swift" "$WORK/fling/Sources/Fling/RemoteView.swift"
 
 (
   cd "$WORK/fling"
-  ./Scripts/bundle.sh
+  # Universal binary (arm64 + x86_64), same as upstream publish-bin.sh / installers
+  swift build -c release --arch arm64 --arch x86_64 --package-path .
+  APP="$WORK/fling/build/Fling.app"
+  rm -rf "$APP"
+  mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+  cp .build/apple/Products/Release/Fling "$APP/Contents/MacOS/Fling"
+  cp Resources/Info.plist "$APP/Contents/Info.plist"
+  codesign --force --deep --sign - "$APP"
+  codesign --verify --verbose "$APP"
+  echo "built: $APP"
 )
 
 ditto -c -k --sequesterRsrc --keepParent "$WORK/fling/build/Fling.app" "$OUT/Fling.app.zip"
 cp -R "$WORK/fling/build/Fling.app" "$OUT/Fling.app"
-# also keep the raw Mach-O for size sanity
-cp "$WORK/fling/build/Fling.app/Contents/MacOS/Fling" "$OUT/Fling" || true
+cp "$WORK/fling/build/Fling.app/Contents/MacOS/Fling" "$OUT/Fling"
+file "$OUT/Fling" || true
 ls -lh "$OUT"
 echo "OK: $OUT/Fling.app.zip"
