@@ -10,7 +10,31 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-21
+
 ### Added
+
+- **Windows port** (Windows 10 1809+ / 11, x64 and ARM64 via emulation): the same tray panel,
+  Connect TV window, remote, voice search and guide as on Linux. Standalone `Fling.exe`
+  (PyInstaller, catt and yt-dlp bundled) or install from source with `windows\install.cmd`
+  (no admin rights); Start menu entry, `fling` command, Start at login, Windows toasts.
+- Windows: system-wide **Win+Shift+C**, falling back to Ctrl+Alt+Shift+C when another app
+  owns it; the panel shows the shortcut that actually works.
+- **Browser extension** for Chrome, Edge, Brave, Opera, Vivaldi, Yandex, Firefox and Safari
+  (one source, `extension/build.py`): popup remote, *Cast this tab* with **resume at the
+  page's position**, the page's own stream for sites yt-dlp can't open, right-click
+  *Cast link / video / page*, Alt+Shift+C, pause in the browser after casting, EN/RU.
+- Desktop ↔ extension bridge on `127.0.0.1:47613` (`desktop/fling_bridge.py`): accepts
+  extension origins and local tools only (Host and Origin checks, `X-Fling` header).
+  The panel's *Cast this tab* now works with any browser that has the extension.
+- Notification when the TV moves to another video or track, with a *Notify about the next
+  video* switch in the panel, the tray menu and the extension settings.
+- Panel corner: 🇬🇧 / 🇷🇺 flags switch the language, **?** opens the guide, and a **compact view** button turns playback into one row of icon keys (labels in tooltips) and hides the
+  remote and the housekeeping rows. The notification switch shows a green / red bell;
+  new icons for start at login and quit; clearer labels (*Pair TV remote…*, *Cast copied link*,
+  *Choose TV*).
+- Step-by-step Windows guide in English and Russian (`docs/install-windows*.md`),
+  Russian README, language flags.
 
 - Linux: choose between several TVs from the panel footer, the tray menu and the
   Connect TV window; find TVs again; add a TV by IP address (named from its
@@ -31,6 +55,13 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ### Changed
 
+- The desktop app moved to `desktop/` and is shared by Linux and Windows; every OS-specific
+  call goes through `desktop/fling_platform.py`. Linux behaviour, paths and pairing are unchanged.
+- Voice search on Windows records through `sounddevice` and resamples any device format
+  (44.1/48 kHz, stereo or 4-channel array mics) to the TV's 8 kHz mono.
+- The panel drops its transparent rounded corners in Remote Desktop sessions and without
+  desktop composition (`"solid_panel"` in `fling.json` overrides).
+- Missing English texts in the panel (TV screenshot, How to use, Connect TV, the footer).
 - Linux: on battery, no background polling while the panel is closed; the
   Bluetooth remote service starts only when you ask for it.
 - Linux: switching TVs resets now-playing and remote state for the new TV.
@@ -93,5 +124,6 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-linux-android/compare/v0.1.0...HEAD
+[unreleased]: https://github.com/orfixe/fling-linux-android/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/orfixe/fling-linux-android/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/orfixe/fling-linux-android/releases/tag/v0.1.0

@@ -1,0 +1,161 @@
+{
+  "extName": {
+    "message": "Fling — на телевизор"
+  },
+  "extDesc": {
+    "message": "Отправляет вкладку на Chromecast / Google TV и управляет телевизором. Работает вместе с приложением Fling (Windows, Linux)."
+  },
+  "cmdCastTab": {
+    "message": "Отправить эту вкладку на ТВ"
+  },
+  "menuCastLink": {
+    "message": "Отправить ссылку на ТВ"
+  },
+  "menuCastMedia": {
+    "message": "Отправить это видео на ТВ"
+  },
+  "menuCastPage": {
+    "message": "Отправить эту страницу на ТВ"
+  },
+  "notWebPage": {
+    "message": "Это не веб-страница"
+  },
+  "offlineTitle": {
+    "message": "Приложение Fling не запущено"
+  },
+  "offlineBody": {
+    "message": "Это расширение — браузерная половина Fling. Запустите приложение Fling на этом компьютере (Пуск → Fling), и оно подключится само."
+  },
+  "offlineGuide": {
+    "message": "Как установить Fling →"
+  },
+  "retry": {
+    "message": "Проверить ещё раз"
+  },
+  "back30": {
+    "message": "Назад 30 с"
+  },
+  "fwd30": {
+    "message": "Вперёд 30 с"
+  },
+  "playPause": {
+    "message": "Пауза / Играть (Пробел)"
+  },
+  "stop": {
+    "message": "Остановить трансляцию"
+  },
+  "playing": {
+    "message": "Воспроизводится"
+  },
+  "castTab": {
+    "message": "Отправить эту вкладку"
+  },
+  "castTabInstead": {
+    "message": "Отправить эту вкладку вместо"
+  },
+  "casting": {
+    "message": "Отправляю…"
+  },
+  "resumeAt": {
+    "message": "Продолжить на ТВ с $1"
+  },
+  "openVideoPage": {
+    "message": "Откройте страницу с видео и попробуйте снова."
+  },
+  "needCatt": {
+    "message": "Fling нужен catt — смотрите панель Fling."
+  },
+  "pairHint": {
+    "message": "Свяжите один раз с ТВ, чтобы открыть приложения, крестовину и ввод текста."
+  },
+  "turnOn": {
+    "message": "Включить ТВ"
+  },
+  "setUpRemote": {
+    "message": "Связать пульт с ТВ…"
+  },
+  "onTheTv": {
+    "message": "На телевизоре"
+  },
+  "tvOff": {
+    "message": "ТВ выключен"
+  },
+  "nowApp": {
+    "message": "Сейчас: $1"
+  },
+  "power": {
+    "message": "Питание"
+  },
+  "back": {
+    "message": "Назад"
+  },
+  "home": {
+    "message": "Домой"
+  },
+  "scrollHint": {
+    "message": "или крутите колёсико здесь — это крестовина"
+  },
+  "volDown": {
+    "message": "Громк −"
+  },
+  "mute": {
+    "message": "Без звука"
+  },
+  "volUp": {
+    "message": "Громк +"
+  },
+  "typeOnTv": {
+    "message": "Напечатать на ТВ ↵"
+  },
+  "openPanel": {
+    "message": "Открыть панель Fling"
+  },
+  "settings": {
+    "message": "Настройки"
+  },
+  "searching": {
+    "message": "Ищу ТВ…"
+  },
+  "noDevice": {
+    "message": "Устройство не найдено"
+  },
+  "rescan": {
+    "message": "Искать заново…"
+  },
+  "optionsTitle": {
+    "message": "Настройки расширения Fling"
+  },
+  "optShareTabs": {
+    "message": "Сообщать приложению Fling, какая вкладка открыта"
+  },
+  "optShareTabsHint": {
+    "message": "Тогда «Отправить эту вкладку» в панели и общее сочетание клавиш работают с этим браузером. Адрес уходит только в приложение Fling на этом компьютере (127.0.0.1), не в интернет. Приватные окна не передаются никогда."
+  },
+  "optPause": {
+    "message": "Ставить видео здесь на паузу после отправки"
+  },
+  "optPauseHint": {
+    "message": "Чтобы звук не играл дважды."
+  },
+  "optPort": {
+    "message": "Порт приложения Fling"
+  },
+  "optPortHint": {
+    "message": "Меняйте, только если поменяли «bridge_port» в fling.json."
+  },
+  "optShortcut": {
+    "message": "Сочетание клавиш (по умолчанию Alt+Shift+C) меняется на странице сочетаний клавиш расширений в браузере."
+  },
+  "optConnected": {
+    "message": "✓ Подключено к Fling $1 ($2) · ТВ: $3"
+  },
+  "credit": {
+    "message": "Fling создан Damion Rashford и Tatiana · неофициальный порт"
+  },
+  "optNotify": {
+    "message": "Уведомлять, когда на ТВ сменилось видео или трек"
+  },
+  "optNotifyHint": {
+    "message": "Уведомление от приложения Fling с новым названием. Это тот же переключатель, что «Уведомлять о смене видео» в панели Fling."
+  }
+}

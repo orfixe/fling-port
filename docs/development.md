@@ -8,6 +8,27 @@ android/    src/app/fling/*.java, res/, AndroidManifest.xml, build.sh
 docs/       this documentation and screenshots
 ```
 
+## Windows
+
+```powershell
+windows\install.cmd                  # from source into %LOCALAPPDATA%\Fling (uv, Python 3.12, PyQt6, catt, adb)
+fling quit; fling                    # restart after copying desktop\*.py to %LOCALAPPDATA%\Fling\app
+powershell -ExecutionPolicy Bypass -File windows\build.ps1   # dist\Fling-Windows-<ver>.zip (PyInstaller)
+```
+
+The standalone build runs catt in-process: `Fling.exe --catt <args>` is the bundled catt CLI.
+
+## Browser extension
+
+```sh
+python extension/build.py              # dist/chrome, dist/firefox, dist/safari + zips
+./extension/safari/build-safari.sh     # on a Mac with Xcode: Safari app wrapper
+```
+
+Load `extension/dist/chrome` unpacked in Chrome/Edge, or `dist/fling-firefox-*.zip` in
+`about:debugging`. With the desktop app running the popup shows the TV; `curl
+http://127.0.0.1:47613/v1/status` shows what the extension sees.
+
 ## Linux
 
 ```sh
@@ -19,7 +40,7 @@ fling quit && fling            # restart after editing ~/.local/share/fling/flin
 Quick checks before committing:
 
 ```sh
-python3 -m py_compile linux/*.py
+python3 -m py_compile desktop/*.py linux/*.py
 bash -n linux/install.sh linux/fling linux/fling-tui
 ```
 

@@ -35,7 +35,8 @@ mkdir -p "$DATA" "$BIN" "$APPS" "$HOME/.cache/fling"
 "$UV" pip install --python "$DATA/venv/bin/python" -r "$HERE/requirements.txt"
 
 echo "==> Files"
-install -m 644 "$HERE/fling_app.py" "$HERE/fling_help.py" "$HERE/bt_remote.py" "$HERE/sf_icons.py" "$DATA/"   # app, guide texts, BT service, icons
+install -m 644 "$HERE/../desktop/fling_app.py" "$HERE/../desktop/fling_help.py" "$HERE/../desktop/sf_icons.py" \
+    "$HERE/../desktop/fling_platform.py" "$HERE/../desktop/fling_bridge.py" "$HERE/bt_remote.py" "$DATA/"   # shared app, guide, icons, OS layer, browser bridge, BT service
 install -m 755 "$HERE/fling" "$HERE/fling-tui" "$BIN/"
 
 cat > "$APPS/fling.desktop" <<EOF

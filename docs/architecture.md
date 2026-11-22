@@ -10,6 +10,45 @@ Two independent apps share one design and the same TV protocols:
 - **Android** — `android/src/app/fling/*.java`, plain Java with its own
   implementations of every protocol and no third-party libraries.
 
+## Desktop app (Linux and Windows)
+
+`desktop/fling_app.py` is one PyQt6 program for both systems. It never calls an OS tool
+directly: paths, subprocesses (no console windows on Windows), process checks, notifications,
+autostart (KDE autostart file / `HKCU\…\Run`), the system-wide shortcut (KDE kglobalaccel from
+`install.sh` / `RegisterHotKey` on a private thread), the microphone (`parecord`/`pw-record` /
+`sounddevice` with resampling to 8 kHz mono) and the Pictures folder live in
+`desktop/fling_platform.py`. The Bluetooth remote is Linux-only and hidden on Windows.
+
+| | Linux | Windows |
+|---|---|---|
+| Settings | `~/.config/fling.json` | `%APPDATA%\Fling\fling.json` |
+| Pairing, venv, adb | `~/.local/share/fling/` | `%LOCALAPPDATA%\Fling\` |
+| Log | `~/.cache/fling/app.log` | `%LOCALAPPDATA%\Fling\logs\app.log` |
+
+## Browser bridge
+
+`desktop/fling_bridge.py` serves `http://127.0.0.1:47613` (`"bridge_port"` in `fling.json`,
+`"bridge": false` turns it off) on a background thread; every request is executed on the Qt
+thread and answered with a JSON snapshot of the state.
+
+- `GET /v1/status` — device, devices, now playing, volume, remote state, last error.
+- `POST /v1/tab` — the extension reports the active tab `{url, title, browser}` on tab
+  switches, page loads, window focus and once a minute; a report older than 3 minutes counts
+  as "browser closed" and Fling falls back to Firefox's session store.
+- `POST /v1/action` — `cast {url, title, start, media_src}`, `play_pause`, `seek {seconds}`,
+  `stop`, `volume {level}`, `key {key}`, `launch {app}`, `text {text}`, `wake`,
+  `select_device {ip}`, `rescan`, `open_panel`, `open_setup`, `pair_remote`, `notify_track {on}`.
+
+Only browser extensions and local tools get in: the Host header must be the loopback address
+(DNS rebinding), an Origin, if present, must be `chrome-extension://`, `moz-extension://` or
+`safari-web-extension://`, and POSTs need the custom `X-Fling: 1` header, which forces a CORS
+preflight that web origins are refused.
+
+The extension (`extension/src`) is Manifest V3: a service worker in Chrome/Edge, an event page
+in Firefox and Safari. When it casts, it injects a small probe into the page (`activeTab`) to read
+the main `<video>`/`<audio>` position and its `http(s)` source, so the TV can resume at the same
+spot and play streams yt-dlp doesn't know.
+
 ## Linux app
 
 | Component | Role |

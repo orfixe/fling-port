@@ -1,0 +1,161 @@
+{
+  "extName": {
+    "message": "Fling — cast to TV"
+  },
+  "extDesc": {
+    "message": "Cast this tab to a Chromecast / Google TV and control the TV. Companion of the Fling desktop app (Windows, Linux)."
+  },
+  "cmdCastTab": {
+    "message": "Cast this tab to the TV"
+  },
+  "menuCastLink": {
+    "message": "Cast link to TV"
+  },
+  "menuCastMedia": {
+    "message": "Cast this video to TV"
+  },
+  "menuCastPage": {
+    "message": "Cast this page to TV"
+  },
+  "notWebPage": {
+    "message": "Not a web page"
+  },
+  "offlineTitle": {
+    "message": "Fling app isn't running"
+  },
+  "offlineBody": {
+    "message": "This extension is the browser half of Fling. Start the Fling app on this computer (Start menu → Fling) and it connects automatically."
+  },
+  "offlineGuide": {
+    "message": "How to install Fling →"
+  },
+  "retry": {
+    "message": "Try again"
+  },
+  "back30": {
+    "message": "Back 30 s"
+  },
+  "fwd30": {
+    "message": "Forward 30 s"
+  },
+  "playPause": {
+    "message": "Play / Pause (Space)"
+  },
+  "stop": {
+    "message": "Stop casting"
+  },
+  "playing": {
+    "message": "Playing"
+  },
+  "castTab": {
+    "message": "Cast this tab"
+  },
+  "castTabInstead": {
+    "message": "Cast this tab instead"
+  },
+  "casting": {
+    "message": "Casting…"
+  },
+  "resumeAt": {
+    "message": "Resume on TV at $1"
+  },
+  "openVideoPage": {
+    "message": "Open a video page, then try again."
+  },
+  "needCatt": {
+    "message": "Fling needs catt — see the Fling panel."
+  },
+  "pairHint": {
+    "message": "Pair once with the TV to unlock apps, the d-pad, and typing."
+  },
+  "turnOn": {
+    "message": "Turn TV On"
+  },
+  "setUpRemote": {
+    "message": "Pair TV remote…"
+  },
+  "onTheTv": {
+    "message": "On the TV"
+  },
+  "tvOff": {
+    "message": "TV is off"
+  },
+  "nowApp": {
+    "message": "Now: $1"
+  },
+  "power": {
+    "message": "Power"
+  },
+  "back": {
+    "message": "Back"
+  },
+  "home": {
+    "message": "Home"
+  },
+  "scrollHint": {
+    "message": "or scroll here to move around the TV"
+  },
+  "volDown": {
+    "message": "Vol −"
+  },
+  "mute": {
+    "message": "Mute"
+  },
+  "volUp": {
+    "message": "Vol +"
+  },
+  "typeOnTv": {
+    "message": "Type on TV ↵"
+  },
+  "openPanel": {
+    "message": "Open Fling panel"
+  },
+  "settings": {
+    "message": "Settings"
+  },
+  "searching": {
+    "message": "Looking for TVs…"
+  },
+  "noDevice": {
+    "message": "No device found"
+  },
+  "rescan": {
+    "message": "Search again…"
+  },
+  "optionsTitle": {
+    "message": "Fling extension settings"
+  },
+  "optShareTabs": {
+    "message": "Tell the Fling app which tab is open"
+  },
+  "optShareTabsHint": {
+    "message": "Lets the panel's “Cast this tab” and the system-wide shortcut work with this browser. The address goes only to the Fling app on this computer (127.0.0.1), never to the internet. Private windows are never shared."
+  },
+  "optPause": {
+    "message": "Pause the video here after casting"
+  },
+  "optPauseHint": {
+    "message": "So the sound doesn't play twice."
+  },
+  "optPort": {
+    "message": "Port of the Fling app"
+  },
+  "optPortHint": {
+    "message": "Change only if you changed “bridge_port” in fling.json."
+  },
+  "optShortcut": {
+    "message": "The shortcut (default Alt+Shift+C) can be changed on the browser's extension shortcuts page."
+  },
+  "optConnected": {
+    "message": "✓ Connected to Fling $1 on $2 · TV: $3"
+  },
+  "credit": {
+    "message": "Fling was created by Damion Rashford and Tatiana · unofficial port"
+  },
+  "optNotify": {
+    "message": "Notify when the TV moves to another video or track"
+  },
+  "optNotifyHint": {
+    "message": "A Windows / desktop notification from the Fling app with the new title. Same switch as “Notify when the video changes” in the Fling panel."
+  }
+}
