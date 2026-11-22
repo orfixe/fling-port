@@ -16,3 +16,6 @@ dist/
 !.env.example
 .DS_Store
 Thumbs.db
+
+# Private author proposal (macOS) — never publish / never push
+proposal-macos-PRIVATE/
