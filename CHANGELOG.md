@@ -10,6 +10,12 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+### Added
+
+- Desktop: Android ADB badge (red / green + «Connected!» animation). When ADB is authorised,
+  Connect TV shows everyday tools — wake, sleep, home, screenshot, settings, apps, force-stop,
+  reboot, disconnect — and the panel footer Android opens the same menu.
+
 ### Fixed
 
 - Desktop/Android: stop hammering the TV with ADB “Allow debugging?” prompts — backoff after
@@ -18,6 +24,7 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 - Desktop Connect TV and extension options: drop the optional YouTube-code / Bluetooth rows and the
   unused notify/port settings; panel keeps screenshot + Connect TV + Quit (notify / login stay in the tray).
 - Desktop: if `adb` / platform-tools is missing, Connect TV shows download links (OS zip + Google page).
+- Desktop: Connect TV accepts a typed IP and a non-5555 wireless-debug port (or `IP:port` paste).
 
 ## [0.2.0] - 2026-11-21
 

@@ -3530,15 +3530,22 @@ class AdbBadge(QWidget):
 class SetupWindow(QWidget):
     def __init__(self, state: State):
         super().__init__(None, Qt.WindowType.Window)
+        from PyQt6.QtWidgets import QScrollArea
         self.state = state
         self.setWindowTitle(tr("Fling — подключение ТВ"))
-        self.setMinimumWidth(460)
+        self.setMinimumWidth(480)
+        self.resize(500, 760)
         self.adb = "?"
         self.found = []
         self.auto = False
         pal = self.palette(); pal.setColor(self.backgroundRole(), T.bg); self.setPalette(pal)
         self.setAutoFillBackground(True)
-        v = QVBoxLayout(self); v.setContentsMargins(18, 16, 18, 16); v.setSpacing(10)
+        outer = QVBoxLayout(self); outer.setContentsMargins(0, 0, 0, 0); outer.setSpacing(0)
+        area = QScrollArea(); area.setWidgetResizable(True)
+        area.setFrameShape(QFrame.Shape.NoFrame)
+        area.setStyleSheet("QScrollArea{background:transparent}")
+        body = QWidget()
+        v = QVBoxLayout(body); v.setContentsMargins(18, 16, 18, 16); v.setSpacing(10)
         v.addWidget(label("Подключение ТВ", 17, weight=QFont.Weight.Bold))
         v.addWidget(label("Одна кнопка находит ТВ в сети и подключает пульт и ADB. "
                           "Шаги, где нужно ваше действие на ТВ, подскажут, что нажать.", 11.5, T.fg_a(0.6), wrap=True))
@@ -3559,6 +3566,8 @@ class SetupWindow(QWidget):
                    'Fling создан Damion Rashford и Tatiana · неофициальный порт</a>', 10.5, T.fg_a(0.45))
         c2.setOpenExternalLinks(True)
         v.addWidget(c2)
+        area.setWidget(body)
+        outer.addWidget(area)
         state.changed.connect(self.sync)
 
     def _row(self, key, title):
@@ -3915,20 +3924,26 @@ class SetupWindow(QWidget):
             self._set("remote", "fail", s.tv_pairing_msg or "Не вышло.", "Попробовать снова", False)
         else:
             self._set("remote", "off", "Не связан.", "Связать", False)
-        if self.adb == "?":
+        # Prefer live authorize state so the tools appear without re-clicking Android
+        if s.adb_ok() or self.adb == "device":
+            self.adb = "device"
+            self._set("adb", "ok", "", None)
+            if hasattr(self, "adb_badge") and self.adb_badge._state not in ("ok", "run"):
+                self.adb_badge.set_state("ok")
+            if hasattr(self, "adb_actions"):
+                self.adb_actions.setVisible(True)
+        elif self.adb == "?":
             if not P.adb_available():
                 self._adb_result("missing")
             else:
                 self._set("adb", "off", "", None)
                 if hasattr(self, "adb_badge"):
                     self.adb_badge.set_state("off")
-        elif self.adb == "device" and hasattr(self, "adb_badge"):
-            if self.adb_badge._state != "ok":
-                self.adb_badge.set_state("ok")
+                if hasattr(self, "adb_actions"):
+                    self.adb_actions.hide()
+        else:
             if hasattr(self, "adb_actions"):
-                self.adb_actions.setVisible(True)
-        elif hasattr(self, "adb_actions") and self.adb != "device":
-            self.adb_actions.hide()
+                self.adb_actions.hide()
         # Prefill empty fields from the selected TV / saved conf — never overwrite what the user is typing
         if hasattr(self, "wip") and not self.wip.hasFocus() and not self.wip.text().strip():
             self.wip.setText(s.ip or str(load_conf().get("adb_ip") or ""))
