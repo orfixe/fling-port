@@ -25,7 +25,7 @@ import fling_platform as P
 P.prepare_qt_env()
 
 from PyQt6.QtCore import (QObject, Qt, QTimer, QRectF, QPoint, QSize, QUrl,
-                          pyqtSignal)
+                          QEvent, pyqtSignal)
 from PyQt6.QtGui import (QAction, QColor, QFont, QIcon, QLinearGradient, QPainter,
                          QPainterPath, QPen, QPixmap, QKeySequence, QShortcut,
                          QCursor, QGuiApplication)
@@ -263,6 +263,40 @@ def youtube_meta(vid: str) -> dict:
 
 KEY = dict(power=26, home=3, back=4, up=19, down=20, left=21, right=22, ok=23,
            vol_up=24, vol_down=25, mute=164, play_pause=85, rewind=89, ffwd=90)
+
+# Laptop / desktop keyboard → TV remote. Several aliases per action so EN, RU,
+# numpad, media keys and common laptop layouts all work the same.
+def _qt_keys(*names):
+    out = []
+    for n in names:
+        k = getattr(Qt.Key, n, None)
+        if k is not None:
+            out.append(k)
+    return out
+
+# name → list of Qt.Key that send that TV key (when the remote is ready)
+REMOTE_KEYS = {
+    "up": _qt_keys("Key_Up", "Key_W", "Key_Cyrillic_Tse", "Key_8"),
+    "down": _qt_keys("Key_Down", "Key_S", "Key_Cyrillic_Yeru", "Key_2"),
+    "left": _qt_keys("Key_Left", "Key_A", "Key_Cyrillic_Ef", "Key_4"),
+    "right": _qt_keys("Key_Right", "Key_D", "Key_Cyrillic_Ve", "Key_6"),
+    "ok": _qt_keys("Key_Return", "Key_Enter", "Key_Select", "Key_5"),
+    # Escape closes the panel (see shortcuts) — Backspace / Delete / BrowserBack go to the TV
+    "back": _qt_keys("Key_Backspace", "Key_Delete", "Key_Back", "Key_0"),
+    "home": _qt_keys("Key_Home", "Key_H", "Key_Cyrillic_Ha", "Key_3"),
+    "vol_up": _qt_keys("Key_VolumeUp", "Key_Plus", "Key_Equal", "Key_BracketRight"),
+    "vol_down": _qt_keys("Key_VolumeDown", "Key_Minus", "Key_BracketLeft"),
+    "mute": _qt_keys("Key_VolumeMute", "Key_M", "Key_Cyrillic_Em"),
+    "play_pause": _qt_keys("Key_MediaTogglePlayPause", "Key_MediaPlay", "Key_MediaPause",
+                           "Key_Space", "Key_P", "Key_Cyrillic_Ze"),
+    "ffwd": _qt_keys("Key_MediaNext", "Key_Period", "Key_Greater"),
+    "rewind": _qt_keys("Key_MediaPrevious", "Key_Comma", "Key_Less"),
+    "power": _qt_keys("Key_PowerOff", "Key_Standby"),
+}
+# Fast reverse lookup for the event filter
+_REMOTE_BY_QT = {qt: name for name, keys in REMOTE_KEYS.items() for qt in keys}
+# Keys that should auto-repeat while held (d-pad + volume)
+_REMOTE_REPEAT = {"up", "down", "left", "right", "vol_up", "vol_down"}
 
 TV_APPS = [  # TVApp.swift catalog
     ("YouTube", "vnd.youtube.launch://", "com.google.android.youtube.tv"),
@@ -1361,6 +1395,18 @@ EN_PHRASES = [  # longest first is applied automatically
      "The Cast engine isn't installed. Install it once and Fling will find it."),
     ("Домой", "Home"), ("Запускать при входе", "Start at login"),
     ("или крутите колёсико / тачпад в любом месте панели", "or scroll anywhere to move around the TV"),
+    ("Клавиатура: стрелки/WASD · Enter=OK · Backspace=Назад · Home · +/− громкость · Пробел пауза · колёсико",
+     "Keyboard: arrows/WASD · Enter=OK · Backspace=Back · Home · +/− volume · Space pause · scroll"),
+    ("Громкость −  (− / [ / VolumeDown)", "Volume −  (− / [ / VolumeDown)"),
+    ("Громкость +  (+ / ] / VolumeUp)", "Volume +  (+ / ] / VolumeUp)"),
+    ("Без звука  (M / VolumeMute)", "Mute  (M / VolumeMute)"),
+    ("Вверх  (↑ / W)", "Up  (↑ / W)"),
+    ("Вниз  (↓ / S)", "Down  (↓ / S)"),
+    ("Влево  (← / A)", "Left  (← / A)"),
+    ("Вправо  (→ / D)", "Right  (→ / D)"),
+    ("OK  (Enter / Space)", "OK  (Enter / Space)"),
+    ("Назад  (Backspace / Delete)", "Back  (Backspace / Delete)"),
+    ("Домой  (Home / H)", "Home  (Home / H)"),
     ("и тут появятся настоящие обложка, название и время.", "and the real artwork, title and time will show here."),
     ("код не подошёл", "the code didn't work"),
     ("Код не совпадает — посмотрите на экран ТВ ещё раз.", "That code doesn't match — read it off the TV again."),
@@ -2169,8 +2215,12 @@ class Artwork(QWidget):
 
 
 class KeyButton(QPushButton):
-    """Round d-pad / power key."""
-    def __init__(self, glyph_name=None, text=None, size=30, accented=False, on=None):
+    """Round d-pad / power key.
+
+    `repeat=True` holds like a real remote (auto-fire while pressed) — used for
+    the arrow keys so laptop hold-to-scroll through TV menus works.
+    """
+    def __init__(self, glyph_name=None, text=None, size=30, accented=False, on=None, repeat=False):
         super().__init__()
         self.setFixedSize(size, size)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -2188,7 +2238,14 @@ class KeyButton(QPushButton):
             f"QPushButton:hover{{background:{Theme.css(T.acc_a(0.22))}}}"
             f"QPushButton:pressed{{background:{Theme.css(T.acc_a(0.35))}}}")
         if on:
-            self.clicked.connect(on)
+            if repeat:
+                # Fire on press and keep sending while held (no clicked — that would double-fire)
+                self.setAutoRepeat(True)
+                self.setAutoRepeatDelay(350)
+                self.setAutoRepeatInterval(110)
+                self.pressed.connect(on)
+            else:
+                self.clicked.connect(on)
 
 
 def key_bar(*keys):
@@ -2208,7 +2265,7 @@ def key_bar(*keys):
 
 
 class Pill(QPushButton):
-    def __init__(self, glyph_name, text, on):
+    def __init__(self, glyph_name, text, on, repeat=False):
         super().__init__()
         self.setText(text)
         self.setIcon(glyph(glyph_name, 14, T.fg))
@@ -2221,7 +2278,13 @@ class Pill(QPushButton):
             f"QPushButton{{border:none;border-radius:5px;background:{Theme.css(T.fg_a(0.06))};color:{Theme.css(T.fg)}}}"
             f"QPushButton:hover{{background:{Theme.css(T.acc_a(0.2))}}}"
             f"QPushButton:pressed{{background:{Theme.css(T.acc_a(0.35))}}}")
-        self.clicked.connect(on)
+        if repeat:
+            self.setAutoRepeat(True)
+            self.setAutoRepeatDelay(350)
+            self.setAutoRepeatInterval(90)
+            self.pressed.connect(on)
+        else:
+            self.clicked.connect(on)
 
 
 class Chip(QPushButton):
@@ -2339,8 +2402,11 @@ class Panel(QWidget):
         if self.translucent:
             self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setWindowTitle("Fling")
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.state = state
         self.hidden_at = 0.0
+        # Catch keys even when a child button has focus (arrows still drive the TV)
+        QApplication.instance().installEventFilter(self)
         self._wheel = [0.0, 0.0, 0.0]  # accX, accY, last emit
         root = QVBoxLayout(self)
         root.setContentsMargins(1, 1, 1, 1)
@@ -2544,26 +2610,39 @@ class Panel(QWidget):
         for c in range(4):
             grid.setColumnStretch(c, 1)
         rl.addWidget(self.grid_box)
-        dp = QVBoxLayout(); dp.setContentsMargins(0, 6, 0, 8); dp.setSpacing(6)
+        # Classic d-pad cross: ↑ / ← OK → / ↓, then Back · Home underneath
         k = lambda n: (lambda: state.tv_key(KEY[n]))
-        dp.addWidget(KeyButton("up", on=k("up")), 0, Qt.AlignmentFlag.AlignHCenter)
-        mid = QHBoxLayout(); mid.setSpacing(13); mid.addStretch(1)
-        b = KeyButton("back", on=k("back")); b.setToolTip("Назад"); mid.addWidget(b)
-        mid.addWidget(KeyButton("left", on=k("left")))
-        mid.addWidget(KeyButton(text="OK", size=40, accented=True, on=k("ok")))
-        mid.addWidget(KeyButton("right", on=k("right")))
-        b = KeyButton("home", on=k("home")); b.setToolTip("Домой"); mid.addWidget(b)
-        mid.addStretch(1)
-        dp.addLayout(mid)
-        dp.addWidget(KeyButton("down", on=k("down")), 0, Qt.AlignmentFlag.AlignHCenter)
-        hint = label("или крутите колёсико / тачпад в любом месте панели", 9.5, T.fg_a(0.25))
-        hint.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-        dp.addWidget(hint)
+        dp = QGridLayout(); dp.setContentsMargins(20, 8, 20, 4); dp.setHorizontalSpacing(10); dp.setVerticalSpacing(8)
+        up = KeyButton("up", size=34, on=k("up"), repeat=True); up.setToolTip("Вверх  (↑ / W)")
+        left = KeyButton("left", size=34, on=k("left"), repeat=True); left.setToolTip("Влево  (← / A)")
+        right = KeyButton("right", size=34, on=k("right"), repeat=True); right.setToolTip("Вправо  (→ / D)")
+        down = KeyButton("down", size=34, on=k("down"), repeat=True); down.setToolTip("Вниз  (↓ / S)")
+        dp.addWidget(up, 0, 1, Qt.AlignmentFlag.AlignCenter)
+        dp.addWidget(left, 1, 0, Qt.AlignmentFlag.AlignCenter)
+        ok = KeyButton(text="OK", size=44, accented=True, on=k("ok"))
+        ok.setToolTip("OK  (Enter / Space)")
+        dp.addWidget(ok, 1, 1, Qt.AlignmentFlag.AlignCenter)
+        dp.addWidget(right, 1, 2, Qt.AlignmentFlag.AlignCenter)
+        dp.addWidget(down, 2, 1, Qt.AlignmentFlag.AlignCenter)
+        back = KeyButton("back", size=32, on=k("back")); back.setToolTip("Назад  (Backspace / Delete)")
+        home = KeyButton("home", size=32, on=k("home")); home.setToolTip("Домой  (Home / H)")
+        dp.addWidget(back, 3, 0, Qt.AlignmentFlag.AlignCenter)
+        dp.addWidget(home, 3, 2, Qt.AlignmentFlag.AlignCenter)
+        for c in range(3):
+            dp.setColumnStretch(c, 1)
         rl.addLayout(dp)
+        hint = label("Клавиатура: стрелки/WASD · Enter=OK · Backspace=Назад · Home · "
+                     "+/− громкость · Пробел пауза · колёсико", 9.5, T.fg_a(0.4), wrap=True)
+        hint.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        rl.addWidget(padded(hint, 10, 0, 10, 6))
         vk = QHBoxLayout(); vk.setContentsMargins(12, 8, 12, 4); vk.setSpacing(5)
-        vk.addWidget(Pill("spk_minus", " Громк −", k("vol_down")))
-        vk.addWidget(Pill("spk_slash", " Без звука", k("mute")))
-        vk.addWidget(Pill("spk_plus", " Громк +", k("vol_up")))
+        vd = Pill("spk_minus", " Громк −", k("vol_down"), repeat=True)
+        vd.setToolTip("Громкость −  (− / [ / VolumeDown)")
+        vm = Pill("spk_slash", " Без звука", k("mute"))
+        vm.setToolTip("Без звука  (M / VolumeMute)")
+        vu = Pill("spk_plus", " Громк +", k("vol_up"), repeat=True)
+        vu.setToolTip("Громкость +  (+ / ] / VolumeUp)")
+        vk.addWidget(vd); vk.addWidget(vm); vk.addWidget(vu)
         rl.addLayout(vk)
         ty = QVBoxLayout(); ty.setContentsMargins(14, 4, 14, 9); ty.setSpacing(3)
         tr = QHBoxLayout(); tr.setSpacing(6)
@@ -2643,11 +2722,13 @@ class Panel(QWidget):
         cr.addWidget(self.lang, 0, Qt.AlignmentFlag.AlignVCenter)
         v.addLayout(cr)
 
-        # keyboard (menu equivalents)
-        for seq, fn in (("Space", self._space), ("Left", lambda: self._casting_only(lambda: state.seek(-SEEK))),
-                        ("Right", lambda: self._casting_only(lambda: state.seek(SEEK))),
+        # App shortcuts that aren't TV-remote keys (remote keys go through eventFilter)
+        for seq, fn in (("Shift+Left", lambda: self._casting_only(lambda: state.seek(-SEEK))),
+                        ("Shift+Right", lambda: self._casting_only(lambda: state.seek(SEEK))),
+                        ("Ctrl+Left", lambda: self._casting_only(lambda: state.seek(-SEEK))),
+                        ("Ctrl+Right", lambda: self._casting_only(lambda: state.seek(SEEK))),
                         ("Ctrl+.", state.stop), ("Ctrl+Q", QApplication.quit),
-                        ("Ctrl+Shift+C", state.cast_tab), ("Ctrl+V", state.cast_clipboard),
+                        ("Ctrl+Shift+C", state.cast_tab),
                         ("Escape", self.hide)):
             sc = QShortcut(QKeySequence(seq), self)
             sc.setContext(Qt.ShortcutContext.WindowShortcut)
@@ -2658,13 +2739,8 @@ class Panel(QWidget):
 
     # --- input helpers
     def _editing(self):
-        return isinstance(QApplication.focusWidget(), QLineEdit)
-
-    def _space(self):
-        if self._editing():
-            QApplication.focusWidget().insert(" ")
-        elif self.state.panel == "casting":
-            self.state.toggle_play()
+        w = QApplication.focusWidget()
+        return isinstance(w, QLineEdit)
 
     def _casting_only(self, fn):
         if self._editing():
@@ -2672,6 +2748,82 @@ class Panel(QWidget):
         if self.state.panel == "casting":
             fn()
 
+    def _remote_key(self, name: str) -> bool:
+        """Send a TV remote key if the remote is ready. Returns True if handled."""
+        if not self.state.remote_ready:
+            return False
+        code = KEY.get(name)
+        if code is None:
+            return False
+        self.state.tv_key(code)
+        return True
+
+    def eventFilter(self, obj, e):
+        """Universal keyboard remote: works with focus on any panel child except text fields."""
+        if e.type() == QEvent.Type.KeyPress and self.isVisible():
+            # Only while this panel is the active popup / has focus in its tree
+            fw = QApplication.focusWidget()
+            if fw is not None and not (fw is self or self.isAncestorOf(fw)):
+                if not self.isActiveWindow():
+                    return super().eventFilter(obj, e)
+            if self._handle_key(e):
+                return True
+        return super().eventFilter(obj, e)
+
+    def keyPressEvent(self, e):
+        if self._handle_key(e):
+            e.accept()
+            return
+        super().keyPressEvent(e)
+
+    def _handle_key(self, e) -> bool:
+        """Map a key press to TV remote / cast actions. Max layout compatibility."""
+        if self._editing():
+            return False
+        k = e.key()
+        mods = e.modifiers()
+        # Don't steal chorded app shortcuts (Ctrl/Meta except media)
+        if mods & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier):
+            return False
+        if mods & Qt.KeyboardModifier.AltModifier:
+            # Alt+← / Alt+→ → Back / (optional) — common browser habit → TV Back
+            if k == Qt.Key.Key_Left:
+                return self._remote_key("back")
+            if k == Qt.Key.Key_Home:
+                return self._remote_key("home")
+            return False
+
+        name = _REMOTE_BY_QT.get(k)
+        # Numpad digits: Qt may report Key_8 without keypad flag on some laptops —
+        # only treat 2/4/5/6/8/0 as d-pad when KeypadModifier is set OR remote is ready
+        # and no shift (shift+arrows already used for seek via shortcut).
+        if name in _REMOTE_REPEAT and e.isAutoRepeat():
+            pass  # allow hold-to-repeat for d-pad / volume
+        elif e.isAutoRepeat() and name not in _REMOTE_REPEAT:
+            return False
+
+        if name and self.state.remote_ready:
+            # Space while casting: play/pause is more useful than OK
+            if name == "play_pause" and self.state.panel == "casting":
+                self.state.toggle_play()
+                return True
+            if name == "play_pause" and self.state.panel != "casting":
+                # idle + remote: Space = OK (select)
+                return self._remote_key("ok")
+            if name in ("ffwd", "rewind") and self.state.panel == "casting":
+                self.state.seek(SEEK if name == "ffwd" else -SEEK)
+                return True
+            return self._remote_key(name)
+
+        # No remote paired yet — keep cast transport on the arrow keys / space
+        if self.state.panel == "casting":
+            if k in (Qt.Key.Key_Left, Qt.Key.Key_Comma):
+                self.state.seek(-SEEK); return True
+            if k in (Qt.Key.Key_Right, Qt.Key.Key_Period):
+                self.state.seek(SEEK); return True
+            if k in (Qt.Key.Key_Space, Qt.Key.Key_MediaTogglePlayPause, Qt.Key.Key_MediaPlay):
+                self.state.toggle_play(); return True
+        return False
     # Russian layout: the key labelled A types «ф», B → «и», C → «с», D → «в», E → «у», F → «а»
     _RU_KEYS = str.maketrans("фисвуаФИСВУА", "ABCDEFABCDEF")
 
@@ -2940,6 +3092,7 @@ class Panel(QWidget):
         self.show()
         self._blur()
         self.activateWindow()
+        self.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
         self.state.refresh()
 
     def hideEvent(self, e):
@@ -3134,7 +3287,7 @@ class SetupWindow(QWidget):
             el.addWidget(self.pin, 1); el.addWidget(small_button("Связать", self._pin))
         elif key == "adb":
             btn.clicked.connect(self.adb_connect)
-            # Manual IP + port — user types what the TV shows (discovery optional)
+            # Order: 1) IP  2) port + Connect  3) pairing — all hand-editable
             self.wip = field("192.168.1.50", mono=True)
             self.wconn = field("порт, напр. 5555", mono=True)
             if self.state.ip:
@@ -3148,19 +3301,22 @@ class SetupWindow(QWidget):
             self.wconn.editingFinished.connect(self._on_adb_endpoint_edited)
             self.wip.returnPressed.connect(self.adb_connect)
             self.wconn.returnPressed.connect(self.adb_connect)
-            ep = QHBoxLayout(); ep.setContentsMargins(0, 2, 0, 0); ep.setSpacing(6)
-            ep.addWidget(label("IP ТВ:", 11, T.fg_a(0.6)))
-            ep.addWidget(self.wip, 2)
-            ep.addWidget(label("Порт:", 11, T.fg_a(0.6)))
-            ep.addWidget(self.wconn, 1)
-            lay.addLayout(ep)
-            tip = label("Можно вписать IP и порт вручную или вставить «IP:порт» в любое поле.", 10.5, T.fg_a(0.45), wrap=True)
+            ip_row = QHBoxLayout(); ip_row.setContentsMargins(0, 2, 0, 0); ip_row.setSpacing(6)
+            ip_row.addWidget(label("1. IP ТВ:", 11, T.fg_a(0.6)))
+            ip_row.addWidget(self.wip, 1)
+            lay.addLayout(ip_row)
+            port_row = QHBoxLayout(); port_row.setContentsMargins(0, 2, 0, 0); port_row.setSpacing(6)
+            port_row.addWidget(label("2. Порт:", 11, T.fg_a(0.6)))
+            port_row.addWidget(self.wconn, 1)
+            port_row.addWidget(small_button("Подключить", self.adb_connect))
+            lay.addLayout(port_row)
+            tip = label("IP и порт с ТВ (Беспроводная отладка → «IP-адрес и порт»). Можно вставить «IP:порт».",
+                        10.5, T.fg_a(0.45), wrap=True)
             lay.addWidget(tip)
-            # Pairing (wireless debugging code) — also always visible so it isn't missed
             self.wport = field("порт сопряжения", mono=True); self.wport.setFixedWidth(110)
             self.wcode = field("код из 6 цифр", mono=True)
             pair_row = QHBoxLayout(); pair_row.setContentsMargins(0, 2, 0, 0); pair_row.setSpacing(6)
-            pair_row.addWidget(label("Сопряжение:", 11, T.fg_a(0.6)))
+            pair_row.addWidget(label("3. Сопряжение:", 11, T.fg_a(0.6)))
             pair_row.addWidget(self.wport)
             pair_row.addWidget(self.wcode, 1)
             pair_row.addWidget(small_button("Связать", self.adb_pair))
