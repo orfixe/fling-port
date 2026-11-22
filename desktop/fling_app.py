@@ -1354,7 +1354,7 @@ EN_PHRASES = [  # longest first is applied automatically
     ("По Bluetooth можно печатать только латиницу и цифры.", "Over Bluetooth only Latin letters and digits can be typed."),
 ]
 EN_PHRASES += [   # rows that had no English text yet
-    ("Снимок экрана ТВ", "TV screenshot"), ("Как пользоваться", "How to use"),
+    ("Снимок экрана ТВ", "TV screenshot"), ("Сделать снимок", "Take screenshot"), ("Как пользоваться", "How to use"),
     ("Подключение ТВ…", "Connect TV…"), ("Fling — подключение ТВ", "Fling — Connect TV"),
     ("Fling — как пользоваться", "Fling — How to use"),
     ("Сменить ТВ", "Switch TV"), ("Выбрать ТВ", "Choose TV"), ("Выбрать", "Select"),
@@ -2395,7 +2395,7 @@ class Panel(QWidget):
         v.addWidget(self.house)
         v_main, v = v, hv
         v.addWidget(Separator())
-        self.shot_row = MenuRow("Снимок экрана ТВ", icon="camera", on=state.tv_screenshot)
+        self.shot_row = MenuRow("Сделать снимок", icon="camera", on=state.tv_screenshot)
         v.addWidget(self.shot_row)
         self.setup_row = MenuRow("Подключение ТВ…", icon="tv", on=lambda: (self.hide(), self.open_setup()))
         v.addWidget(self.setup_row)
@@ -3188,7 +3188,7 @@ class Tray(QObject):
         la = m.addAction("Запускать при входе", toggle_login)
         la.setCheckable(True); la.setChecked(login_enabled())
         m.addAction("Как пользоваться", lambda: open_help(self.panel))   # guide from the tray menu
-        m.addAction("Снимок экрана ТВ", s.tv_screenshot)
+        m.addAction("Сделать снимок", s.tv_screenshot)
         m.addAction("Подключение ТВ…", self.panel.open_setup)
         m.addAction("Выйти из Fling", QApplication.quit)
 

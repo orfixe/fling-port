@@ -997,7 +997,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         linkCastRow = ui.row(L.t("Отправить на ТВ"), "tv_play", null, true, v -> { if (link != null) castLink(link, linkTitle); });
         linkCard.addView(linkCastRow);
         linkCard.addView(ui.row(L.t("Вставить ссылку из буфера"), "clipboard", null, false, v -> pasteLink()));
-        linkCard.addView(ui.row(L.t("Снимок экрана ТВ"), "camera", null, false, v -> tvScreenshot()));
+        linkCard.addView(ui.row(L.t("Сделать снимок"), "camera", null, false, v -> tvScreenshot()));
         recentBox = ui.col();
         linkCard.addView(recentBox);
         addCard(linkCard);

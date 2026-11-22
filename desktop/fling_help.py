@@ -46,7 +46,7 @@ HELP = {
   ],
   [
    "Снимок экрана ТВ",
-   "• Нажмите кнопку «Снимок экрана ТВ».\n• Скриншот сохраняется в папку Изображения/Fling и открывается сразу.\n• Если снимок чёрный, значит видео защищено DRM (YouTube/Netflix).\n• Для корректного снимка включите отладку ADB."
+   "• Нажмите «Сделать снимок» — снимается экран телевизора.\n• Скриншот сохраняется в папку Изображения/Fling и открывается сразу.\n• Если снимок чёрный, значит видео защищено DRM (YouTube/Netflix).\n• Для корректного снимка включите отладку ADB."
   ],
   [
    "Команды и прочее",
@@ -100,7 +100,7 @@ HELP = {
   ],
   [
    "TV screenshot",
-   "• Click \"TV screenshot\".\n• The screenshot is saved in Pictures/Fling and opens immediately.\n• If the screenshot is black, the video is DRM‑protected (YouTube/Netflix).\n• For a correct screenshot enable ADB debugging."
+   "• Click \"Take screenshot\" — it captures the TV screen.\n• The screenshot is saved in Pictures/Fling and opens immediately.\n• If the screenshot is black, the video is DRM‑protected (YouTube/Netflix).\n• For a correct screenshot enable ADB debugging."
   ],
   [
    "Commands and other",
@@ -124,7 +124,7 @@ WINDOWS = {
    "• Поставьте расширение Fling в браузер (Chrome, Edge, Firefox) — оно сообщает Fling, какая вкладка открыта.\n• Нажмите «Отправить эту вкладку» в панели — или кнопку Fling на панели браузера.\n• Сочетание клавиш в любой программе: Win+Shift+C (если оно занято — Ctrl+Alt+Shift+C; в панели показано, какое работает). В браузере: Alt+Shift+C.\n• Если видео на странице уже идёт, расширение продолжит его на ТВ с того же места.\n• Без расширения Fling читает активную вкладку Firefox из файла сессии.\n• «Отправить скопированную ссылку» — для скопированной ссылки.",
   "Bluetooth-пульт": None,
   "Команды и прочее":
-   "• Язык переключается флажками 🇬🇧 / 🇷🇺 в правом верхнем углу панели; «?» рядом с ними открывает эту инструкцию.\n• Автозапуск — пункт «Запускать при входе».\n• Выход — Ctrl+Q или команда `fling quit`.\n• Команды (PowerShell / cmd):\n  - `fling` – открыть панель\n  - `fling setup` – подключение ТВ\n  - `fling cast-tab` – отправить вкладку\n  - `fling clip` – ссылка из буфера\n  - `fling screenshot` – снимок ТВ\n  - `fling help` – эта инструкция\n  - `fling quit` – выход",
+   "• Язык переключается маленьким флажком внизу панели, справа от подписи; «?» в правом верхнем углу открывает эту инструкцию.\n• Автозапуск — пункт «Запускать при входе».\n• Выход — Ctrl+Q или команда `fling quit`.\n• Команды (PowerShell / cmd):\n  - `fling` – открыть панель\n  - `fling setup` – подключение ТВ\n  - `fling cast-tab` – отправить вкладку\n  - `fling clip` – ссылка из буфера\n  - `fling screenshot` – снимок ТВ\n  - `fling help` – эта инструкция\n  - `fling quit` – выход",
   "Если что-то не работает":
    "• ТВ не находится: компьютер и ТВ должны быть в одной сети; при первом запуске разрешите Python/Fling доступ к частной сети в окне брандмауэра Windows. Можно добавить ТВ по IP.\n• Пауза на YouTube может не работать без связанного пульта — «Связать пульт с ТВ…».\n• Старые обложки — подключите ADB.\n• Кнопка «Отправить эту вкладку» серая — проверьте, что расширение установлено и в его окне горит зелёная точка.\n• Микрофон молчит — Параметры → Конфиденциальность → Микрофон → разрешите классическим приложениям.\n• Журнал: `%LOCALAPPDATA%\\Fling\\logs\\app.log`.",
  },
@@ -135,7 +135,7 @@ WINDOWS = {
    "• Add the Fling extension to your browser (Chrome, Edge, Firefox) — it tells Fling which tab is open.\n• Click “Cast this tab” in the panel — or the Fling button in the browser toolbar.\n• Shortcut in any app: Win+Shift+C (if taken, Ctrl+Alt+Shift+C; the panel shows which one works). In the browser: Alt+Shift+C.\n• If the page's video is already playing, the extension resumes it on the TV at the same spot.\n• Without the extension Fling reads the active Firefox tab from its session file.\n• “Cast copied link” casts a copied link.",
   "Bluetooth remote": None,
   "Commands and other":
-   "• Switch the language with the 🇬🇧 / 🇷🇺 flags in the panel's top-right corner; the ? next to them opens this guide.\n• Start with Windows: “Start at login”.\n• Quit: Ctrl+Q or `fling quit`.\n• Commands (PowerShell / cmd):\n  - `fling` – open panel\n  - `fling setup` – connect TV\n  - `fling cast-tab` – cast tab\n  - `fling clip` – clipboard URL\n  - `fling screenshot` – TV screenshot\n  - `fling help` – this guide\n  - `fling quit` – exit",
+   "• Switch the language with the small flag at the bottom right of the panel; the ? in the top-right corner opens this guide.\n• Start with Windows: “Start at login”.\n• Quit: Ctrl+Q or `fling quit`.\n• Commands (PowerShell / cmd):\n  - `fling` – open panel\n  - `fling setup` – connect TV\n  - `fling cast-tab` – cast tab\n  - `fling clip` – clipboard URL\n  - `fling screenshot` – TV screenshot\n  - `fling help` – this guide\n  - `fling quit` – exit",
   "If something doesn't work":
    "• TV not found: the PC and the TV must be on the same network; on first start allow Python/Fling on private networks in the Windows Firewall prompt. You can also add a TV by IP.\n• Pause may not work on YouTube without a paired remote — “Pair TV remote…”.\n• Old artwork — connect ADB.\n• “Cast this tab” greyed out — check the extension is installed and its popup shows a green dot.\n• Mic silent — Settings → Privacy → Microphone → allow desktop apps.\n• Log: `%LOCALAPPDATA%\\Fling\\logs\\app.log`.",
  },

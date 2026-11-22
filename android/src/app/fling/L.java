@@ -75,6 +75,7 @@ final class L {
         e("Это не похоже на IP-адрес (пример: 192.168.1.50).", "That doesn't look like an IP address (e.g. 192.168.1.50).");
         e("По адресу %s нет Chromecast / Google TV.", "No Chromecast / Google TV at %s.");
         e("Снимок экрана ТВ", "TV screenshot");
+        e("Сделать снимок", "Take screenshot");
         e("Делаю снимок экрана ТВ…", "Taking a TV screenshot…");
         e("Сохранено в Pictures/Fling", "Saved to Pictures/Fling");
         e("Снимок чёрный: видео защищено от снимков (DRM у YouTube/Netflix). Меню и главный экран ТВ снимаются нормально.", "The screenshot is black: the video is protected (DRM in YouTube/Netflix). Menus and the home screen capture fine.");
