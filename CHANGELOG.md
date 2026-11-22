@@ -32,7 +32,7 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   menu and the extension settings turn it on (green) or off (red).
 - Panel: a compact view (artwork and playback keys, labels in tooltips), a **?** button for the
   guide, a small language flag at the bottom, icons for every row, clearer labels
-  (*Pair TV remote…*, *Cast copied link*, *Select* next to the TV's name).
+  (*Pair with TV* with a green TV-plus icon, *Cast copied link*, *Take screenshot*, *Select* next to the TV's name). The Connect TV window, the TV menu and screenshot messages are now translated into English too.
 - Android: short tips on first launch, one at a time over the real screen (a spotlight and a
   small card with the system's Material motion) instead of a long help page; the full guide is
   one tap away. Choose between several TVs, add or remove TVs by IP.

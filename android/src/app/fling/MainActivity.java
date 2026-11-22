@@ -437,10 +437,10 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         if (isDirectMedia(url)) {
             cast.load(url, title);
         } else if (id != null) {
-            if (!paired()) { showError(L.t("Чтобы открыть YouTube на ТВ, один раз настройте управление ТВ (ниже).")); return; }
+            if (!paired()) { showError(L.t("Чтобы открыть YouTube на ТВ, один раз нажмите «Связать с ТВ» ниже.")); return; }
             atv.launch(host, "https://www.youtube.com/watch?v=" + id);
         } else {
-            if (!paired()) { showError(L.t("Эту страницу можно открыть на ТВ только после настройки управления ТВ (ниже).")); return; }
+            if (!paired()) { showError(L.t("Эту страницу можно открыть на ТВ после того, как вы нажмёте «Связать с ТВ» ниже.")); return; }
             atv.launch(host, url);
         }
         addRecent(url, title);
@@ -661,7 +661,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         }
         if (st == null) return;
         if (paired()) { atv.key(host, Atv.PLAY_PAUSE); return; }
-        if (st.stuck()) { showError(L.t("Телевизор игнорирует паузу по Chromecast (так ведёт себя YouTube на ТВ). Настройте управление ТВ ниже — пауза пойдёт как кнопка пульта.")); return; }
+        if (st.stuck()) { showError(L.t("Телевизор игнорирует паузу по Chromecast (так ведёт себя YouTube на ТВ). Нажмите «Связать с ТВ» ниже — пауза пойдёт как кнопка пульта.")); return; }
         if (st.playing()) cast.pause(); else cast.play();
         st = cast.status();   // Cast updates its status optimistically without onStatus
         sync();
@@ -674,7 +674,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             return;
         }
         if (st != null && st.stuck()) {
-            if (!paired()) { showError(L.t("Перемотка этого видео работает только через управление ТВ — настройте его ниже.")); return; }
+            if (!paired()) { showError(L.t("Перемотка этого видео работает только после «Связать с ТВ» — кнопка ниже.")); return; }
             for (int i = 0; i < 3; i++) atv.key(host, s > 0 ? Atv.FFWD : Atv.REWIND);
             return;
         }
@@ -1078,10 +1078,12 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         TextView sx = ui.text(L.t("Свяжите один раз с ТВ, чтобы открыть приложения, крестовину, ввод текста, голосовой поиск и отправку YouTube-ссылок."), 14, ui.fgA(0.55f), false);
         sx.setLineSpacing(0, 1.2f);
         setupBox.addView(sx, ui.margins(Ui.lp(-1, -2), 10, 0, 10, 6));
-        setupBox.addView(ui.row(L.t("Связать пульт с ТВ…"), "waves", null, true, v -> {
+        Ui.Row pairRow = ui.row(L.t("Связать с ТВ"), "tv_plus", null, true, v -> {
             if (host == null) { showError(L.t("Телевизор ещё не найден.")); return; }
             atv.startPairing(host);
-        }));
+        });
+        pairRow.setIconColor(ui.green);
+        setupBox.addView(pairRow);
         tvCard.addView(setupBox);
 
         pinFail = ui.text("", 14, ui.orange, false);
@@ -1320,7 +1322,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             boolean stuck = st.stuck();
             String icon = stuck ? (paired ? "pause" : "pause") : st.playing() ? "pause" : "play";
             playIcon.setImageDrawable(new Ui.Glyph(icon, ui.accent, 2.0f));
-            nowHint.setText(stuck && !paired ? L.t("ТВ не принимает команды по Chromecast для этого видео. Настройте управление ТВ ниже — пауза и перемотка пойдут как кнопки пульта.") : "");
+            nowHint.setText(stuck && !paired ? L.t("ТВ не принимает команды по Chromecast для этого видео. Нажмите «Связать с ТВ» ниже — пауза и перемотка пойдут как кнопки пульта.") : "");
             nowHint.setVisibility(stuck && !paired ? View.VISIBLE : View.GONE);
             if (st.volume >= 0 && volPending < 0) { castVol.set(st.volume); castVolNum.setText(String.valueOf(st.volume)); }
         }

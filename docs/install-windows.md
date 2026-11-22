@@ -57,7 +57,7 @@ Update: run `install.cmd` again. Remove: `uninstall.cmd`.
    onto the taskbar).
 3. **Left-click** opens the panel, **right-click** the menu.
 4. After ~10 s the TV's name shows at the bottom of the panel with a green dot.
-5. **Pair the remote once:** "Pair TV remote…" → type the 6-character code shown on the TV.
+5. **Pair the remote once:** "Pair with TV" → type the 6-character code shown on the TV.
    For the real title and artwork of whatever plays on the TV, open **Connect TV… → Find and
    connect everything** and enable ADB as the window explains.
 

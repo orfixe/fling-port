@@ -352,7 +352,7 @@ final class Atv {
 
     static String message(Exception e) {
         if (e instanceof javax.net.ssl.SSLException)
-            return L.t("Телевизор больше не доверяет этому телефону — настройте управление ТВ заново.");
+            return L.t("Телевизор больше не доверяет этому телефону — свяжите его с ТВ заново.");
         if (e instanceof java.net.SocketTimeoutException) return L.t("Телевизор не ответил.");
         if (e instanceof java.net.ConnectException || e instanceof java.net.NoRouteToHostException)
             return L.t("Не удалось связаться с ТВ. Телефон и ТВ в одной сети Wi-Fi?");

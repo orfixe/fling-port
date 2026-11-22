@@ -170,6 +170,7 @@ final class Ui {
         final TextView title, trailing;
         private boolean accented;
         private final String iconName;
+        private Integer iconColor;          // fixed icon colour (e.g. green "Pair with TV"), else follows the row
 
         Row(String t, String iconName, String trail, boolean accented) {
             super(ctx);
@@ -199,6 +200,11 @@ final class Ui {
             refreshColors();
         }
 
+        void setIconColor(int color) {
+            iconColor = color;
+            refreshColors();
+        }
+
         @Override public void setEnabled(boolean en) {
             super.setEnabled(en);
             refreshColors();
@@ -209,7 +215,8 @@ final class Ui {
             int c = !en ? fgA(0.3f) : accented ? accent : fg;
             title.setTextColor(c);
             title.setTypeface(Typeface.create(accented ? "sans-serif-medium" : "sans-serif", Typeface.NORMAL));
-            if (iconName != null) ic.setImageDrawable(new Glyph(iconName, !en ? fgA(0.3f) : accented ? accent : fgA(0.55f), 1.8f));
+            int ico = !en ? fgA(0.3f) : iconColor != null ? iconColor : accented ? accent : fgA(0.55f);
+            if (iconName != null) ic.setImageDrawable(new Glyph(iconName, ico, 1.8f));
         }
     }
 
@@ -408,6 +415,12 @@ final class Ui {
                 case "clipboard":
                     c.drawRoundRect(new RectF(s * .24f, s * .2f, s * .76f, s * .86f), s * .07f, s * .07f, p);
                     c.drawRoundRect(new RectF(s * .38f, s * .12f, s * .62f, s * .26f), s * .04f, s * .04f, p);
+                    break;
+                case "tv_plus":                     // a TV with a plus: connect to a TV
+                    c.drawRoundRect(new RectF(s * .08f, s * .18f, s * .74f, s * .66f), s * .07f, s * .07f, p);
+                    poly(c, false, s, .26f, .82f, .56f, .82f);
+                    poly(c, false, s, .82f, .56f, .82f, .92f);
+                    poly(c, false, s, .64f, .74f, 1f, .74f);
                     break;
                 case "camera":
                     c.drawRoundRect(new RectF(s * .12f, s * .3f, s * .88f, s * .82f), s * .08f, s * .08f, p);

@@ -299,7 +299,7 @@ def toggle_login() -> None:
 # Windows: Fling registers Win+Shift+C itself (RegisterHotKey); if another app owns it,
 # Ctrl+Alt+Shift+C is used instead.
 if IS_WIN:
-    GLOBAL_SHORTCUT, SHORTCUT_LABEL = "Meta+Shift+C", "Win ⇧ C"
+    GLOBAL_SHORTCUT, SHORTCUT_LABEL = "Meta+Shift+C", "Win+Shift+C"
 elif IS_MAC:
     GLOBAL_SHORTCUT, SHORTCUT_LABEL = "Meta+Shift+C", "⌘⇧C"
 else:
@@ -331,8 +331,8 @@ class GlobalHotkey:
         user32, kernel32 = ctypes.windll.user32, ctypes.windll.kernel32
         self._tid = kernel32.GetCurrentThreadId()
         vk_c = 0x43
-        for mods, lab in ((self.MOD_WIN | self.MOD_SHIFT, "Win ⇧ C"),
-                          (self.MOD_CONTROL | self.MOD_ALT | self.MOD_SHIFT, "Ctrl Alt ⇧ C")):
+        for mods, lab in ((self.MOD_WIN | self.MOD_SHIFT, "Win+Shift+C"),
+                          (self.MOD_CONTROL | self.MOD_ALT | self.MOD_SHIFT, "Ctrl+Alt+Shift+C")):
             if user32.RegisterHotKey(None, 1, mods | self.MOD_NOREPEAT, vk_c):
                 self.label = lab
                 break

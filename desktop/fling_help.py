@@ -18,7 +18,7 @@ HELP = {
   ],
   [
    "Связать пульт",
-   "• Выберите пункт «Связать пульт с ТВ…».\n• На телевизоре появится код из 6 символов (цифры и буквы A–F).\n• Введите код с клавиатуры (русская раскладка тоже подходит) или нажмите кнопки 0–9 и A–F под полем.\n• После шестого символа код отправляется автоматически."
+   "• Выберите пункт «Связать с ТВ».\n• На телевизоре появится код из 6 символов (цифры и буквы A–F).\n• Введите код с клавиатуры (русская раскладка тоже подходит) или нажмите кнопки 0–9 и A–F под полем.\n• После шестого символа код отправляется автоматически."
   ],
   [
    "Отправить видео на ТВ",
@@ -54,7 +54,7 @@ HELP = {
   ],
   [
    "Если что-то не работает",
-   "• Если ТВ не находится, убедитесь, что обе системы подключены к одной сети Wi‑Fi или добавьте ТВ по IP через «Добавить ТВ по IP…».\n• Пауза на YouTube может не работать без связанного пульта. Свяжите пульт с помощью «Связать пульт с ТВ…».\n• Если старые обложки отображаются, включите отладку ADB.\n• При невозможности ввода кода попробуйте нажать кнопки под полем.\n• Чёрный снимок экрана – DRM‑защищённый видеофайл.\n• Журнал работы хранится в `~/.cache/fling/app.log`."
+   "• Если ТВ не находится, убедитесь, что обе системы подключены к одной сети Wi‑Fi или добавьте ТВ по IP через «Добавить ТВ по IP…».\n• Пауза на YouTube может не работать без связанного пульта. Свяжите пульт с помощью «Связать с ТВ».\n• Если старые обложки отображаются, включите отладку ADB.\n• При невозможности ввода кода попробуйте нажать кнопки под полем.\n• Чёрный снимок экрана – DRM‑защищённый видеофайл.\n• Журнал работы хранится в `~/.cache/fling/app.log`."
   ]
  ],
  "en": [
@@ -72,7 +72,7 @@ HELP = {
   ],
   [
    "Connect remote",
-   "• Select the item \"Pair TV remote…\".\n• A code of 6 symbols (digits and letters A–F) will appear on the TV.\n• Enter the code with the keyboard (Russian layout also works) or press the buttons 0–9 and A–F under the field.\n• After the sixth symbol the code is sent automatically."
+   "• Select the item \"Pair with TV\".\n• A code of 6 symbols (digits and letters A–F) will appear on the TV.\n• Enter the code with the keyboard (Russian layout also works) or press the buttons 0–9 and A–F under the field.\n• After the sixth symbol the code is sent automatically."
   ],
   [
    "Cast video to TV",
@@ -108,7 +108,7 @@ HELP = {
   ],
   [
    "If something doesn't work",
-   "• If the TV is not found, ensure both systems are on the same Wi‑Fi network or add a TV by IP via \"Add TV by IP…\".\n• Pause may not work on YouTube without a linked remote. Link the remote using \"Pair TV remote…\".\n• If old covers appear, enable ADB‑debugging.\n• If you cannot enter the code, try pressing the buttons under the field.\n• A black screenshot indicates DRM‑protected video.\n• The log is stored in `~/.cache/fling/app.log`."
+   "• If the TV is not found, ensure both systems are on the same Wi‑Fi network or add a TV by IP via \"Add TV by IP…\".\n• Pause may not work on YouTube without a linked remote. Link the remote using \"Pair with TV\".\n• If old covers appear, enable ADB‑debugging.\n• If you cannot enter the code, try pressing the buttons under the field.\n• A black screenshot indicates DRM‑protected video.\n• The log is stored in `~/.cache/fling/app.log`."
   ]
  ]
 }
@@ -126,7 +126,7 @@ WINDOWS = {
   "Команды и прочее":
    "• Язык переключается маленьким флажком внизу панели, справа от подписи; «?» в правом верхнем углу открывает эту инструкцию.\n• Автозапуск — пункт «Запускать при входе».\n• Выход — Ctrl+Q или команда `fling quit`.\n• Команды (PowerShell / cmd):\n  - `fling` – открыть панель\n  - `fling setup` – подключение ТВ\n  - `fling cast-tab` – отправить вкладку\n  - `fling clip` – ссылка из буфера\n  - `fling screenshot` – снимок ТВ\n  - `fling help` – эта инструкция\n  - `fling quit` – выход",
   "Если что-то не работает":
-   "• ТВ не находится: компьютер и ТВ должны быть в одной сети; при первом запуске разрешите Python/Fling доступ к частной сети в окне брандмауэра Windows. Можно добавить ТВ по IP.\n• Пауза на YouTube может не работать без связанного пульта — «Связать пульт с ТВ…».\n• Старые обложки — подключите ADB.\n• Кнопка «Отправить эту вкладку» серая — проверьте, что расширение установлено и в его окне горит зелёная точка.\n• Микрофон молчит — Параметры → Конфиденциальность → Микрофон → разрешите классическим приложениям.\n• Журнал: `%LOCALAPPDATA%\\Fling\\logs\\app.log`.",
+   "• ТВ не находится: компьютер и ТВ должны быть в одной сети; при первом запуске разрешите Python/Fling доступ к частной сети в окне брандмауэра Windows. Можно добавить ТВ по IP.\n• Пауза на YouTube может не работать без связанного пульта — «Связать с ТВ».\n• Старые обложки — подключите ADB.\n• Кнопка «Отправить эту вкладку» серая — проверьте, что расширение установлено и в его окне горит зелёная точка.\n• Микрофон молчит — Параметры → Конфиденциальность → Микрофон → разрешите классическим приложениям.\n• Журнал: `%LOCALAPPDATA%\\Fling\\logs\\app.log`.",
  },
  "en": {
   "Launch and Panel":
@@ -137,7 +137,7 @@ WINDOWS = {
   "Commands and other":
    "• Switch the language with the small flag at the bottom right of the panel; the ? in the top-right corner opens this guide.\n• Start with Windows: “Start at login”.\n• Quit: Ctrl+Q or `fling quit`.\n• Commands (PowerShell / cmd):\n  - `fling` – open panel\n  - `fling setup` – connect TV\n  - `fling cast-tab` – cast tab\n  - `fling clip` – clipboard URL\n  - `fling screenshot` – TV screenshot\n  - `fling help` – this guide\n  - `fling quit` – exit",
   "If something doesn't work":
-   "• TV not found: the PC and the TV must be on the same network; on first start allow Python/Fling on private networks in the Windows Firewall prompt. You can also add a TV by IP.\n• Pause may not work on YouTube without a paired remote — “Pair TV remote…”.\n• Old artwork — connect ADB.\n• “Cast this tab” greyed out — check the extension is installed and its popup shows a green dot.\n• Mic silent — Settings → Privacy → Microphone → allow desktop apps.\n• Log: `%LOCALAPPDATA%\\Fling\\logs\\app.log`.",
+   "• TV not found: the PC and the TV must be on the same network; on first start allow Python/Fling on private networks in the Windows Firewall prompt. You can also add a TV by IP.\n• Pause may not work on YouTube without a paired remote — “Pair with TV”.\n• Old artwork — connect ADB.\n• “Cast this tab” greyed out — check the extension is installed and its popup shows a green dot.\n• Mic silent — Settings → Privacy → Microphone → allow desktop apps.\n• Log: `%LOCALAPPDATA%\\Fling\\logs\\app.log`.",
  },
 }
 

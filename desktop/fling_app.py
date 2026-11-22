@@ -321,7 +321,7 @@ class ATV(QObject):
     def message(e: Exception) -> str:
         n = type(e).__name__
         if n == "InvalidAuth":
-            return "Телевизор больше не доверяет этому компьютеру — настройте управление ТВ заново."
+            return "Телевизор больше не доверяет этому компьютеру — свяжите его с ТВ заново."
         if n == "CannotConnect":
             return f"Не удалось связаться с ТВ ({e})."
         if n == "ConnectionClosed":
@@ -1150,7 +1150,7 @@ class State(QObject):
         def check():
             if self.status.get("state") == before and self.cast_stuck:
                 self._set(last_error="Телевизор игнорирует паузу по Chromecast (так ведёт себя YouTube на ТВ). "
-                                     "Нажмите «Связать пульт с ТВ…» ниже — тогда пауза пойдёт как кнопка пульта.")
+                                     "Нажмите «Связать с ТВ» ниже — тогда пауза пойдёт как кнопка пульта.")
         self._catt([want], after=lambda: QTimer.singleShot(1500, check))
 
     def seek(self, s):
@@ -1281,7 +1281,7 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Буфер обмена пуст", "Clipboard is empty"),
     ("Введите 12 цифр с экрана:", "Enter the 12 digits shown on screen:"),
     ("Введите код с экрана телевизора", "Enter the code on the TV screen"),
-    ("Вкл/выкл ТВ", "Toggle TV power"), ("Включить ТВ", "Turn TV On"), ("Выключить ТВ", "Turn TV off"),
+    ("Вкл/выкл ТВ", "Toggle TV power"), ("Включить ТВ", "Turn on the TV"), ("Выключить ТВ", "Turn TV off"),
     ("Воспроизводится", "Playing"), ("Выйти из Fling", "Quit Fling"),
     ("Остановить голосовой поиск", "Stop voice search"),
     ("Голосовой поиск уже идёт.", "Voice search is already running."), ("Голосовой поиск", "Voice search"),
@@ -1294,9 +1294,9 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Код не совпадает — посмотрите на экран ТВ ещё раз.", "That code doesn't match — read it off the TV again."),
     ("Код YouTube — это 12 цифр с экрана ТВ.", "The YouTube code is the 12 digits on the TV screen."),
     ("можно отправить", "castable"), ("можно попробовать", "worth a try"),
-    ("Нажмите «Связать пульт с ТВ…» ниже — тогда пауза пойдёт как кнопка пульта.",
-     "Click “Pair TV remote…” below and pause will be sent as a remote button."),
-    ("Напечатать на ТВ", "Type on TV"), ("Связать пульт с ТВ…", "Pair TV remote…"),
+    ("Нажмите «Связать с ТВ» ниже — тогда пауза пойдёт как кнопка пульта.",
+     "Click “Pair with TV” below and pause will be sent as a remote button."),
+    ("Напечатать на ТВ", "Type on TV"), ("Связать с ТВ", "Pair with TV"), ("Связать с ТВ", "Pair with TV"),
     ("На ТВ: YouTube → Настройки → «Подключить телефон / Связать с ТВ по коду». ",
      "On the TV: YouTube → Settings → “Link with TV code”. "),
     ("НА ТЕЛЕВИЗОРЕ", "ON THE TV"),
@@ -1322,8 +1322,8 @@ EN_PHRASES = [  # longest first is applied automatically
     ("ТВ не сообщает, что сейчас играет. Свяжите с YouTube ниже — ",
      "The TV doesn't report what's playing. Link YouTube below — "),
     ("Текст попадёт в активное поле ввода на телевизоре", "Lands in whatever text field is focused on the TV"),
-    ("Телевизор больше не доверяет этому компьютеру — настройте управление ТВ заново.",
-     "The TV no longer trusts this computer — run TV power setup again."),
+    ("Телевизор больше не доверяет этому компьютеру — свяжите его с ТВ заново.",
+     "The TV no longer trusts this computer — pair with the TV again."),
     ("Телевизор закрыл соединение.", "The TV closed the connection."),
     ("Телевизор игнорирует паузу по Chromecast (так ведёт себя YouTube на ТВ). ",
      "The TV ignores pause over Chromecast (YouTube on the TV does that). "),
@@ -1360,10 +1360,81 @@ EN_PHRASES += [   # rows that had no English text yet
     ("Сменить ТВ", "Switch TV"), ("Выбрать ТВ", "Choose TV"), ("Выбрать", "Select"),
     ("Компактный вид", "Compact view"), ("Пауза / Играть", "Play / Pause"), ("Полный вид", "Full view"),
     ("Уведомления включены", "Notifications on"), ("Уведомления выключены", "Notifications off"),
-    ("Запускать при входе", "Start at login"), ("Связать пульт с ТВ…", "Pair TV remote…"),
+    ("Запускать при входе", "Start at login"), ("Связать с ТВ", "Pair with TV"),
     ("Отправить скопированную ссылку", "Cast copied link"), ("Ищу ТВ…", "Looking for TVs…"), ("Телевизор", "TV"), ("ТВ…", "TV…"),
     ("Fling создан Damion Rashford и Tatiana · неофициальный порт",
      "Fling by Damion Rashford and Tatiana · unofficial port"),
+]
+EN_PHRASES += [   # Connect TV window, TV menu, screenshots
+    ('Добавить ТВ по IP…', 'Add TV by IP…'),
+    ('Добавить ТВ по IP', 'Add TV by IP'),
+    ('IP-адрес телевизора (Настройки → Сеть на ТВ):', "The TV's IP address (Settings → Network on the TV):"),
+    ('ТВ не найдены', 'No TVs found'),
+    ('Убрать добавленный вручную', 'Remove the TV added by IP'),
+    ('Найти ТВ заново', 'Search for TVs again'),
+    ('Ищу…', 'Searching…'),
+    ('пульт ✓', 'remote ✓'),
+    ('по IP', 'by IP'),
+    ('Это не похоже на IP-адрес (пример: 192.168.1.50).', "That doesn't look like an IP address (e.g. 192.168.1.50)."),
+    (' нет Chromecast / Google TV (порт 8009 закрыт)', ' there is no Chromecast / Google TV (port 8009 is closed)'),
+    ('по адресу ', 'at '),
+    ('Добавить ТВ: ', 'Add TV: '),
+    ('Набирайте мышкой или с клавиатуры — русская раскладка тоже подойдёт.', 'Click the keys or type — a Russian keyboard layout works too.'),
+    ('Fling — подключение ТВ', 'Fling — Connect TV'),
+    ('Подключение ТВ', 'Connect TV'),
+    ('Одна кнопка находит ТВ в сети и подключает всё, что можно. Шаги, где нужно ваше действие на ТВ, подскажут, что нажать.', 'One button finds the TV on your network and connects everything it can. Steps that need you on the TV say what to press.'),
+    ('Найти и подключить всё', 'Find and connect everything'),
+    ('Поиск ТВ в локальной сети', 'Find the TV on the local network'),
+    ('Пульт ТВ (по сети)', 'TV remote (network)'),
+    ('ADB: что играет, название и обложка', "ADB: what's playing, title and artwork"),
+    ('YouTube на ТВ (по коду)', 'YouTube on the TV (code)'),
+    ('Bluetooth-пульт (запасной)', 'Bluetooth remote (backup)'),
+    ('Ищу Chromecast / Google TV в сети… (до 10 с)', 'Looking for Chromecast / Google TV… (up to 10 s)'),
+    ('Ничего не нашлось. Ноутбук и ТВ в одной сети Wi-Fi? ', 'Nothing found. Are the computer and the TV on the same network? '),
+    ('Искать снова', 'Search again'),
+    ('Искать', 'Search'),
+    ('Выбран: ', 'Selected: '),
+    (' · найдено ', ' · found '),
+    ('ТВ ещё не найден.', 'No TV found yet.'),
+    ('Связан: кнопки приложений, крестовина, пауза, ввод текста.', 'Paired: app buttons, d-pad, pause, typing.'),
+    ('Связать заново', 'Pair again'),
+    ('Связываюсь с ТВ…', 'Contacting the TV…'),
+    ('Введите код, который показал ТВ (A–F и цифры; русская раскладка подойдёт).', 'Enter the code shown on the TV (A–F and digits; a Russian layout works too).'),
+    ('Код с экрана ТВ, 6 символов', 'Code on the TV, 6 characters'),
+    ('Не вышло.', "That didn't work."),
+    ('Не вышло: ', "That didn't work: "),
+    ('Попробовать снова', 'Try again'),
+    ('Не связан.', 'Not paired.'),
+    ('Не проверено.', 'Not checked yet.'),
+    ('Подключить', 'Connect'),
+    ('Проверить', 'Check'),
+    ('Подключаюсь к ТВ по ADB…', 'Connecting to the TV over ADB…'),
+    ('Подключено: панель видит, что играет на ТВ.', 'Connected: the panel sees what the TV is playing.'),
+    ('На экране ТВ появился запрос — нажмите «Разрешить» (лучше с галочкой «Всегда»).', 'The TV is asking for permission — choose “Allow” (ideally with “Always”).'),
+    ('ADB на ТВ выключен. На ТВ: Настройки → Система → О системе → 7 раз нажать «Сборка ОС» → Настройки → Система → Для разработчиков → включить «Отладка по USB» и «Беспроводная отладка». Если ТВ показывает код сопряжения — впишите порт и код ниже.', 'ADB is off on the TV. On the TV: Settings → System → About → tap “Android TV OS build” 7 times → Settings → System → Developer options → turn on “USB debugging” and “Wireless debugging”. If the TV shows a pairing code, enter the port and code below.'),
+    ('Беспроводная отладка:', 'Wireless debugging:'),
+    ('порт', 'port'),
+    ('код из 6 цифр', '6-digit code'),
+    ('Введите порт и 6-значный код из «Беспроводной отладки» на ТВ.', 'Enter the port and 6-digit code from “Wireless debugging” on the TV.'),
+    ('Связано. Подключаюсь…', 'Paired. Connecting…'),
+    ('Связан: видно точное видео и время в YouTube.', 'Linked: the exact YouTube video and time are visible.'),
+    ('Связываю…', 'Linking…'),
+    ('Ввести код', 'Enter code'),
+    ('12 цифр с экрана ТВ', '12 digits on the TV'),
+    ('Необязательно (ADB уже показывает, что играет). На ТВ: YouTube → Настройки → «Связать с ТВ по коду».', "Optional (ADB already shows what's playing). On the TV: YouTube → Settings → “Link with TV code”."),
+    ('Подключён: ', 'Connected: '),
+    ('✓ Подключено: ', '✓ Connected: '),
+    ('Bluetooth-пульт · ', 'Bluetooth remote · '),
+    ('Виден ТВ 3 минуты. На ТВ: Настройки → Пульты и аксессуары → Добавить → «Fling Remote».', 'Visible to the TV for 3 minutes. On the TV: Settings → Remotes & Accessories → Pair → “Fling Remote”.'),
+    ('Не нужен, если пульт по сети связан.', 'Not needed when the network remote is paired.'),
+    ('Снимок экрана: подтвердите на ТВ «Разрешить отладку».', 'Screenshot: confirm “Allow debugging” on the TV.'),
+    ('Снимок экрана работает через ADB — включите его: «Подключение ТВ…» → ADB.', 'Screenshots work over ADB — turn it on: “Connect TV…” → ADB.'),
+    ('Снимок экрана: ADB не подключён — откройте «Подключение ТВ…».', "Screenshot: ADB isn't connected — open “Connect TV…”."),
+    ('Снимок экрана не получился: ', 'The screenshot failed: '),
+    ('Снимок экрана: ', 'Screenshot: '),
+    ('нет данных', 'no data'),
+    ('Снимок чёрный: видео защищено от снимков (DRM у YouTube/Netflix). Меню и главный экран ТВ снимаются нормально.', 'The screenshot is black: the video is copy-protected (DRM on YouTube/Netflix). Menus and the home screen capture fine.'),
+    ('ТВ', 'TV'),
 ]
 EN_PHRASES.sort(key=lambda kv: -len(kv[0]))
 EN_REGEX = [(re.compile(r"(\d+) с\b"), r"\1s")]
@@ -1623,6 +1694,11 @@ def glyph(name, size=14, color=None, weight=1.7):
         path((s*.14, s*.36), (s*.14, s*.14), (s*.36, s*.14))
         path((s*.86, s*.64), (s*.86, s*.86), (s*.64, s*.86))
         path((s*.14, s*.14), (s*.42, s*.42)); path((s*.86, s*.86), (s*.58, s*.58))
+    elif name == "tv_plus":                                  # a TV with a plus: connect to a TV
+        p.drawRoundedRect(QRectF(s*.08, s*.18, s*.66, s*.48), s*.07, s*.07)
+        p.drawLine(QPoint(int(s*.26), int(s*.82)), QPoint(int(s*.56), int(s*.82)))
+        p.drawLine(QPoint(int(s*.82), int(s*.56)), QPoint(int(s*.82), int(s*.92)))
+        p.drawLine(QPoint(int(s*.64), int(s*.74)), QPoint(int(s)-1, int(s*.74)))
     elif name == "tv":
         p.drawRoundedRect(QRectF(s*.1, s*.2, s*.8, s*.54), s*.08, s*.08)
         p.drawLine(QPoint(int(s*.32), int(s*.86)), QPoint(int(s*.68), int(s*.86)))
@@ -2304,7 +2380,9 @@ class Panel(QWidget):
         sl.addWidget(padded(label("Свяжите один раз с ТВ, чтобы открыть приложения, крестовину и ввод текста.",
                                   11, T.fg_a(0.55), wrap=True), 14, 10, 14, 6))
         sl.addWidget(MenuRow("Включить ТВ", icon="power", on=state.wake))
-        sl.addWidget(MenuRow("Связать пульт с ТВ…", icon="waves", accented=True, on=state.start_pairing))
+        pair = MenuRow("Связать с ТВ", icon="tv_plus", accented=True, on=state.start_pairing)
+        pair.set_icon_color(T.green)
+        sl.addWidget(pair)
         if BT_SUPPORTED:
             sl.addWidget(MenuRow("Подключить как Bluetooth-пульт…", icon="bt", on=state.bt_pair))
         v.addWidget(self.r_setup)
