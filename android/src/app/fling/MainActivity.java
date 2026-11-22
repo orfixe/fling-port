@@ -102,6 +102,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     // views
     private LinearLayout root;
+    private ScrollView scroll;
+    private View helpView, langRowView;
     private TextView errorView, subtitleHeader;
     private LinearLayout nowCard, linkCard, tvCard;
     private Ui.Artwork nowArt, linkArt;
@@ -164,7 +166,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         resumed = true;
         if (!prefs.getBoolean("help_seen", false)) {                  // first launch: show the guide once
             prefs.edit().putBoolean("help_seen", true).apply();
-            main.postDelayed(() -> Help.show(this, ui), 600);         // after the screen has been laid out
+            main.postDelayed(this::startTour, 900);                    // after the screen has been laid out
         }
         discovery.start();
         connectDevice();
@@ -833,7 +835,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             d.setSystemUiVisibility(f);
         }
 
-        ScrollView scroll = new ScrollView(this);
+        scroll = new ScrollView(this);
         scroll.setBackgroundColor(ui.page);
         scroll.setFillViewport(true);
         scroll.setClipToPadding(false);
@@ -878,7 +880,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         help.setGravity(Gravity.CENTER);
         help.setBackground(ui.round(Ui.alpha(ui.accent, 0.12f), 18));
         help.setContentDescription(L.t("Как пользоваться"));
-        help.setOnClickListener(v -> Help.show(this, ui));
+        help.setOnClickListener(v -> startTour());
+        helpView = help;
         header.addView(help, new LinearLayout.LayoutParams(ui.dp(36), ui.dp(36)));
         root.addView(header);
 
@@ -1228,6 +1231,26 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         });
         langRow.addView(seg, Ui.lp(ui.dp(120), -2));
         root.addView(langRow, ui.margins(Ui.lp(-1, -2), 0, 10, 0, 0));
+        langRowView = seg;
+    }
+
+    /** Short tips, one at a time, over the real screen (Tour); the long guide stays one tap away. */
+    private void startTour() {
+        List<Tour.Step> steps = new ArrayList<>();
+        steps.add(new Tour.Step((View) devNameView.getParent().getParent(), L.t("Ваш телевизор"),   // the whole footer card
+                L.t("Fling сам находит ТВ в той же сети Wi‑Fi. «Сменить» — другой ТВ или добавить по IP.")));
+        steps.add(new Tour.Step(setupBox, L.t("Пульт — один раз"),
+                L.t("Нажмите, и на ТВ появится код из 6 символов. После этого работают пауза, приложения и стрелки.")));
+        steps.add(new Tour.Step(ctlBox, L.t("Пульт"),
+                L.t("Приложения, стрелки или тачпад, громкость, текст и голос. Кнопки громкости телефона тоже управляют ТВ.")));
+        steps.add(new Tour.Step(linkCard, L.t("Отправить видео"),
+                L.t("В YouTube или браузере: «Поделиться» → Fling. Или скопируйте ссылку и вставьте её здесь.")));
+        steps.add(new Tour.Step(nowCard, L.t("Что играет"),
+                L.t("Пауза, ±30 секунд и громкость того, что идёт на ТВ.")));
+        steps.add(new Tour.Step(langRowView, L.t("Язык"), L.t("Русский или английский — переключается здесь.")));
+        steps.add(new Tour.Step(helpView, L.t("Подсказки"),
+                L.t("Эти подсказки всегда можно повторить кнопкой «?».")));
+        Tour.start(this, ui, scroll, steps, () -> Help.show(this, ui));
     }
 
     // ================================================================ state → views

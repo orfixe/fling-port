@@ -43,6 +43,25 @@ final class L {
     private static void e(String ru, String en) { EN.put(ru, en); }
 
     static {
+        // first-run tips (Tour)
+        e("Пропустить", "Skip");
+        e("Далее", "Next");
+        e("Готово", "Done");
+        e("Полная инструкция", "Full guide");
+        e("Ваш телевизор", "Your TV");
+        e("Fling сам находит ТВ в той же сети Wi‑Fi. «Сменить» — другой ТВ или добавить по IP.", "Fling finds the TV on the same Wi‑Fi by itself. “Switch” picks another TV or adds one by IP.");
+        e("Пульт — один раз", "Pair the remote once");
+        e("Нажмите, и на ТВ появится код из 6 символов. После этого работают пауза, приложения и стрелки.", "Tap it and the TV shows a 6‑character code. Then pause, apps and the d‑pad work.");
+        e("Пульт", "Remote");
+        e("Приложения, стрелки или тачпад, громкость, текст и голос. Кнопки громкости телефона тоже управляют ТВ.", "Apps, d‑pad or touchpad, volume, typing and voice. The phone's volume keys control the TV too.");
+        e("Отправить видео", "Send a video");
+        e("В YouTube или браузере: «Поделиться» → Fling. Или скопируйте ссылку и вставьте её здесь.", "In YouTube or a browser: Share → Fling. Or copy a link and paste it here.");
+        e("Что играет", "Now playing");
+        e("Пауза, ±30 секунд и громкость того, что идёт на ТВ.", "Pause, ±30 seconds and volume for whatever plays on the TV.");
+        e("Язык", "Language");
+        e("Русский или английский — переключается здесь.", "Russian or English — switch it here.");
+        e("Подсказки", "Tips");
+        e("Эти подсказки всегда можно повторить кнопкой «?».", "Replay these tips any time with the “?” button.");
         e("Как пользоваться", "How to use");
         e("Понятно", "Got it");
         e("пульт ✓", "remote ✓");

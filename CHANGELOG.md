@@ -29,16 +29,18 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   The panel's *Cast this tab* now works with any browser that has the extension.
 - Notification when the TV moves to another video or track, with a *Notify about the next
   video* switch in the panel, the tray menu and the extension settings.
-- Panel corner: 🇬🇧 / 🇷🇺 flags switch the language, **?** opens the guide, and a **compact view** button turns playback into one row of icon keys (labels in tooltips) and hides the
+- A small flag at the bottom of the panel switches 🇬🇧 / 🇷🇺. Panel corner: **?** opens the guide, and a **compact view** button turns playback into one row of icon keys (labels in tooltips) and hides the
   remote and the housekeeping rows. The notification switch shows a green / red bell;
   new icons for start at login and quit; clearer labels (*Pair TV remote…*, *Cast copied link*,
-  *Choose TV*).
+  *Select* next to the TV's name).
 - Android: `Fling.apk` 0.2.0 (version code 2) with the "How to use" guide and the TV chooser.
   It is signed with a new debug key, so a phone with 0.1.0 must uninstall the old app first
   (and pair the TV remote again).
 - `android/build.sh` also builds on Windows (Git Bash) and creates the debug key when missing.
 - Step-by-step Windows guide in English and Russian (`docs/install-windows*.md`),
   Russian README, language flags.
+- Android: first-run tips one at a time over the real screen (spotlight + small card, Material
+  motion) instead of a long dialog; the full guide stays one tap away.
 
 - Linux: choose between several TVs from the panel footer, the tray menu and the
   Connect TV window; find TVs again; add a TV by IP address (named from its

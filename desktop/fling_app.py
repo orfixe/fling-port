@@ -1357,7 +1357,7 @@ EN_PHRASES += [   # rows that had no English text yet
     ("Снимок экрана ТВ", "TV screenshot"), ("Как пользоваться", "How to use"),
     ("Подключение ТВ…", "Connect TV…"), ("Fling — подключение ТВ", "Fling — Connect TV"),
     ("Fling — как пользоваться", "Fling — How to use"),
-    ("Сменить ТВ", "Switch TV"), ("Выбрать ТВ", "Choose TV"),
+    ("Сменить ТВ", "Switch TV"), ("Выбрать ТВ", "Choose TV"), ("Выбрать", "Select"),
     ("Компактный вид", "Compact view"), ("Пауза / Играть", "Play / Pause"), ("Полный вид", "Full view"),
     ("Уведомления включены", "Notifications on"), ("Уведомления выключены", "Notifications off"),
     ("Запускать при входе", "Start at login"), ("Связать пульт с ТВ…", "Pair TV remote…"),
@@ -1660,7 +1660,7 @@ def flag_icon(code, w=22, h=15):
 
 
 class CornerBar(QWidget):
-    """Top-right corner of the panel: compact-mode toggle and the 🇬🇧 / 🇷🇺 language flags."""
+    """Top-right corner of the panel: the guide (?) and the compact-mode toggle."""
     def __init__(self, panel):
         super().__init__()
         self.panel = panel
@@ -1682,21 +1682,6 @@ class CornerBar(QWidget):
         self.help.clicked.connect(lambda: (panel.hide(), open_help(panel)))
         lay.addWidget(self.help)
         lay.addWidget(self.compact)
-        lay.addSpacing(4)
-        for code, name in (("en", "English"), ("ru", "Русский")):
-            b = QToolButton()
-            active = code == LANG
-            b.setIcon(flag_icon(code, 20, 14)); b.setIconSize(QSize(20, 14))
-            b.setToolTip(name)
-            b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            ring = Theme.css(T.accent) if active else "transparent"
-            b.setStyleSheet(f"QToolButton{{border:1.5px solid {ring};border-radius:4px;padding:1px}}"
-                            f"QToolButton:hover{{background:{Theme.css(T.acc_a(0.2))}}}")
-            if not active:
-                eff = QGraphicsOpacityEffect(b); eff.setOpacity(0.55); b.setGraphicsEffect(eff)
-                b.clicked.connect(panel._toggle_lang)
-            lay.addWidget(b)
 
     def sync(self, compact):
         self.compact.setIcon(glyph("expand" if compact else "compact", 14, T.fg_a(0.6)))
@@ -2444,7 +2429,23 @@ class Panel(QWidget):
                        'Fling создан Damion Rashford и Tatiana · неофициальный порт</a>', 10, T.fg_a(0.4))
         credit.setOpenExternalLinks(True)
         credit.setToolTip("github.com/tatianathevisionary/fling")
-        v.addWidget(padded(credit, 14, 0, 14, 8))
+        # bottom line: credit on the left, a small dimmed language flag on the right
+        cr = QHBoxLayout(); cr.setContentsMargins(14, 0, 10, 6); cr.setSpacing(6)
+        cr.addWidget(credit, 1)
+        self.lang = QToolButton()
+        self.lang.setIcon(flag_icon(LANG, 14, 10)); self.lang.setIconSize(QSize(14, 10))
+        self.lang.setToolTip({"ru": "Русский → English", "en": "English → Русский"}[LANG])
+        self.lang.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.lang.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.lang.setStyleSheet(f"QToolButton{{border:none;border-radius:3px;padding:2px}}"
+                                f"QToolButton:hover{{background:{Theme.css(T.fg_a(0.08))}}}")
+        dim = QGraphicsOpacityEffect(self.lang); dim.setOpacity(0.45)   # quiet until the mouse is over it
+        self.lang.setGraphicsEffect(dim)
+        self.lang.enterEvent = lambda e: dim.setOpacity(1.0)
+        self.lang.leaveEvent = lambda e: dim.setOpacity(0.45)
+        self.lang.clicked.connect(self._toggle_lang)
+        cr.addWidget(self.lang, 0, Qt.AlignmentFlag.AlignVCenter)
+        v.addLayout(cr)
 
         # keyboard (menu equivalents)
         for seq, fn in (("Space", self._space), ("Left", lambda: self._casting_only(lambda: state.seek(-SEEK))),
@@ -2699,7 +2700,7 @@ class Panel(QWidget):
         self.dev_name.setText((s.device["name"] + (f" ({s.device['ip']})" if dup else "")) if s.device
                               else ("Ищу ТВ…" if s.scanning else "Устройство не найдено"))
         self.switch.setVisible(True)                   # always available: rescan / add by IP even with one TV
-        self.switch.setText("Сменить ТВ" if len(s.devices) > 1 else "Выбрать ТВ")
+        self.switch.setText("Выбрать")                 # short: the TV's name is right next to it
         if self.isVisible():
             QTimer.singleShot(0, self.place)
 
