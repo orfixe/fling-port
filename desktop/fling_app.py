@@ -1435,6 +1435,11 @@ class State(QObject):
     def remote_ready(self):
         return self.tv_paired or self.bt_connected
 
+    @property
+    def remote_input_ready(self) -> bool:
+        """D-pad / keyboard can drive the TV via network remote, BT, or authorised ADB."""
+        return self.remote_ready or self.adb_ok()
+
     def poll_bt(self):
         def done(r, e):
             new = r or {}
@@ -1465,6 +1470,11 @@ class State(QObject):
             self.atv.key(self.ip, code)
         elif self.bt_connected and code in BT_NAMES:
             self._bt(f"key {BT_NAMES[code]}")
+        elif self.adb_ok() and self.ip:
+            # KEY values are Android keycodes — works when only wireless ADB is authorised
+            ip = self.ip
+            self.bg(lambda: adb_cmd(ip, ["shell", "input", "keyevent", str(int(code))]),
+                    lambda r, e: None)
         elif self.ip:
             self.atv.key(self.ip, code)
 
@@ -2921,8 +2931,8 @@ class Panel(QWidget):
             fn()
 
     def _remote_key(self, name: str) -> bool:
-        """Send a TV remote key if the remote is ready. Returns True if handled."""
-        if not self.state.remote_ready:
+        """Send a TV remote key if network/BT/ADB input is ready. Returns True if handled."""
+        if not self.state.remote_input_ready:
             return False
         code = KEY.get(name)
         if code is None:
@@ -2930,14 +2940,32 @@ class Panel(QWidget):
         self.state.tv_key(code)
         return True
 
+    def _grab_keys(self):
+        if self.isVisible() and not self._editing():
+            try:
+                self.grabKeyboard()
+            except Exception:
+                pass
+
+    def _ungrab_keys(self):
+        try:
+            self.releaseKeyboard()
+        except Exception:
+            pass
+
     def eventFilter(self, obj, e):
-        """Universal keyboard remote: works with focus on any panel child except text fields."""
-        if e.type() == QEvent.Type.KeyPress and self.isVisible():
-            # Only while this panel is the active popup / has focus in its tree
+        """Universal keyboard remote while the panel is open (except text fields)."""
+        et = e.type()
+        # Let QLineEdit own the keyboard while typing on the TV / PIN / YouTube code
+        if et == QEvent.Type.FocusIn and isinstance(obj, QLineEdit) and self.isAncestorOf(obj):
+            self._ungrab_keys()
+        elif et == QEvent.Type.FocusOut and isinstance(obj, QLineEdit) and self.isAncestorOf(obj):
+            QTimer.singleShot(0, self._grab_keys)
+        if et == QEvent.Type.KeyPress and self.isVisible():
+            # Ignore keys meant for another Fling window (Connect TV / help)
             fw = QApplication.focusWidget()
             if fw is not None and not (fw is self or self.isAncestorOf(fw)):
-                if not self.isActiveWindow():
-                    return super().eventFilter(obj, e)
+                return super().eventFilter(obj, e)
             if self._handle_key(e):
                 return True
         return super().eventFilter(obj, e)
@@ -2976,7 +3004,7 @@ class Panel(QWidget):
         elif e.isAutoRepeat() and name not in _REMOTE_REPEAT:
             return False
 
-        if name and self.state.remote_ready:
+        if name and self.state.remote_input_ready:
             # Space while casting: play/pause is more useful than OK
             if name == "play_pause" and self.state.panel == "casting":
                 self.state.toggle_play()
@@ -3178,7 +3206,8 @@ class Panel(QWidget):
         self.pin_ok.setEnabled(len(self.pin_edit.text().strip()) == 6)
         idle_like = p in ("idle", "failed")
         ready = s.remote_ready
-        self.r_setup.setVisible(show_remote and idle_like and not ready and not s.bt_setup)
+        input_ready = s.remote_input_ready
+        self.r_setup.setVisible(show_remote and idle_like and not input_ready and not s.bt_setup)
         self.r_bt.setVisible(show_remote and idle_like and not s.tv_paired and s.bt_setup)
         if s.bt.get("connected"):
             self.r_bt_state.setText(f"✓ Подключено: {s.bt.get('peer') or 'ТВ'}")
@@ -3188,12 +3217,16 @@ class Panel(QWidget):
             self.r_bt_state.setText("Служба Bluetooth-пульта не запущена.")
         else:
             self.r_bt_state.setText("Окно сопряжения закрылось — нажмите «Подключить как Bluetooth-пульт» ещё раз.")
-        self.r_ctl.setVisible(show_remote and idle_like and ready)
+        self.r_ctl.setVisible(show_remote and idle_like and input_ready)
         bt_only = ready and not s.tv_paired
-        self.grid_box.setVisible(not bt_only)      # app links need the network remote
-        self.mic.setVisible(not bt_only)
+        adb_only = (not ready) and s.adb_ok()
+        self.grid_box.setVisible(s.tv_paired)      # app links need the network remote
+        self.mic.setVisible(s.tv_paired)
         if bt_only:
             self.r_now.setText(f"Bluetooth-пульт · {s.bt.get('peer') or 'ТВ'}")
+            self.r_now.setVisible(True)
+        elif adb_only:
+            self.r_now.setText("ADB-пульт · стрелки с клавиатуры")
             self.r_now.setVisible(True)
         self.r_fail_box.setVisible(show_remote and p == "failed")
         self.r_fail.setText(s.tv_pairing_msg)
@@ -3305,16 +3338,19 @@ class Panel(QWidget):
         self._blur()
         self.activateWindow()
         self.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
+        # Tray Popup often never becomes the "active" window — grab keys so arrows reach us
+        self._grab_keys()
         self.state.refresh()
 
     def hideEvent(self, e):
+        self._ungrab_keys()
         self.hidden_at = time.monotonic()
         self._wheel = [0.0, 0.0, 0.0]
         super().hideEvent(e)
 
     # ScrollRemote.swift + ScrollNav.swift: wheel/touchpad anywhere → d-pad
     def wheelEvent(self, e):
-        if not self.state.tv_paired:
+        if not self.state.remote_input_ready:
             return
         px = e.pixelDelta()
         if not px.isNull():
