@@ -76,6 +76,8 @@ def find_adb() -> str:
     if found:
         return found
     cands = [os.path.join(DATA, "platform-tools", _exe("adb"))]
+    if FROZEN:
+        cands.insert(0, os.path.join(os.path.dirname(sys.executable), "platform-tools", _exe("adb")))
     if IS_WIN:
         cands.append(os.path.join(os.environ.get("LOCALAPPDATA", ""), "Android", "Sdk", "platform-tools", "adb.exe"))
     else:

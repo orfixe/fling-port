@@ -3,9 +3,12 @@
 ## Layout
 
 ```text
-linux/      fling_app.py, bt_remote.py, sf_icons.py, fling, fling-tui, install.sh, requirements.txt
+desktop/    the app Windows and Linux both run (fling_app.py, fling_platform.py, fling_bridge.py, fling_help.py, sf_icons.py)
+windows/    install from source, and the script that builds Fling.exe
+linux/      installer, tray launcher, Bluetooth remote, terminal remote
+extension/  one source for the Chrome, Firefox and Safari builds
 android/    src/app/fling/*.java, res/, AndroidManifest.xml, build.sh
-docs/       this documentation and screenshots
+docs/       guides and these notes
 ```
 
 ## Windows
@@ -74,15 +77,20 @@ pairing — and that play / pause / stop affect whoever is watching.
 
 Every new user-visible string needs English and Russian:
 
-- **Linux:** strings are written in Russian in `fling_app.py`; add the English text to
-  `EN_PHRASES` in the same file.
+- **Desktop:** strings are written in Russian in `desktop/fling_app.py`; add the English text to
+  `EN_PHRASES` in the same file. The built-in guide is `desktop/fling_help.py`.
+- **Extension:** `_locales/en/messages.json` and `_locales/ru/messages.json`.
 - **Android:** wrap the string in `L.t(...)` and add the pair to `L.java`; labels used
   in the manifest live in `res/values/strings.xml` and `res/values-ru/strings.xml`.
 
 ## Releasing
 
 1. Update `CHANGELOG.md` (move items from *Unreleased* to a new version).
-2. Build the APK and check it on a device or emulator.
-3. Make sure no personal data is in the code, screenshots or APK
+   Bump `VERSION` in `desktop/fling_app.py` and `extension/build.py`, and the
+   Android version name / code passed to `android/build.sh`.
+2. Build what you are shipping and open it: `windows\build.ps1` for the zip,
+   `python extension/build.py` for the extension zips, `android/build.sh` for the APK.
+3. Make sure no personal data is in the code, screenshots or the APK
    (IP addresses, device names, home paths).
-4. `gh release create vX.Y.Z android/Fling.apk --notes-file …`
+4. Attach the Windows zip, the extension zips and `Fling.apk` to the GitHub release.
+   Write the notes as you would tell a friend what changed. Do not paste the changelog verbatim if it still mentions drafts, models or review tools.

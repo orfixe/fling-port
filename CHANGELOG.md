@@ -47,9 +47,7 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ### Fixed
 
-- IP validation accepts only 0–255 per number; the TV-name request closes its
-  connection; removing the only TV on Android disconnects from it
-  (found in a local-LLM code review, verified by hand).
+- A TV added by IP now has to be a real address (each number 0–255). Asking the TV for its name closes the connection afterwards. On Android, removing the only TV also disconnects from it.
 
 ### Changed
 

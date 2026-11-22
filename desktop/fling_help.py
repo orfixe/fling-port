@@ -1,143 +1,328 @@
-"""Built-in "How to use" guide for Fling on Linux (shown by `fling help`, the panel and the tray).
-Drafted by a local LLM (gpt-oss-20b) from a fact list, then checked and corrected by hand."""
+"""Built-in "How to use" guide. Shown by `fling help`, the panel and the tray menu.
 
-# Each language: list of (section title, body). Body lines start with "• ".
+Button names here are the ones on screen. If a label changes in fling_app.py, change it here too.
+"""
+
+# Each language: list of [section title, body]. Body lines start with "• ".
 HELP = {
  "ru": [
   [
    "Запуск и панель",
-   "• Введите команду `fling` в терминале или выберите пункт меню «Fling».\n• Значок Fling появится в трее (справа внизу).\n• Левый клик по значку откроет панель, правый клик — покажет меню.\n• Панель можно закрыть клавишей Esc или щелчком вне панели."
+   "• Наберите `fling` в терминале или откройте «Fling» в меню.\n"
+   "• Значок появится в трее, справа внизу.\n"
+   "• Левый клик открывает панель, правый — меню.\n"
+   "• Закрывается на Esc или кликом мимо.\n"
+   "• «?» справа сверху — эта подсказка.\n"
+   "• Рядом «Компактный вид». Остаются обложка и кнопки, подписи при наведении. Пульт прячется."
   ],
   [
    "Первое подключение",
-   "• Откройте строку «Подключение ТВ…» в панели (или в меню значка в трее, или командой `fling setup`).\n• Нажмите «Найти и подключить всё».\n• Следите за значками шагов: ✓ готово, ⏳ идёт, ! нужно действие на ТВ, ✗ ошибка."
+   "• «Подключение ТВ…» — в панели, в меню значка или командой `fling setup`.\n"
+   "• Нажмите «Найти и подключить всё».\n"
+   "• У каждого шага свой значок: ✓ готово, ⏳ идёт, ! надо что-то нажать на ТВ, ✗ не вышло."
   ],
   [
    "Выбор телевизора",
-   "• Нажмите кнопку «ТВ…» (или «Сменить ТВ») в правом нижнем углу панели.\n• Выберите нужный телевизор из списка.\n• При необходимости нажмите «Найти ТВ заново», «Добавить ТВ по IP…» или «Убрать добавленный вручную».\n• Обратите внимание на отметки «пульт ✓» и «по IP» – одинаковые имена могут отличаться адресом."
+   "• Внизу панели, рядом с именем ТВ, кнопка «Выбрать».\n"
+   "• Из неё: «Найти ТВ заново», «Добавить ТВ по IP…», «Убрать добавленный вручную».\n"
+   "• В окне «Подключение ТВ» то же самое называется «Выбрать ТВ…».\n"
+   "• Если имена одинаковые, в меню пишется адрес. «пульт ✓» — пульт уже связан. «по IP» — этот ТВ добавили вручную."
   ],
   [
-   "Связать пульт",
-   "• Выберите пункт «Связать с ТВ».\n• На телевизоре появится код из 6 символов (цифры и буквы A–F).\n• Введите код с клавиатуры (русская раскладка тоже подходит) или нажмите кнопки 0–9 и A–F под полем.\n• После шестого символа код отправляется автоматически."
+   "Связать с ТВ",
+   "• Нажмите «Связать с ТВ». Если ТВ выключен — сначала «Включить ТВ».\n"
+   "• На экране появится код из 6 знаков: цифры и буквы A–F.\n"
+   "• Наберите его. Русская раскладка подходит. Или кнопки 0–9 и A–F под полем — они сами отправляют код на шестом знаке.\n"
+   "• С клавиатуры нажмите Enter или «Связать»."
   ],
   [
    "Отправить видео на ТВ",
-   "• Нажмите кнопку «Отправить эту вкладку», чтобы передать текущую вкладку Firefox на ТВ.\n• То же действие можно выполнить в любой программе сочетанием клавиш Meta+Shift+C.\n• Для отправки ссылки из буфера нажмите «Отправить скопированную ссылку».\n• Поддерживаются YouTube, прямые файлы (mp4, mkv, mp3, m3u8…) и большинство видеосайтов."
+   "• «Отправить эту вкладку» отправляет открытую вкладку Firefox.\n"
+   "• Из любой программы — Meta ⇧ C. Так написано на кнопке. Это Meta+Shift+C.\n"
+   "• Ссылка уже скопирована — «Отправить скопированную ссылку».\n"
+   "• Можно отправить YouTube, прямые файлы (mp4, mkv, mp3, m3u8…) и большинство видеосайтов.\n"
+   "• Netflix и похожие так не уходят. Откройте их кнопками приложений, дальше пультом."
   ],
   [
    "Что играет сейчас",
-   "• На панели отображается обложка, название и время воспроизведения.\n• Нажмите пробел для паузы или воспроизведения.\n• Кнопки ← и → перемещают видео на 30 секунд назад/вперёд.\n• Ползунок громкости регулирует уровень звука.\n• Ctrl+. остановит трансляцию («Остановить трансляцию»).\n• Нажмите кнопку ⟳ на обложке, чтобы обновить информацию."
+   "• На панели обложка, название и время.\n"
+   "• Пробел — пауза или снова играть.\n"
+   "• ← и → — на 30 секунд назад или вперёд. Кнопки так и называются: «Назад 30 с» и «Вперёд 30 с».\n"
+   "• Громкость — ползунок.\n"
+   "• Стоп: «Остановить трансляцию» или Ctrl+.\n"
+   "• ⟳ на обложке обновляет, что играет."
   ],
   [
    "Название и обложка с ТВ",
-   "• Для получения точного названия и обложки включите отладку по сети через ADB.\n• На телевизоре откройте Настройки → Система → О системе → нажмите «Сборка» 7 раз.\n• В разделе Для разработчиков включите отладку по сети.\n• При запросе «Разрешить отладку?» выберите «Разрешить» (лучше «Всегда»)."
+   "• Чтобы название и обложка были настоящие, нужен ADB. Это шаг «ADB: что играет, название и обложка» в «Подключение ТВ…».\n"
+   "• На ТВ: Настройки → Система → О системе. Семь раз нажмите «Сборка ОС».\n"
+   "• Потом Настройки → Система → Для разработчиков. Включите «Отладка по USB» и «Беспроводная отладка».\n"
+   "• На вопрос на экране нажмите «Разрешить». Лучше с галочкой «Всегда».\n"
+   "• Если ТВ показал код сопряжения, впишите порт и 6 цифр в том же шаге."
   ],
   [
    "YouTube на ТВ",
-   "• Нажмите кнопку «Связать с YouTube на ТВ».\n• На телевизоре откройте приложение YouTube и перейдите в Настройки.\n• Выберите пункт «Связать с ТВ по коду» и введите 12‑значный код.\n• После связывания отображаются точное видео, время и кнопки «Предыдущее видео», «Следующее видео»."
+   "• Нажмите «Связать с YouTube на ТВ — видеть, что играет».\n"
+   "• На ТВ: YouTube → Настройки → «Подключить телефон» или «Связать с ТВ по коду».\n"
+   "• Введите 12 цифр с экрана.\n"
+   "• Потом видно точное видео и время. Появляются «Предыдущее видео» и «Следующее видео».\n"
+   "• Если ADB уже показывает, что играет, этот шаг можно пропустить."
   ],
   [
    "Пульт",
-   "• В разделе «НА ТЕЛЕВИЗОРЕ» доступны кнопки питания и приложений (YouTube, Netflix и др.).\n• Крестовина с OK, кнопки «Назад» и «Домой».\n• Колёсико мыши или тачпад над панелью позволяют перемещаться по меню ТВ.\n• Кнопки громкости управляют звуком.\n• Поле «Напечатать на ТВ» позволяет вводить текст на телевизоре.\n• Микрофон запускает голосовой поиск."
+   "• В «НА ТЕЛЕВИЗОРЕ» — питание и приложения: YouTube, Netflix и остальные.\n"
+   "• Крестовина, OK, «Назад», «Домой».\n"
+   "• Колёсико или тачпад в любом месте панели двигают меню ТВ.\n"
+   "• «Громк −», «Без звука», «Громк +» — звук телевизора.\n"
+   "• «Напечатать на ТВ» попадает в открытое поле на телевизоре.\n"
+   "• Микрофон рядом — голосовой поиск. Нажмите ещё раз, когда закончите."
   ],
   [
    "Bluetooth-пульт",
-   "• Выберите пункт «Подключить как Bluetooth‑пульт…».\n• На телевизоре откройте Настройки → Пульты и аксессуары → Добавить аксессуар → выберите «Fling Remote».\n• Подтвердите подключение, если KDE попросит.\n• Окно сопряжения будет открыто 3 минуты; при соединении можно печатать только латиницу."
+   "• «Подключить как Bluetooth-пульт…». Если пульт по сети уже связан, это не нужно.\n"
+   "• На ТВ: Настройки → Пульты и аксессуары → Добавить аксессуар → «Fling Remote».\n"
+   "• KDE может спросить про сопряжение — подтвердите.\n"
+   "• Окно сопряжения открыто 3 минуты.\n"
+   "• По Bluetooth печатаются только латиница и цифры."
   ],
   [
-   "Снимок экрана ТВ",
-   "• Нажмите «Сделать снимок» — снимается экран телевизора.\n• Скриншот сохраняется в папку Изображения/Fling и открывается сразу.\n• Если снимок чёрный, значит видео защищено DRM (YouTube/Netflix).\n• Для корректного снимка включите отладку ADB."
+   "Сделать снимок",
+   "• «Сделать снимок» снимает экран телевизора.\n"
+   "• Файл падает в «Изображения/Fling» и сразу открывается.\n"
+   "• Чёрный кадр — видео защищено от снимков. Так у YouTube и Netflix. Меню и главный экран снимаются нормально.\n"
+   "• Без ADB снимка не будет. Включите его в «Подключение ТВ…»."
   ],
   [
    "Команды и прочее",
-   "• Язык переключается маленьким флажком внизу панели, справа от подписи; «?» в правом верхнем углу открывает эту инструкцию.\n• Включите запуск при входе через пункт «Запускать при входе» (Start at login).\n• Для выхода из Fling нажмите Ctrl+Q или используйте команду `fling quit`.\n• Команды терминала:\n  - `fling` – открыть панель\n  - `fling setup` – подключение ТВ\n  - `fling cast-tab` – отправить вкладку\n  - `fling clip` – ссылка из буфера\n  - `fling screenshot` – снимок ТВ\n  - `fling help` – эта инструкция\n  - `fling quit` – выход\n  - `fling tui` – пульт в терминале"
+   "• Язык — маленький флажок внизу справа.\n"
+   "• «Запускать при входе» — чтобы Fling открывался сам.\n"
+   "• Выход: «Выйти из Fling», Ctrl+Q или `fling quit`.\n"
+   "• Команды:\n"
+   "  - `fling` — открыть панель\n"
+   "  - `fling setup` — подключение ТВ\n"
+   "  - `fling cast-tab` — отправить вкладку\n"
+   "  - `fling clip` — ссылка из буфера\n"
+   "  - `fling screenshot` — сделать снимок\n"
+   "  - `fling help` — эта подсказка\n"
+   "  - `fling quit` — выход\n"
+   "  - `fling tui` — пульт в терминале"
   ],
   [
    "Если что-то не работает",
-   "• Если ТВ не находится, убедитесь, что обе системы подключены к одной сети Wi‑Fi или добавьте ТВ по IP через «Добавить ТВ по IP…».\n• Пауза на YouTube может не работать без связанного пульта. Свяжите пульт с помощью «Связать с ТВ».\n• Если старые обложки отображаются, включите отладку ADB.\n• При невозможности ввода кода попробуйте нажать кнопки под полем.\n• Чёрный снимок экрана – DRM‑защищённый видеофайл.\n• Журнал работы хранится в `~/.cache/fling/app.log`."
+   "• ТВ не находится: оба должны быть в одной сети. Или «Выбрать» → «Добавить ТВ по IP…». Адрес — на ТВ, Настройки → Сеть.\n"
+   "• Пауза на YouTube не слушается, пока не нажмёте «Связать с ТВ».\n"
+   "• Старая обложка — включите ADB в «Подключение ТВ…».\n"
+   "• Не получается ввести код — жмите кнопки под полем.\n"
+   "• Чёрный снимок — защита видео, не поломка.\n"
+   "• Журнал лежит в `~/.cache/fling/app.log`."
   ]
  ],
  "en": [
   [
-   "Launch and Panel",
-   "• Enter the command `fling` in the terminal or select the menu item \"Fling\".\n• The Fling icon will appear in the tray (bottom right).\n• Left-click on the icon opens the panel, right-click shows the menu.\n• The panel can be closed with Esc or by clicking outside it."
+   "Launch and panel",
+   "• Type `fling` in a terminal, or open Fling from the menu.\n"
+   "• The icon shows up in the tray, bottom right.\n"
+   "• Left click opens the panel. Right click opens the menu.\n"
+   "• Esc closes it. So does a click outside.\n"
+   "• ? at the top right opens this guide.\n"
+   "• Next to it, “Compact view”. Artwork and the keys stay, labels show on hover. The remote hides."
   ],
   [
    "First connection",
-   "• Open “Connect TV…” in the panel (or in the tray icon's menu, or run `fling setup`).\n• Press “Find and connect everything”.\n• Watch the step marks: ✓ done, ⏳ working, ! needs you on the TV, ✗ failed."
+   "• Open “Connect TV…” from the panel, the tray menu, or `fling setup`.\n"
+   "• Press “Find and connect everything”.\n"
+   "• Each step has a mark: ✓ done, ⏳ working, ! needs you on the TV, ✗ failed."
   ],
   [
    "Select TV",
-   "• Press the button \"TV…\" (or \"Switch TV\") in the lower right corner of the panel.\n• Choose the desired TV from the list.\n• If needed, press \"Find TVs again\", \"Add TV by IP…\" or \"Remove a manually added TV\".\n• Note the marks \"remote ✓\" and \"by IP\" – identical names may differ by address."
+   "• At the bottom, next to the TV’s name, the button says “Select”.\n"
+   "• That menu has “Search for TVs again”, “Add TV by IP…”, and “Remove the TV added by IP”.\n"
+   "• In the Connect TV window the same choice is “Choose TV…”.\n"
+   "• Two TVs with the same name: the menu shows the address. “remote ✓” means the remote is already paired. “by IP” means you added that TV yourself."
   ],
   [
-   "Connect remote",
-   "• Select the item \"Pair with TV\".\n• A code of 6 symbols (digits and letters A–F) will appear on the TV.\n• Enter the code with the keyboard (Russian layout also works) or press the buttons 0–9 and A–F under the field.\n• After the sixth symbol the code is sent automatically."
+   "Pair with TV",
+   "• Click “Pair with TV”. If the TV is off, click “Turn on the TV” first.\n"
+   "• A 6-character code shows up on the TV: digits and the letters A–F.\n"
+   "• Type it. A Russian keyboard layout is fine. Or tap 0–9 and A–F under the field — those send it on the sixth character.\n"
+   "• From the keyboard, press Enter or “Pair”."
   ],
   [
    "Cast video to TV",
-   "• Click \"Cast this tab\" to send the current Firefox tab to the TV.\n• The same action can be performed in any program with Meta+Shift+C.\n• To cast a clipboard URL click \"Cast copied link\".\n• Supports YouTube, direct files (mp4, mkv, mp3, m3u8…) and most video sites."
+   "• “Cast this tab” sends the open Firefox tab.\n"
+   "• From any app, Meta ⇧ C. That’s what’s written on the button. Same keys as Meta+Shift+C.\n"
+   "• Copied a link? “Cast copied link”.\n"
+   "• YouTube works. So do direct files (mp4, mkv, mp3, m3u8…) and most video sites.\n"
+   "• Netflix and the like won’t go this way. Open them with the app buttons, then use the remote."
   ],
   [
    "What is playing now",
-   "• The panel displays the cover, title and playback time.\n• Press space to pause or play.\n• Buttons ← and → move the video 30 seconds back/forward.\n• The volume slider adjusts the sound level.\n• Ctrl+. stops casting (\"Stop casting\").\n• Click the ⟳ button on the cover to refresh information."
+   "• The panel shows the artwork, the title and the time.\n"
+   "• Space pauses or plays.\n"
+   "• ← and → jump 30 seconds. The buttons do the same.\n"
+   "• Drag the volume slider.\n"
+   "• Stop with “Stop casting”, or Ctrl+.\n"
+   "• The ⟳ on the artwork refreshes what’s playing."
   ],
   [
-   "Title and cover from TV",
-   "• To obtain an accurate title and cover enable network debugging via ADB.\n• On the TV open Settings → System → About → tap \"Build\" 7 times.\n• In the Developer options enable network debugging.\n• When prompted with \"Allow debugging?\", choose \"Allow\" (preferably \"Always\")."
+   "Title and artwork",
+   "• For the real title and artwork you need ADB. That’s the step “ADB: what's playing, title and artwork” in “Connect TV…”.\n"
+   "• On the TV: Settings → System → About. Tap “Android TV OS build” seven times.\n"
+   "• Then Settings → System → Developer options. Turn on “USB debugging” and “Wireless debugging”.\n"
+   "• If the TV asks, choose “Allow”. Tick “Always” if it’s there.\n"
+   "• If it shows a pairing code, type the port and the 6 digits in that same step."
   ],
   [
    "YouTube on TV",
-   "• Click \"Link YouTube on the TV\".\n• On the TV open the YouTube app and go to Settings.\n• Select \"Link with TV by code\" and enter the 12‑digit code.\n• After linking, the exact video, time and buttons \"Previous video\", \"Next video\" appear."
+   "• Click “Link YouTube on the TV — see what's playing”.\n"
+   "• On the TV: YouTube → Settings → “Link with TV code”.\n"
+   "• Type the 12 digits from the screen.\n"
+   "• After that you get the exact video and time, plus “Previous video” and “Next video”.\n"
+   "• Skip this if ADB already shows what’s playing."
   ],
   [
-   "Remote control",
-   "• In the section \"ON THE TV\" you can use power and app buttons (YouTube, Netflix, etc.).\n• The cross with OK, the \"Back\" and \"Home\" buttons.\n• The mouse wheel or touchpad above the panel allows navigation through the TV menu.\n• Volume buttons control sound.\n• The field \"Type on TV\" lets you enter text on the TV.\n• The microphone starts voice search."
+   "Remote",
+   "• Under “ON THE TV”: power, and apps — YouTube, Netflix and the rest.\n"
+   "• D-pad, OK, “Back”, “Home”.\n"
+   "• Scroll anywhere on the panel to move around the TV. A touchpad works too.\n"
+   "• “Vol −”, “Mute”, “Vol +” are the TV’s volume.\n"
+   "• “Type on TV” lands in whatever text field is open on the TV.\n"
+   "• The mic next to it starts voice search. Click it again when you’re done."
   ],
   [
    "Bluetooth remote",
-   "• Select \"Connect as Bluetooth remote…\".\n• On the TV open Settings → Pairs and accessories → Add accessory → choose \"Fling Remote\".\n• Confirm the connection if KDE asks.\n• The pairing window stays open for 3 minutes; only Latin letters can be typed via Bluetooth."
+   "• “Connect as Bluetooth remote…”. Skip this if the network remote is already paired.\n"
+   "• On the TV: Settings → Remotes & Accessories → Pair accessory → “Fling Remote”.\n"
+   "• If KDE asks to confirm pairing, accept.\n"
+   "• The pairing window stays open for 3 minutes.\n"
+   "• Over Bluetooth you can only type Latin letters and digits."
   ],
   [
-   "TV screenshot",
-   "• Click \"Take screenshot\" — it captures the TV screen.\n• The screenshot is saved in Pictures/Fling and opens immediately.\n• If the screenshot is black, the video is DRM‑protected (YouTube/Netflix).\n• For a correct screenshot enable ADB debugging."
+   "Take screenshot",
+   "• “Take screenshot” grabs the TV screen.\n"
+   "• The file lands in Pictures/Fling and opens right away.\n"
+   "• A black picture means the video is copy-protected. YouTube and Netflix do that. Menus and the home screen come out fine.\n"
+   "• No ADB, no screenshot. Turn it on in “Connect TV…”."
   ],
   [
-   "Commands and other",
-   "• Switch the language with the small flag at the bottom right of the panel; the ? in the top-right corner opens this guide.\n• Enable startup at login via the option \"Start at login\".\n• To exit Fling press Ctrl+Q or use the command `fling quit`.\n• Terminal commands:\n  - `fling` – open panel\n  - `fling setup` – connect TV\n  - `fling cast-tab` – cast tab\n  - `fling clip` – clipboard URL\n  - `fling screenshot` – TV screenshot\n  - `fling help` – this instruction\n  - `fling quit` – exit\n  - `fling tui` – remote in terminal"
+   "Commands and the rest",
+   "• Language is the small flag at the bottom right.\n"
+   "• “Start at login” opens Fling when you log in.\n"
+   "• Quit with “Quit Fling”, Ctrl+Q, or `fling quit`.\n"
+   "• Commands:\n"
+   "  - `fling` — open the panel\n"
+   "  - `fling setup` — Connect TV\n"
+   "  - `fling cast-tab` — cast the tab\n"
+   "  - `fling clip` — link from the clipboard\n"
+   "  - `fling screenshot` — take a screenshot\n"
+   "  - `fling help` — this guide\n"
+   "  - `fling quit` — quit\n"
+   "  - `fling tui` — remote in the terminal"
   ],
   [
    "If something doesn't work",
-   "• If the TV is not found, ensure both systems are on the same Wi‑Fi network or add a TV by IP via \"Add TV by IP…\".\n• Pause may not work on YouTube without a linked remote. Link the remote using \"Pair with TV\".\n• If old covers appear, enable ADB‑debugging.\n• If you cannot enter the code, try pressing the buttons under the field.\n• A black screenshot indicates DRM‑protected video.\n• The log is stored in `~/.cache/fling/app.log`."
+   "• TV not found: both have to be on the same network. Or “Select” → “Add TV by IP…”. The address is on the TV, Settings → Network.\n"
+   "• YouTube ignores pause until you click “Pair with TV”.\n"
+   "• Old artwork: turn on ADB in “Connect TV…”.\n"
+   "• If the code won’t type, use the buttons under the field.\n"
+   "• A black screenshot is copy protection, not a broken capture.\n"
+   "• The log is `~/.cache/fling/app.log`."
   ]
  ]
 }
 
 
-# ---------------------------------------------------------------- Windows: sections that differ from Linux
-# Replaces a section body by its title; None drops the section (no Bluetooth remote on Windows).
+# Windows replaces a section by its title. None drops the section (no Bluetooth remote on Windows).
 WINDOWS = {
  "ru": {
   "Запуск и панель":
-   "• Откройте «Fling» в меню Пуск (или введите `fling` в PowerShell / cmd).\n• Значок Fling появится в области уведомлений справа внизу (если не видно — нажмите стрелку ^ и перетащите его на панель задач).\n• Левый клик по значку откроет панель, правый клик — покажет меню.\n• Панель закрывается клавишей Esc или щелчком вне панели.",
+   "• Откройте «Fling» в меню Пуск. Или наберите `fling` в PowerShell или cmd.\n"
+   "• Значок справа внизу, возле часов. Не видно — стрелка ^, перетащите его на панель задач.\n"
+   "• Левый клик открывает панель, правый — меню.\n"
+   "• Закрывается на Esc или кликом мимо.\n"
+   "• «?» справа сверху — эта подсказка.\n"
+   "• Рядом «Компактный вид». Остаются обложка и кнопки, подписи при наведении. Пульт прячется.",
   "Отправить видео на ТВ":
-   "• Поставьте расширение Fling в браузер (Chrome, Edge, Firefox) — оно сообщает Fling, какая вкладка открыта.\n• Нажмите «Отправить эту вкладку» в панели — или кнопку Fling на панели браузера.\n• Сочетание клавиш в любой программе: Win+Shift+C (если оно занято — Ctrl+Alt+Shift+C; в панели показано, какое работает). В браузере: Alt+Shift+C.\n• Если видео на странице уже идёт, расширение продолжит его на ТВ с того же места.\n• Без расширения Fling читает активную вкладку Firefox из файла сессии.\n• «Отправить скопированную ссылку» — для скопированной ссылки.",
+   "• Поставьте расширение Fling в браузер — Chrome, Edge, Firefox и похожие. Оно говорит Fling, какая вкладка открыта.\n"
+   "• «Отправить эту вкладку» в панели, или кнопка Fling на панели браузера.\n"
+   "• Из любой программы: Win+Shift+C. Если занято — Ctrl+Alt+Shift+C. В панели написано, какое сработало. В браузере: Alt+Shift+C.\n"
+   "• Если видео на странице уже идёт, расширение продолжит его на ТВ с того же места.\n"
+   "• Без расширения Fling берёт активную вкладку Firefox из файла сессии.\n"
+   "• Скопированная ссылка — «Отправить скопированную ссылку».\n"
+   "• Можно отправить YouTube, прямые файлы (mp4, mkv, mp3, m3u8…) и большинство видеосайтов.\n"
+   "• Netflix и похожие так не уходят. Откройте их кнопками приложений, дальше пультом.",
+  "Сделать снимок":
+   "• «Сделать снимок» снимает экран телевизора.\n"
+   "• Файл падает в `%USERPROFILE%\\Pictures\\Fling` — папка «Изображения», внутри Fling — и сразу открывается.\n"
+   "• Чёрный кадр — видео защищено от снимков. Так у YouTube и Netflix. Меню и главный экран снимаются нормально.\n"
+   "• Без ADB снимка не будет. Включите его в «Подключение ТВ…».",
   "Bluetooth-пульт": None,
   "Команды и прочее":
-   "• Язык переключается маленьким флажком внизу панели, справа от подписи; «?» в правом верхнем углу открывает эту инструкцию.\n• Автозапуск — пункт «Запускать при входе».\n• Выход — Ctrl+Q или команда `fling quit`.\n• Команды (PowerShell / cmd):\n  - `fling` – открыть панель\n  - `fling setup` – подключение ТВ\n  - `fling cast-tab` – отправить вкладку\n  - `fling clip` – ссылка из буфера\n  - `fling screenshot` – снимок ТВ\n  - `fling help` – эта инструкция\n  - `fling quit` – выход",
+   "• Язык — маленький флажок внизу справа.\n"
+   "• «Запускать при входе» — чтобы Fling открывался вместе с Windows.\n"
+   "• Выход: «Выйти из Fling», Ctrl+Q или `fling quit`.\n"
+   "• Команды (PowerShell или cmd):\n"
+   "  - `fling` — открыть панель\n"
+   "  - `fling setup` — подключение ТВ\n"
+   "  - `fling cast-tab` — отправить вкладку\n"
+   "  - `fling clip` — ссылка из буфера\n"
+   "  - `fling screenshot` — сделать снимок\n"
+   "  - `fling help` — эта подсказка\n"
+   "  - `fling quit` — выход",
   "Если что-то не работает":
-   "• ТВ не находится: компьютер и ТВ должны быть в одной сети; при первом запуске разрешите Python/Fling доступ к частной сети в окне брандмауэра Windows. Можно добавить ТВ по IP.\n• Пауза на YouTube может не работать без связанного пульта — «Связать с ТВ».\n• Старые обложки — подключите ADB.\n• Кнопка «Отправить эту вкладку» серая — проверьте, что расширение установлено и в его окне горит зелёная точка.\n• Микрофон молчит — Параметры → Конфиденциальность → Микрофон → разрешите классическим приложениям.\n• Журнал: `%LOCALAPPDATA%\\Fling\\logs\\app.log`.",
+   "• ТВ не находится: компьютер и ТВ должны быть в одной сети. При первом запуске всплывёт окно брандмауэра — разрешите Python или Fling в частной сети. Или «Выбрать» → «Добавить ТВ по IP…».\n"
+   "• Пауза на YouTube не слушается, пока не нажмёте «Связать с ТВ».\n"
+   "• Старая обложка — включите ADB в «Подключение ТВ…».\n"
+   "• «Отправить эту вкладку» серая: расширение стоит, в его окошке зелёная точка, вкладка с видео открыта.\n"
+   "• Микрофон молчит: Параметры → Конфиденциальность и защита → Микрофон → разрешите классическим приложениям.\n"
+   "• Не получается ввести код — жмите кнопки под полем.\n"
+   "• Чёрный снимок — защита видео, не поломка.\n"
+   "• Журнал: `%LOCALAPPDATA%\\Fling\\logs\\app.log`.",
  },
  "en": {
-  "Launch and Panel":
-   "• Open “Fling” from the Start menu (or type `fling` in PowerShell / cmd).\n• The Fling icon appears in the notification area, bottom right (if hidden, click the ^ arrow and drag it onto the taskbar).\n• Left-click the icon for the panel, right-click for the menu.\n• Close the panel with Esc or by clicking outside it.",
+  "Launch and panel":
+   "• Open Fling from the Start menu. Or type `fling` in PowerShell or cmd.\n"
+   "• The icon sits bottom right, by the clock. Hidden? Click the ^ arrow and drag it onto the taskbar.\n"
+   "• Left click opens the panel. Right click opens the menu.\n"
+   "• Esc closes it. So does a click outside.\n"
+   "• ? at the top right opens this guide.\n"
+   "• Next to it, “Compact view”. Artwork and the keys stay, labels show on hover. The remote hides.",
   "Cast video to TV":
-   "• Add the Fling extension to your browser (Chrome, Edge, Firefox) — it tells Fling which tab is open.\n• Click “Cast this tab” in the panel — or the Fling button in the browser toolbar.\n• Shortcut in any app: Win+Shift+C (if taken, Ctrl+Alt+Shift+C; the panel shows which one works). In the browser: Alt+Shift+C.\n• If the page's video is already playing, the extension resumes it on the TV at the same spot.\n• Without the extension Fling reads the active Firefox tab from its session file.\n• “Cast copied link” casts a copied link.",
+   "• Add the Fling extension to your browser — Chrome, Edge, Firefox and the ones like them. It tells Fling which tab is open.\n"
+   "• “Cast this tab” in the panel, or the Fling button in the browser toolbar.\n"
+   "• From any app: Win+Shift+C. If something else owns it, Ctrl+Alt+Shift+C. The panel shows which one works. In the browser: Alt+Shift+C.\n"
+   "• If the video on the page is already playing, the extension picks it up on the TV at the same spot.\n"
+   "• No extension? Fling reads the active Firefox tab from its session file.\n"
+   "• A copied link: “Cast copied link”.\n"
+   "• YouTube works. So do direct files (mp4, mkv, mp3, m3u8…) and most video sites.\n"
+   "• Netflix and the like won’t go this way. Open them with the app buttons, then use the remote.",
+  "Take screenshot":
+   "• “Take screenshot” grabs the TV screen.\n"
+   "• The file lands in `%USERPROFILE%\\Pictures\\Fling` — your Pictures folder, inside Fling — and opens right away.\n"
+   "• A black picture means the video is copy-protected. YouTube and Netflix do that. Menus and the home screen come out fine.\n"
+   "• No ADB, no screenshot. Turn it on in “Connect TV…”.",
   "Bluetooth remote": None,
-  "Commands and other":
-   "• Switch the language with the small flag at the bottom right of the panel; the ? in the top-right corner opens this guide.\n• Start with Windows: “Start at login”.\n• Quit: Ctrl+Q or `fling quit`.\n• Commands (PowerShell / cmd):\n  - `fling` – open panel\n  - `fling setup` – connect TV\n  - `fling cast-tab` – cast tab\n  - `fling clip` – clipboard URL\n  - `fling screenshot` – TV screenshot\n  - `fling help` – this guide\n  - `fling quit` – exit",
+  "Commands and the rest":
+   "• Language is the small flag at the bottom right.\n"
+   "• “Start at login” opens Fling with Windows.\n"
+   "• Quit with “Quit Fling”, Ctrl+Q, or `fling quit`.\n"
+   "• Commands (PowerShell or cmd):\n"
+   "  - `fling` — open the panel\n"
+   "  - `fling setup` — Connect TV\n"
+   "  - `fling cast-tab` — cast the tab\n"
+   "  - `fling clip` — link from the clipboard\n"
+   "  - `fling screenshot` — take a screenshot\n"
+   "  - `fling help` — this guide\n"
+   "  - `fling quit` — quit",
   "If something doesn't work":
-   "• TV not found: the PC and the TV must be on the same network; on first start allow Python/Fling on private networks in the Windows Firewall prompt. You can also add a TV by IP.\n• Pause may not work on YouTube without a paired remote — “Pair with TV”.\n• Old artwork — connect ADB.\n• “Cast this tab” greyed out — check the extension is installed and its popup shows a green dot.\n• Mic silent — Settings → Privacy → Microphone → allow desktop apps.\n• Log: `%LOCALAPPDATA%\\Fling\\logs\\app.log`.",
+   "• TV not found: the PC and the TV have to be on the same network. On first start Windows Firewall pops up — allow Python or Fling on private networks. Or “Select” → “Add TV by IP…”.\n"
+   "• YouTube ignores pause until you click “Pair with TV”.\n"
+   "• Old artwork: turn on ADB in “Connect TV…”.\n"
+   "• “Cast this tab” greyed out: the extension should be installed, its popup should show a green dot, and a video tab should be open.\n"
+   "• Mic silent: Settings → Privacy & security → Microphone → allow desktop apps.\n"
+   "• If the code won’t type, use the buttons under the field.\n"
+   "• A black screenshot is copy protection, not a broken capture.\n"
+   "• Log: `%LOCALAPPDATA%\\Fling\\logs\\app.log`.",
  },
 }
 

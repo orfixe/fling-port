@@ -154,10 +154,11 @@ if (-not $NoAdb) {
 # ------------------------------------------------------------------ launchers
 Step 'Start menu and the `fling` command'
 # fling.cmd: `start` returns at once; the running Fling picks the command up
-@"
-@echo off
-start "" "$Pyw" "$Main" %*
-"@ | Set-Content -Encoding ascii (Join-Path $Bin 'fling.cmd')
+$run = Join-Path $Bin 'fling-run.ps1'
+$pywLit = $Pyw.Replace("'", "''")
+$mainLit = $Main.Replace("'", "''")
+[IO.File]::WriteAllText($run, "Start-Process -FilePath '$pywLit' -ArgumentList (@('$mainLit') + `$args)`r`n", [Text.UTF8Encoding]::new($true))
+"@echo off`r`npowershell -NoProfile -ExecutionPolicy Bypass -File `"%~dp0fling-run.ps1`" %*`r`n" | Set-Content -Encoding ascii (Join-Path $Bin 'fling.cmd')
 
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 if (-not (($userPath -split ';') -contains $Bin)) {

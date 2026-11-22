@@ -56,19 +56,31 @@ const isWeb = (u) => typeof u === "string" && /^https?:\/\//i.test(u);
 
 let lastReported = "";
 
+async function focusedTab() {
+  // lastFocusedWindow, not currentWindow: the popup is the current window and has no tabs.
+  try {
+    const [tab] = await api.tabs.query({ active: true, lastFocusedWindow: true });
+    return tab || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function reportActiveTab(force = false) {
   const { shareTabs } = await settings();
   if (!shareTabs) return;
-  let tab;
-  try {
-    [tab] = await api.tabs.query({ active: true, lastFocusedWindow: true });
-  } catch (e) {
-    return;
-  }
+  const tab = await focusedTab();
   if (!tab || !isWeb(tab.url) || tab.incognito) return;
   const key = `${tab.url}\n${tab.title}`;
   if (!force && key === lastReported) return;
-  const r = await fling("/v1/tab", { url: tab.url, title: tab.title || "", browser: browserName() });
+  let media = null;
+  try { media = await probeTab(tab.id); } catch (e) { media = null; }
+  const r = await fling("/v1/tab", {
+    url: tab.url, title: tab.title || "", browser: browserName(),
+    media: media ? {
+      time: media.time, duration: media.duration, paused: media.paused, ended: media.ended, src: media.src || "",
+    } : null,
+  });
   if (r.ok) lastReported = key;
 }
 
@@ -80,11 +92,21 @@ api.windows.onFocusChanged.addListener((w) => {
   if (w !== api.windows.WINDOW_ID_NONE) reportActiveTab(true);
 });
 
-// heartbeat: the app treats a report older than 3 minutes as "browser closed"
-api.alarms.create("fling-heartbeat", { periodInMinutes: 1 });
-api.alarms.onAlarm.addListener((a) => {
-  if (a.name === "fling-heartbeat") reportActiveTab(true);
-});
+// heartbeat: the app treats a report older than 3 minutes as "browser closed".
+// Only while this browser is actually in front — otherwise Chrome and Firefox steal the tab from each other.
+if (api.alarms) {
+  api.alarms.create("fling-heartbeat", { periodInMinutes: 1 });
+  api.alarms.onAlarm.addListener(async (a) => {
+    if (a.name !== "fling-heartbeat") return;
+    try {
+      const w = await api.windows.getLastFocused();
+      if (!w || !w.focused) return;
+    } catch (e) {
+      return;
+    }
+    reportActiveTab(true);
+  });
+}
 
 // ------------------------------------------------------------ the page's player (resume position, stream URL)
 
@@ -162,14 +184,26 @@ async function castTab(tab) {
     start: resumePoint(media), media_src: media && media.src ? media.src : "",
   };
   const r = await fling("/v1/action", body, 5000);
-  if (r.ok) {
+  // The app answers as soon as it accepts the request. Wait until the cast finishes
+  // before the green badge and before pausing the page — otherwise a failure looks like success.
+  let last = r;
+  if (r && r.ok && !r.error) {
+    for (let i = 0; i < 20; i++) {
+      await new Promise((res) => setTimeout(res, 1000));
+      const st = await fling("/v1/status");
+      if (!st) continue;
+      last = st;
+      if (st.error || !st.casting) break;
+    }
+  }
+  if (last && last.ok && !last.error) {
     await flash("▶", "#30d158");
     const { pauseAfterCast } = await settings();
     if (pauseAfterCast && media && !media.paused) inject(tab.id, pauseMedia);
   } else {
     await flash("!", "#ff453a");
   }
-  return r;
+  return last;
 }
 
 async function castUrl(url, title) {
@@ -182,7 +216,7 @@ async function castUrl(url, title) {
 // keyboard shortcut (Alt+Shift+C by default)
 api.commands.onCommand.addListener(async (cmd, tabArg) => {
   if (cmd !== "cast-tab") return;
-  const tab = tabArg || (await api.tabs.query({ active: true, currentWindow: true }))[0];
+  const tab = tabArg || await focusedTab();
   castTab(tab);
 });
 
@@ -215,11 +249,10 @@ api.runtime.onMessage.addListener((msg, sender, reply) => {
       case "status": return fling("/v1/status");
       case "action": return fling("/v1/action", msg.body, 5000);
       case "castTab": {
-        const [tab] = await api.tabs.query({ active: true, currentWindow: true });
-        return castTab(tab);
+        return castTab(await focusedTab());
       }
       case "probe": {
-        const [tab] = await api.tabs.query({ active: true, currentWindow: true });
+        const tab = await focusedTab();
         if (!tab || !isWeb(tab.url)) return { tab: null };
         const media = await probeTab(tab.id);
         return { tab: { url: tab.url, title: tab.title }, media, resume: resumePoint(media) };

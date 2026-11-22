@@ -377,7 +377,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         }
         if (text == null) return;
         String url = extractUrl(text);
-        if (url == null) { showError(L.t("В том, чем поделились, нет ссылки.")); return; }
+        if (url == null) { showError(L.t("В отправленном нет ссылки.")); return; }
         setLink(url, subject);
         i.setAction(Intent.ACTION_MAIN);   // don't recast on rotation
         if (host != null) castLink(url, linkTitle); else pendingAutoCast = true;
@@ -574,7 +574,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         pm.setOnMenuItemClickListener(it -> {
             int id = it.getItemId();
             if (id == 1000) askIp();
-            else if (id == 1001) { discovery.stop(); discovery.start(); toast(L.t("Ищу устройства…")); }   // restart mDNS search
+            else if (id == 1001) { discovery.stop(); discovery.start(); toast(L.t("Ищу ТВ…")); }   // restart mDNS search
             else if (id >= 2000) forgetManual(manual.get(id - 2000));
             else if (id < devices.size()) selectDevice(devices.get(id));
             return true;
@@ -989,7 +989,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         linkKind = ui.text("", 13, ui.green, false);
         hk.addView(linkHost); hk.addView(dot); hk.addView(linkKind);
         linkCard.addView(hk, ui.margins(Ui.lp(-1, -2), 10, 4, 10, 4));
-        linkEmpty = ui.text(L.t("Поделитесь ссылкой из YouTube или браузера → «Fling» — и видео сразу пойдёт на телевизор. Или скопируйте ссылку и вставьте её здесь."),
+        linkEmpty = ui.text(L.t("Поделитесь ссылкой из YouTube или браузера → «На телевизор» — и видео сразу пойдёт на телевизор. Или скопируйте ссылку и вставьте её здесь."),
                 14, ui.fgA(0.55f), false);
         linkEmpty.setLineSpacing(0, 1.2f);
         linkCard.addView(linkEmpty, ui.margins(Ui.lp(-1, -2), 10, 0, 10, 6));
@@ -1241,12 +1241,12 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         List<Tour.Step> steps = new ArrayList<>();
         steps.add(new Tour.Step((View) devNameView.getParent().getParent(), L.t("Ваш телевизор"),   // the whole footer card
                 L.t("Fling сам находит ТВ в той же сети Wi‑Fi. «Сменить» — другой ТВ или добавить по IP.")));
-        steps.add(new Tour.Step(setupBox, L.t("Пульт — один раз"),
+        steps.add(new Tour.Step(setupBox, L.t("Связать с ТВ"),
                 L.t("Нажмите, и на ТВ появится код из 6 символов. После этого работают пауза, приложения и стрелки.")));
         steps.add(new Tour.Step(ctlBox, L.t("Пульт"),
                 L.t("Приложения, стрелки или тачпад, громкость, текст и голос. Кнопки громкости телефона тоже управляют ТВ.")));
         steps.add(new Tour.Step(linkCard, L.t("Отправить видео"),
-                L.t("В YouTube или браузере: «Поделиться» → Fling. Или скопируйте ссылку и вставьте её здесь.")));
+                L.t("В YouTube или браузере: «Поделиться» → «На телевизор». Или скопируйте ссылку и вставьте её здесь.")));
         steps.add(new Tour.Step(nowCard, L.t("Что играет"),
                 L.t("Пауза, ±30 секунд и громкость того, что идёт на ТВ.")));
         steps.add(new Tour.Step(langRowView, L.t("Язык"), L.t("Русский или английский — переключается здесь.")));
@@ -1339,8 +1339,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             linkHost.setText(hostOf(link));
             boolean direct = isDirectMedia(link), yt = youtubeId(link) != null;
             if (direct) { linkKind.setText(L.t("видеофайл · Chromecast")); linkKind.setTextColor(ui.green); }
-            else if (yt) { linkKind.setText(paired ? L.t("откроется в YouTube на ТВ") : L.t("нужна настройка ТВ")); linkKind.setTextColor(paired ? ui.green : ui.orange); }
-            else { linkKind.setText(paired ? L.t("откроется на ТВ") : L.t("нужна настройка ТВ")); linkKind.setTextColor(paired ? ui.fgA(0.55f) : ui.orange); }
+            else if (yt) { linkKind.setText(paired ? L.t("откроется в YouTube на ТВ") : L.t("сначала «Связать с ТВ»")); linkKind.setTextColor(paired ? ui.green : ui.orange); }
+            else { linkKind.setText(paired ? L.t("откроется на ТВ") : L.t("сначала «Связать с ТВ»")); linkKind.setTextColor(paired ? ui.fgA(0.55f) : ui.orange); }
             linkCastRow.setEnabled(host != null && (direct || paired));
             linkCastRow.title.setText(media ? L.t("Отправить вместо текущего") : L.t("Отправить на ТВ"));
         }

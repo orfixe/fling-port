@@ -18,6 +18,10 @@ function send(type, body) {
 for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
 for (const el of document.querySelectorAll("[data-i18n-title]")) el.title = t(el.dataset.i18nTitle);
 for (const el of document.querySelectorAll("[data-i18n-placeholder]")) el.placeholder = t(el.dataset.i18nPlaceholder);
+const guide = document.getElementById("guide");
+if (guide && (api.i18n.getUILanguage() || "").toLowerCase().startsWith("ru")) {
+  guide.href = "https://github.com/orfixe/fling-port/blob/main/docs/install-windows.ru.md";
+}
 
 // ------------------------------------------------------------ helpers
 
@@ -145,8 +149,10 @@ document.addEventListener("click", (e) => {
   if (b.dataset.key) act({ action: "key", key: b.dataset.key });
   else if (b.dataset.act === "seek") act({ action: "seek", seconds: Number(b.dataset.sec) });
   else if (b.dataset.act) {
-    act({ action: b.dataset.act });
-    if (b.dataset.act === "open_panel" || b.dataset.act === "pair_remote") window.close();
+    // Firefox drops the message if the popup closes before the background answers.
+    act({ action: b.dataset.act }).finally(() => {
+      if (b.dataset.act === "open_panel" || b.dataset.act === "pair_remote") window.close();
+    });
   }
 });
 
