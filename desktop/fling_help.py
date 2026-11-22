@@ -50,7 +50,7 @@ HELP = {
   ],
   [
    "Команды и прочее",
-   "• Язык переключается флажками 🇬🇧 / 🇷🇺 в правом верхнем углу панели; «?» рядом с ними открывает эту инструкцию.\n• Включите запуск при входе через пункт «Запускать при входе» (Start at login).\n• Для выхода из Fling нажмите Ctrl+Q или используйте команду `fling quit`.\n• Команды терминала:\n  - `fling` – открыть панель\n  - `fling setup` – подключение ТВ\n  - `fling cast-tab` – отправить вкладку\n  - `fling clip` – ссылка из буфера\n  - `fling screenshot` – снимок ТВ\n  - `fling help` – эта инструкция\n  - `fling quit` – выход\n  - `fling tui` – пульт в терминале"
+   "• Язык переключается маленьким флажком внизу панели, справа от подписи; «?» в правом верхнем углу открывает эту инструкцию.\n• Включите запуск при входе через пункт «Запускать при входе» (Start at login).\n• Для выхода из Fling нажмите Ctrl+Q или используйте команду `fling quit`.\n• Команды терминала:\n  - `fling` – открыть панель\n  - `fling setup` – подключение ТВ\n  - `fling cast-tab` – отправить вкладку\n  - `fling clip` – ссылка из буфера\n  - `fling screenshot` – снимок ТВ\n  - `fling help` – эта инструкция\n  - `fling quit` – выход\n  - `fling tui` – пульт в терминале"
   ],
   [
    "Если что-то не работает",
@@ -104,7 +104,7 @@ HELP = {
   ],
   [
    "Commands and other",
-   "• Switch the language with the 🇬🇧 / 🇷🇺 flags in the panel's top-right corner; the ? next to them opens this guide.\n• Enable startup at login via the option \"Start at login\".\n• To exit Fling press Ctrl+Q or use the command `fling quit`.\n• Terminal commands:\n  - `fling` – open panel\n  - `fling setup` – connect TV\n  - `fling cast-tab` – cast tab\n  - `fling clip` – clipboard URL\n  - `fling screenshot` – TV screenshot\n  - `fling help` – this instruction\n  - `fling quit` – exit\n  - `fling tui` – remote in terminal"
+   "• Switch the language with the small flag at the bottom right of the panel; the ? in the top-right corner opens this guide.\n• Enable startup at login via the option \"Start at login\".\n• To exit Fling press Ctrl+Q or use the command `fling quit`.\n• Terminal commands:\n  - `fling` – open panel\n  - `fling setup` – connect TV\n  - `fling cast-tab` – cast tab\n  - `fling clip` – clipboard URL\n  - `fling screenshot` – TV screenshot\n  - `fling help` – this instruction\n  - `fling quit` – exit\n  - `fling tui` – remote in terminal"
   ],
   [
    "If something doesn't work",

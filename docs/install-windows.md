@@ -109,7 +109,7 @@ Fling in Safari → Settings → Extensions.
 | Pause / seek | Space, ← / → in the panel or the extension popup |
 | TV arrows | the d-pad, or scroll over the panel |
 | Next-video notifications | on by default (green bell); click "Notify when the video changes" to turn off (red bell) |
-| Language, compact view | the 🇬🇧 / 🇷🇺 flags, the ⤡ button and **?** (this guide) in the panel's top-right corner |
+| Language, compact view | **?** (this guide) and ⤡ in the panel's top-right corner; the small flag at the bottom right switches 🇬🇧 / 🇷🇺 |
 | Start with Windows | "Start at login" |
 | Commands | `fling`, `fling setup`, `fling cast-tab`, `fling clip`, `fling screenshot`, `fling help`, `fling quit` |
 
