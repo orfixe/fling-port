@@ -25,7 +25,9 @@ import fling_platform as P
 P.prepare_qt_env()
 
 from PyQt6.QtCore import (QObject, Qt, QTimer, QRectF, QPoint, QSize, QUrl,
-                          QEvent, pyqtSignal)
+                          QEvent, QPropertyAnimation, QEasingCurve,
+                          QSequentialAnimationGroup, QParallelAnimationGroup,
+                          pyqtSignal, pyqtProperty)
 from PyQt6.QtGui import (QAction, QColor, QFont, QIcon, QLinearGradient, QPainter,
                          QPainterPath, QPen, QPixmap, QKeySequence, QShortcut,
                          QCursor, QGuiApplication)
@@ -676,6 +678,13 @@ def _adb_serial(ip: str, port: int | None = None) -> str:
     return f"{ip}:{p}"
 
 
+def adb_cmd(ip: str, args: list[str], timeout: int = 20) -> subprocess.CompletedProcess:
+    """Run `adb -s ip:port …args` against the remembered wireless port."""
+    return P.run([_ADB, "-s", _adb_serial(ip), *args],
+                 capture_output=True, text=True, timeout=timeout,
+                 encoding="utf-8", errors="replace")
+
+
 def adb_now_playing(ip: str) -> dict | None:
     """Parse `dumpsys media_session` on the TV: the active app's real title,
     artist, play state and position. None when ADB isn't authorised."""
@@ -899,6 +908,103 @@ class State(QObject):
                 notify_send(f"Снимок экрана ТВ: {r['path']}")
                 self._set(last_error=None)
         self.bg(work, done)
+
+    def adb_ok(self) -> bool:
+        """True when this TV recently answered as an authorized ADB device."""
+        ip = self.ip
+        if not ip or not P.adb_available():
+            return False
+        hit = _ADB_HOST.get(ip)
+        return bool(hit and hit[0] == "device")
+
+    def adb_action(self, action: str):
+        """Everyday ADB actions once the TV is authorised."""
+        ip = self.ip
+        if not ip:
+            self._set(last_error="Устройство не выбрано")
+            return
+        serial = _adb_serial(ip)
+
+        def work():
+            if action == "disconnect":
+                P.run([_ADB, "disconnect", serial], capture_output=True, timeout=8)
+                _adb_remember(ip, "offline")
+                return {"ok": True, "msg": "ADB отключён", "state": "off"}
+            if action == "reboot":
+                r = adb_cmd(ip, ["reboot"], timeout=15)
+                _adb_remember(ip, "closed")
+                return {"ok": r.returncode == 0, "msg": "ТВ перезагружается…" if r.returncode == 0 else (r.stderr or r.stdout or "reboot failed"),
+                        "state": "off"}
+            if action == "wake":
+                r = adb_cmd(ip, ["shell", "input", "keyevent", "KEYCODE_WAKEUP"])
+                return {"ok": r.returncode == 0, "msg": "ТВ разбужен" if r.returncode == 0 else (r.stderr or "не вышло")}
+            if action == "sleep":
+                # SLEEP first; fall back to POWER if the TV ignores it
+                r = adb_cmd(ip, ["shell", "input", "keyevent", "KEYCODE_SLEEP"])
+                if r.returncode != 0:
+                    r = adb_cmd(ip, ["shell", "input", "keyevent", "KEYCODE_POWER"])
+                return {"ok": r.returncode == 0, "msg": "Экран выключен" if r.returncode == 0 else (r.stderr or "не вышло")}
+            if action == "settings":
+                r = adb_cmd(ip, ["shell", "am", "start", "-a", "android.settings.SETTINGS"])
+                return {"ok": r.returncode == 0, "msg": "Открыл настройки ТВ" if r.returncode == 0 else (r.stderr or "не вышло")}
+            if action == "apps":
+                r = adb_cmd(ip, ["shell", "am", "start", "-a", "android.settings.APPLICATION_SETTINGS"])
+                return {"ok": r.returncode == 0, "msg": "Открыл список приложений" if r.returncode == 0 else (r.stderr or "не вышло")}
+            if action == "force_stop":
+                # Stop whatever currently has window focus (YouTube, Netflix, …)
+                dump = adb_cmd(ip, ["shell", "dumpsys", "window", "windows"], timeout=12)
+                pkg = None
+                for line in (dump.stdout or "").splitlines():
+                    if "mCurrentFocus" in line or "mFocusedApp" in line:
+                        m = re.search(r"([a-zA-Z0-9_.]+)/[a-zA-Z0-9_.]+", line)
+                        if m and m[1] not in ("null", "com.google.android.apps.tv.launcherx",
+                                              "com.google.android.apps.tv.launcher"):
+                            pkg = m[1]; break
+                if not pkg:
+                    return {"ok": False, "msg": "Не вижу активного приложения"}
+                r = adb_cmd(ip, ["shell", "am", "force-stop", pkg])
+                return {"ok": r.returncode == 0,
+                        "msg": f"Закрыл {app_name(pkg) or pkg}" if r.returncode == 0 else (r.stderr or "не вышло")}
+            if action == "home":
+                r = adb_cmd(ip, ["shell", "input", "keyevent", "KEYCODE_HOME"])
+                return {"ok": r.returncode == 0, "msg": "Домой" if r.returncode == 0 else (r.stderr or "не вышло")}
+            return {"ok": False, "msg": f"Неизвестное действие: {action}"}
+
+        def done(r, e):
+            if e or not r:
+                self._set(last_error=f"ADB: {e or 'ошибка'}")
+                return
+            if not r.get("ok"):
+                self._set(last_error=f"ADB: {r.get('msg')}")
+                return
+            self._set(last_error=None)
+            if r.get("msg"):
+                notify_send(r["msg"])
+            if r.get("state") == "off":
+                self.tvm = {}
+                self.changed.emit()
+                self._set_adb_ui("off")
+
+        self.bg(work, done)
+
+    def _set_adb_ui(self, st: str, err: str = ""):
+        """Push ADB badge state to the panel and Connect TV window, if open."""
+        panel = getattr(self, "_panel_ref", None)
+        targets = []
+        if panel and getattr(panel, "adb_badge", None):
+            targets.append(panel)
+        if panel and getattr(panel, "_setup", None):
+            targets.append(panel._setup)
+        setup = getattr(self, "_setup_ref", None)
+        if setup:
+            targets.append(setup)
+        for w in targets:
+            if getattr(w, "adb_badge", None):
+                w.adb_badge.set_state(st, err)
+            if hasattr(w, "adb_actions"):
+                w.adb_actions.setVisible(st == "ok")
+            if hasattr(w, "adb"):
+                w.adb = "device" if st == "ok" else ("?" if st == "off" else w.adb)
 
     def poll_tvm(self):
         ip = self.ip
@@ -1417,6 +1523,36 @@ EN_PHRASES = [  # longest first is applied automatically
     ("OK  (Enter / Space)", "OK  (Enter / Space)"),
     ("Назад  (Backspace / Delete)", "Back  (Backspace / Delete)"),
     ("Домой  (Home / H)", "Home  (Home / H)"),
+    ("ADB неактивен", "ADB inactive"),
+    ("ADB неактивен — нажмите, чтобы подключить", "ADB inactive — click to connect"),
+    ("Подключаюсь к ТВ по ADB…", "Connecting to the TV over ADB…"),
+    ("ADB подключён — нажмите, чтобы проверить снова", "ADB connected — click to check again"),
+    ("Ошибка ADB — нажмите, чтобы повторить", "ADB error — click to retry"),
+    ("Подключаюсь…", "Connecting…"),
+    ("Команды ADB", "ADB commands"),
+    ("Разбудить", "Wake"),
+    ("Усыпить", "Sleep"),
+    ("Снимок", "Screenshot"),
+    ("Настройки", "Settings"),
+    ("Приложения", "Apps"),
+    ("Закрыть приложение", "Force-stop app"),
+    ("Перезагрузить", "Reboot"),
+    ("Отключить ADB", "Disconnect ADB"),
+    ("Перезагрузить ТВ", "Reboot TV"),
+    ("Настройки ТВ", "TV settings"),
+    ("Снимок экрана", "Screenshot"),
+    ("ADB отключён", "ADB disconnected"),
+    ("ТВ перезагружается…", "TV is rebooting…"),
+    ("ТВ разбужен", "TV woken"),
+    ("Экран выключен", "Screen off"),
+    ("Открыл настройки ТВ", "Opened TV settings"),
+    ("Открыл список приложений", "Opened app list"),
+    ("Не вижу активного приложения", "No foreground app seen"),
+    ("Закрыл ", "Closed "),
+    ("Connected!", "Connected!"),
+    ("С ТВ: Беспроводная отладка → «IP-адрес и порт». Клик по Android — запрос ADB.",
+     "From the TV: Wireless debugging → “IP address & port”. Click the Android to request ADB."),
+
     ("и тут появятся настоящие обложка, название и время.", "and the real artwork, title and time will show here."),
     ("код не подошёл", "the code didn't work"),
     ("Код не совпадает — посмотрите на экран ТВ ещё раз.", "That code doesn't match — read it off the TV again."),
@@ -1872,6 +2008,27 @@ def glyph(name, size=14, color=None, weight=1.7):
         path((s*.14, s*.36), (s*.14, s*.14), (s*.36, s*.14))
         path((s*.86, s*.64), (s*.86, s*.86), (s*.64, s*.86))
         path((s*.14, s*.14), (s*.42, s*.42)); path((s*.86, s*.86), (s*.58, s*.58))
+    elif name == "android":                                  # tiny Android robot (ADB status)
+        # head
+        p.setBrush(color or T.fg); p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(QRectF(s*.28, s*.30, s*.44, s*.36), s*.1, s*.1)
+        # antennae
+        pen = QPen(color or T.fg, max(1.2, weight * size / 18))
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        p.setPen(pen); p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawLine(QPoint(int(s*.38), int(s*.30)), QPoint(int(s*.28), int(s*.16)))
+        p.drawLine(QPoint(int(s*.62), int(s*.30)), QPoint(int(s*.72), int(s*.16)))
+        # eyes
+        p.setPen(Qt.PenStyle.NoPen); p.setBrush(QColor(T.bg if T else QColor(255, 255, 255)))
+        p.drawEllipse(QRectF(s*.36, s*.40, s*.08, s*.08))
+        p.drawEllipse(QRectF(s*.56, s*.40, s*.08, s*.08))
+        # body + arms + legs
+        p.setBrush(color or T.fg)
+        p.drawRoundedRect(QRectF(s*.30, s*.66, s*.40, s*.22), s*.06, s*.06)
+        p.drawRoundedRect(QRectF(s*.14, s*.68, s*.12, s*.14), s*.04, s*.04)
+        p.drawRoundedRect(QRectF(s*.74, s*.68, s*.12, s*.14), s*.04, s*.04)
+        p.drawRoundedRect(QRectF(s*.34, s*.86, s*.12, s*.10), s*.04, s*.04)
+        p.drawRoundedRect(QRectF(s*.54, s*.86, s*.12, s*.10), s*.04, s*.04)
     elif name == "tv_plus":                                  # a TV with a plus: connect to a TV
         p.drawRoundedRect(QRectF(s*.08, s*.18, s*.66, s*.48), s*.07, s*.07)
         p.drawLine(QPoint(int(s*.26), int(s*.82)), QPoint(int(s*.56), int(s*.82)))
@@ -2693,10 +2850,12 @@ class Panel(QWidget):
         v = v_main
         v.addWidget(Separator())
 
-        # footer
+        # footer: status dot · TV name · ADB android · switcher
         ft = QHBoxLayout(); ft.setContentsMargins(14, 5, 14, 9); ft.setSpacing(7)
         self.dot = QLabel(); self.dot.setFixedSize(6, 6)
         self.dev_name = label("", 11.5)
+        self.adb_badge = AdbBadge(18, compact=True)
+        self.adb_badge.clicked.connect(self._adb_badge_click)
         self.switch = QToolButton()
         self.switch.setText("Сменить")
         self.switch.setFont(font(11))
@@ -2706,7 +2865,10 @@ class Panel(QWidget):
         self.switch_menu = QMenu(self.switch)
         self.switch_menu.aboutToShow.connect(lambda: fill_device_menu(self.switch_menu, self.state, None))
         self.switch.setMenu(self.switch_menu)
-        ft.addWidget(self.dot); ft.addWidget(self.dev_name, 1); ft.addWidget(self.switch)
+        ft.addWidget(self.dot)
+        ft.addWidget(self.dev_name, 1)
+        ft.addWidget(self.adb_badge, 0, Qt.AlignmentFlag.AlignVCenter)
+        ft.addWidget(self.switch)
         fw = QWidget(); fw.setLayout(ft)
         v.addWidget(fw)
         # authorship: Fling is Damion Rashford's and Tatiana's app; this is an unofficial port
@@ -2899,7 +3061,38 @@ class Panel(QWidget):
             self._help.hide()
         if not hasattr(self, "_setup"):
             self._setup = SetupWindow(self.state)
+            self.state._setup_ref = self._setup
         self._setup.show(); self._setup.raise_(); self._setup.activateWindow()
+
+    def _adb_badge_click(self):
+        """Footer Android: connect if off, otherwise a menu of everyday ADB actions."""
+        if self.state.adb_ok():
+            m = QMenu(self)
+            for title, act in (
+                ("Разбудить", "wake"),
+                ("Усыпить", "sleep"),
+                ("Домой", "home"),
+                ("Снимок экрана", "screenshot"),
+                ("Настройки ТВ", "settings"),
+                ("Приложения", "apps"),
+                ("Закрыть приложение", "force_stop"),
+                ("Перезагрузить ТВ", "reboot"),
+                ("Отключить ADB", "disconnect"),
+                (None, None),
+                ("Подключение ТВ…", "setup"),
+            ):
+                if title is None:
+                    m.addSeparator(); continue
+                if act == "setup":
+                    m.addAction(title, lambda: (self.hide(), self.open_setup()))
+                elif act == "screenshot":
+                    m.addAction(title, self.state.tv_screenshot)
+                else:
+                    m.addAction(title, lambda a=act: self.state.adb_action(a))
+            m.exec(self.adb_badge.mapToGlobal(self.adb_badge.rect().bottomLeft()))
+        else:
+            self.hide()
+            self.open_setup()
 
     def toggle_compact(self):
         s = self.state
@@ -3049,6 +3242,13 @@ class Panel(QWidget):
                               else ("Ищу ТВ…" if s.scanning else "Устройство не найдено"))
         self.switch.setVisible(True)                   # always available: rescan / add by IP even with one TV
         self.switch.setText("Выбрать")                 # short: the TV's name is right next to it
+        # Keep the footer Android in sync (don't restart the Connected! animation every tick)
+        if getattr(self, "adb_badge", None):
+            want = "ok" if s.adb_ok() else "off"
+            if self.adb_badge._state in ("run", "err"):
+                pass
+            elif self.adb_badge._state != want:
+                self.adb_badge.set_state(want)
         if self.isVisible():
             QTimer.singleShot(0, self.place)
 
@@ -3231,6 +3431,102 @@ def _adb_missing_html() -> str:
     )
 
 
+class AdbBadge(QWidget):
+    """Tiny red/green Android: click to (re)connect ADB; shows errors + animated Connected!
+
+    compact=True → icon only (panel footer); full mode shows status text beside it.
+    """
+    clicked = pyqtSignal()
+
+    def __init__(self, size=22, compact=False, parent=None):
+        super().__init__(parent)
+        self._state = "off"          # off | run | ok | err
+        self._err = ""
+        self._size = size
+        self._compact = compact
+        lay = QHBoxLayout(self); lay.setContentsMargins(0, 0, 0, 0); lay.setSpacing(6)
+        self.btn = QToolButton()
+        self.btn.setFixedSize(size + 6, size + 6)
+        self.btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.btn.setStyleSheet("QToolButton{border:none;border-radius:5px;padding:2px;background:transparent}"
+                               f"QToolButton:hover{{background:{Theme.css(T.fg_a(0.08))}}}")
+        self.btn.clicked.connect(self.clicked.emit)
+        lay.addWidget(self.btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.msg = label("", 11, T.fg_a(0.55), wrap=True)
+        self.msg.setOpenExternalLinks(True)
+        self.msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        if compact:
+            self.msg.hide()
+        else:
+            lay.addWidget(self.msg, 1)
+        self.ok = QLabel("Connected!")
+        self.ok.setFont(font(12.5 if not compact else 11, QFont.Weight.DemiBold))
+        self.ok.setStyleSheet(f"color:{Theme.css(T.green)};background:transparent")
+        self.ok.hide()
+        lay.addWidget(self.ok, 0, Qt.AlignmentFlag.AlignVCenter)
+        self._fx = QGraphicsOpacityEffect(self.ok); self._fx.setOpacity(0.0)
+        self.ok.setGraphicsEffect(self._fx)
+        self._anim = None
+        self.set_state("off")
+
+    def set_state(self, st: str, err: str = ""):
+        """off=red inactive, run=orange busy, ok=green, err=red + message."""
+        self._state, self._err = st, err or ""
+        color = {"off": T.red, "run": T.orange, "ok": T.green, "err": T.red}.get(st, T.red)
+        self.btn.setIcon(glyph("android", self._size, color))
+        self.btn.setIconSize(QSize(self._size, self._size))
+        tips = {
+            "off": "ADB неактивен — нажмите, чтобы подключить",
+            "run": "Подключаюсь к ТВ по ADB…",
+            "ok": "ADB подключён — нажмите, чтобы проверить снова",
+            "err": (err.replace("<", " ").replace(">", " ")[:180] if err else "Ошибка ADB — нажмите, чтобы повторить"),
+        }
+        self.btn.setToolTip(tips.get(st, ""))
+        if st == "ok":
+            if not self._compact:
+                self.msg.clear(); self.msg.hide()
+            self._flash_connected()
+        elif st == "err" and err:
+            self.ok.hide()
+            if self._compact:
+                self.msg.hide()
+            else:
+                self.msg.setStyleSheet(f"color:{Theme.css(T.red)};background:transparent")
+                self.msg.setText(err); self.msg.show()
+        elif st == "run":
+            self.ok.hide()
+            if self._compact:
+                self.msg.hide()
+            else:
+                self.msg.setStyleSheet(f"color:{Theme.css(T.orange)};background:transparent")
+                self.msg.setText("Подключаюсь…"); self.msg.show()
+        else:
+            self.ok.hide()
+            if self._compact:
+                self.msg.hide()
+            else:
+                self.msg.setStyleSheet(f"color:{Theme.css(T.fg_a(0.5))};background:transparent")
+                self.msg.setText("ADB неактивен"); self.msg.show()
+
+    def _flash_connected(self):
+        self.ok.show()
+        self._fx.setOpacity(0.0)
+        fade_in = QPropertyAnimation(self._fx, b"opacity", self)
+        fade_in.setDuration(280); fade_in.setStartValue(0.0); fade_in.setEndValue(1.0)
+        fade_in.setEasingCurve(QEasingCurve.Type.OutCubic)
+        hold = QPropertyAnimation(self._fx, b"opacity", self)
+        hold.setDuration(1400); hold.setStartValue(1.0); hold.setEndValue(1.0)
+        fade_out = QPropertyAnimation(self._fx, b"opacity", self)
+        fade_out.setDuration(450); fade_out.setStartValue(1.0); fade_out.setEndValue(0.0)
+        fade_out.setEasingCurve(QEasingCurve.Type.InCubic)
+        seq = QSequentialAnimationGroup(self)
+        seq.addAnimation(fade_in); seq.addAnimation(hold); seq.addAnimation(fade_out)
+        seq.finished.connect(lambda: self.ok.hide())
+        self._anim = seq
+        seq.start()
+
+
 class SetupWindow(QWidget):
     def __init__(self, state: State):
         super().__init__(None, Qt.WindowType.Window)
@@ -3298,8 +3594,11 @@ class SetupWindow(QWidget):
             self.pin.returnPressed.connect(self._pin)
             el.addWidget(self.pin, 1); el.addWidget(small_button("Связать", self._pin))
         elif key == "adb":
-            btn.clicked.connect(self.adb_connect)
-            # Order: 1) IP  2) port + Connect  3) pairing — all hand-editable
+            btn.hide()                                   # connect is the Android badge
+            # Logical order: status → IP → port → pairing
+            self.adb_badge = AdbBadge(22)
+            self.adb_badge.clicked.connect(self.adb_connect)
+            lay.addWidget(self.adb_badge)
             self.wip = field("192.168.1.50", mono=True)
             self.wconn = field("порт, напр. 5555", mono=True)
             if self.state.ip:
@@ -3314,25 +3613,48 @@ class SetupWindow(QWidget):
             self.wip.returnPressed.connect(self.adb_connect)
             self.wconn.returnPressed.connect(self.adb_connect)
             ip_row = QHBoxLayout(); ip_row.setContentsMargins(0, 2, 0, 0); ip_row.setSpacing(6)
-            ip_row.addWidget(label("1. IP ТВ:", 11, T.fg_a(0.6)))
+            ip_row.addWidget(label("IP:", 11, T.fg_a(0.6)))
             ip_row.addWidget(self.wip, 1)
             lay.addLayout(ip_row)
             port_row = QHBoxLayout(); port_row.setContentsMargins(0, 2, 0, 0); port_row.setSpacing(6)
-            port_row.addWidget(label("2. Порт:", 11, T.fg_a(0.6)))
+            port_row.addWidget(label("Порт:", 11, T.fg_a(0.6)))
             port_row.addWidget(self.wconn, 1)
-            port_row.addWidget(small_button("Подключить", self.adb_connect))
             lay.addLayout(port_row)
-            tip = label("IP и порт с ТВ (Беспроводная отладка → «IP-адрес и порт»). Можно вставить «IP:порт».",
+            tip = label("С ТВ: Беспроводная отладка → «IP-адрес и порт». Клик по Android — запрос ADB.",
                         10.5, T.fg_a(0.45), wrap=True)
             lay.addWidget(tip)
             self.wport = field("порт сопряжения", mono=True); self.wport.setFixedWidth(110)
             self.wcode = field("код из 6 цифр", mono=True)
             pair_row = QHBoxLayout(); pair_row.setContentsMargins(0, 2, 0, 0); pair_row.setSpacing(6)
-            pair_row.addWidget(label("3. Сопряжение:", 11, T.fg_a(0.6)))
+            pair_row.addWidget(label("Сопряжение:", 11, T.fg_a(0.6)))
             pair_row.addWidget(self.wport)
             pair_row.addWidget(self.wcode, 1)
             pair_row.addWidget(small_button("Связать", self.adb_pair))
             lay.addLayout(pair_row)
+            # Everyday ADB tools — only visible while authorised
+            self.adb_actions = QWidget()
+            al = QVBoxLayout(self.adb_actions); al.setContentsMargins(0, 6, 0, 0); al.setSpacing(4)
+            al.addWidget(label("Команды ADB", 11, T.fg_a(0.55), QFont.Weight.DemiBold))
+            grid = QGridLayout(); grid.setSpacing(5)
+            actions = [
+                ("Разбудить", "wake"),
+                ("Усыпить", "sleep"),
+                ("Домой", "home"),
+                ("Снимок", "screenshot"),
+                ("Настройки", "settings"),
+                ("Приложения", "apps"),
+                ("Закрыть приложение", "force_stop"),
+                ("Перезагрузить", "reboot"),
+                ("Отключить ADB", "disconnect"),
+            ]
+            for i, (title, act) in enumerate(actions):
+                b = small_button(title, lambda _=False, a=act: self._adb_tool(a))
+                grid.addWidget(b, i // 3, i % 3)
+            al.addLayout(grid)
+            self.adb_actions.hide()
+            lay.addWidget(self.adb_actions)
+            # hide the unused legacy info line under the badge
+            info.hide()
         return box
 
     def _set(self, key, mark, info, btn=None, extra=None):
@@ -3481,67 +3803,95 @@ class SetupWindow(QWidget):
         s.changed.emit()
 
     def adb_connect(self):
+        if hasattr(self, "adb_badge"):
+            self.adb_badge.set_state("run")
         if not P.adb_available():
             self._adb_result("missing")
             return
         ip, port, err = self._adb_endpoint()
         if err:
-            self._set("adb", "need", err, "Подключить", False)
+            self._adb_result("err", err)
             return
         self._on_adb_endpoint_edited()
         self._use_adb_ip(ip)
-        shown = port or load_conf().get("adb_port") or 5555
-        self._set("adb", "run", f"Подключаюсь к ТВ по ADB ({ip}:{shown})…", None)
+        self._set("adb", "run", "", None)
         self.state.bg(lambda: adb_state(ip, force=True, port=port),
                      lambda r, e: self._adb_result(r or "offline"))
 
     def adb_pair(self):
+        if hasattr(self, "adb_badge"):
+            self.adb_badge.set_state("run")
         if not P.adb_available():
             self._adb_result("missing")
             return
         ip, _, err = self._adb_endpoint()
         if err:
-            self._set("adb", "need", err, "Подключить", True)
+            self._adb_result("err", err)
             return
         self._use_adb_ip(ip)
         port, code = self.wport.text().strip(), re.sub(r"\D", "", self.wcode.text())
         if not (port.isdigit() and len(code) == 6):
-            self._set("adb", "need", "Введите порт сопряжения и 6-значный код из «Беспроводной отладки» на ТВ. "
-                      "IP и порт подключения — в полях выше.", "Проверить", True)
+            self._adb_result("err", "Введите порт сопряжения и 6-значный код из «Беспроводной отладки» на ТВ.")
             return
         def work():
             r = P.run([_ADB, "pair", f"{ip}:{port}", code], capture_output=True, text=True, timeout=20)
             return (r.stdout + r.stderr).strip()
         def done(out, e):
             ok = out and "Successfully paired" in out
-            self._set("adb", "ok" if ok else "fail",
-                      "Связано. Подключаюсь по порту подключения…" if ok else f"Не вышло: {out or e}",
-                      "Проверить", not ok)
             if ok:
+                if hasattr(self, "adb_badge"):
+                    self.adb_badge.set_state("run")
                 self.adb_connect()
+            else:
+                self._adb_result("err", f"Не вышло: {out or e}")
         self.state.bg(work, done)
 
-    def _adb_result(self, st):
-        self.adb = st
+    def _adb_result(self, st, err: str = ""):
+        self.adb = st if st != "err" else "fail"
+        badge = getattr(self, "adb_badge", None)
+        # Keep the card mark in sync; detail lives on the Android badge
         if st == "device":
             p = load_conf().get("adb_port") or 5555
-            self._set("adb", "ok", f"Подключено ({self.state.ip}:{p}): панель видит, что играет на ТВ.", "Проверить", False)
+            self._set("adb", "ok", "", None)
             if hasattr(self, "wconn"):
                 self.wconn.setText(str(p))
+            if badge:
+                badge.set_state("ok")
+            if hasattr(self, "adb_actions"):
+                self.adb_actions.setVisible(True)
             self.state.poll_tvm()
+            self.state._set_adb_ui("ok")
         elif st == "unauthorized":
-            self._set("adb", "need", "На экране ТВ появился запрос — нажмите «Разрешить» (лучше с галочкой «Всегда»). "
-                      "Потом нажмите «Проверить». Пока не разрешите — Fling сам повторно спрашивать не будет.",
-                      "Проверить", True)
+            msg = ("На экране ТВ — «Разрешить» (лучше с «Всегда»), затем снова нажмите Android.")
+            self._set("adb", "need", "", None)
+            if badge:
+                badge.set_state("err", msg)
+            if hasattr(self, "adb_actions"):
+                self.adb_actions.hide()
+            self.state._set_adb_ui("err", msg)
         elif st == "missing":
-            self.rows["adb"]["info"].setOpenExternalLinks(True)
-            self._set("adb", "need", _adb_missing_html(), "Проверить", False)
+            self._set("adb", "need", "", None)
+            if badge:
+                badge.set_state("err", _adb_missing_html())
+            if hasattr(self, "adb_actions"):
+                self.adb_actions.hide()
         else:
-            self._set("adb", "need",
-                      "ADB на ТВ не отвечает на этом порту. На ТВ: «Для разработчиков» → включите «Отладка по USB» "
-                      "и «Беспроводная отладка». Возьмите с экрана ТВ порт сопряжения + код (Связать) и отдельно "
-                      "порт из строки «IP-адрес и порт» (поле «Порт подключения», часто не 5555) → Проверить.",
-                      "Проверить", True)
+            msg = err or (
+                "Нет ответа ADB. Проверьте IP/порт или сопряжение ниже "
+                "(Беспроводная отладка → «IP-адрес и порт»)."
+            )
+            self._set("adb", "need", "", None)
+            if badge:
+                badge.set_state("err", msg)
+            if hasattr(self, "adb_actions"):
+                self.adb_actions.hide()
+            self.state._set_adb_ui("err", msg)
+
+    def _adb_tool(self, action: str):
+        if action == "screenshot":
+            self.state.tv_screenshot()
+            return
+        self.state.adb_action(action)
 
     # ---- state → rows
     def sync(self):
@@ -3569,10 +3919,16 @@ class SetupWindow(QWidget):
             if not P.adb_available():
                 self._adb_result("missing")
             else:
-                self._set("adb", "off",
-                          "Впишите IP и порт с ТВ (Беспроводная отладка → «IP-адрес и порт») и нажмите «Подключить». "
-                          "Если ТВ показывает код сопряжения — заполните «Сопряжение» → «Связать».",
-                          "Подключить")
+                self._set("adb", "off", "", None)
+                if hasattr(self, "adb_badge"):
+                    self.adb_badge.set_state("off")
+        elif self.adb == "device" and hasattr(self, "adb_badge"):
+            if self.adb_badge._state != "ok":
+                self.adb_badge.set_state("ok")
+            if hasattr(self, "adb_actions"):
+                self.adb_actions.setVisible(True)
+        elif hasattr(self, "adb_actions") and self.adb != "device":
+            self.adb_actions.hide()
         # Prefill empty fields from the selected TV / saved conf — never overwrite what the user is typing
         if hasattr(self, "wip") and not self.wip.hasFocus() and not self.wip.text().strip():
             self.wip.setText(s.ip or str(load_conf().get("adb_ip") or ""))
@@ -3897,6 +4253,7 @@ def main():
 
     state = State()
     panel = Panel(state)
+    state._panel_ref = panel
     state.panel_visible = panel.isVisible
     tray = Tray(state, panel)
 
