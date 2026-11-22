@@ -104,7 +104,7 @@
 ## Linux
 
 ```sh
-git clone https://github.com/orfixe/fling-linux-android.git && cd fling-linux-android/linux
+git clone https://github.com/orfixe/fling-port.git && cd fling-port/linux
 ./install.sh
 fling
 ```

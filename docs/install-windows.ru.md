@@ -35,7 +35,7 @@ Fling — это значок рядом с часами, который отп�
 
 ### Способ А — готовая сборка (проще всего)
 
-1. Откройте страницу [Releases](https://github.com/orfixe/fling-linux-android/releases)
+1. Откройте страницу [Releases](https://github.com/orfixe/fling-port/releases)
    и скачайте **`Fling-Windows-…zip`** из последней версии.
 2. Распакуйте архив в постоянное место, например `Документы\Fling`
    (не запускайте прямо из архива и не оставляйте в «Загрузках», которые вы чистите).
@@ -52,7 +52,7 @@ Python ставить не нужно — всё уже внутри.
 ### Способ Б — из исходников (для тех, кто хочет обновляться из git)
 
 1. Скачайте репозиторий: зелёная кнопка **Code → Download ZIP** и распакуйте,
-   или `git clone https://github.com/orfixe/fling-linux-android.git`.
+   или `git clone https://github.com/orfixe/fling-port.git`.
 2. Откройте папку `windows` и дважды щёлкните **`install.cmd`**.
 3. Скрипт сам поставит всё нужное (≈ 300 МБ, 2–5 минут):
    менеджер Python [uv](https://docs.astral.sh/uv/), отдельный Python 3.12, Qt,

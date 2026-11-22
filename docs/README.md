@@ -12,10 +12,11 @@ live in the [root README](../README.md).
 
 ## In short
 
-Fling for Linux & Android is an unofficial port of
+Fling for Windows, Linux & Android (with browser extensions) is an unofficial port of
 [Fling](https://github.com/tatianathevisionary/fling) by Damion Rashford and Tatiana.
-On Linux it is one PyQt6 file plus a small Bluetooth service; casting goes through
+On Windows and Linux it is one PyQt6 app (`desktop/`, plus a Bluetooth service on Linux); casting goes through
 `catt`, TV control through `androidtvremote2`. On Android it is plain Java with
-its own small clients for every protocol and no third-party libraries.
+its own small clients for every protocol and no third-party libraries. The browser
+extensions talk to the desktop app over a local, loopback-only bridge.
 Everything happens on the local network — the only outside calls are YouTube
 lookups for titles and artwork.
