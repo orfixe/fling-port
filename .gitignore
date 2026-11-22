@@ -17,7 +17,7 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Private author proposal (macOS) — never publish / never push
+# Local work folders
 proposal-macos-PRIVATE/
 macos/.work/
 macos/dist/

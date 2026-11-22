@@ -300,6 +300,5 @@ Details in [CREDITS.md](CREDITS.md).
 ## License
 
 The code in this repository is [MIT](LICENSE). The original Fling — its design, texts and idea —
-belongs to its authors: **Damion Rashford** wrote the code; **Tatiana** owns and publishes the
-original repository. See [CREDITS.md](CREDITS.md). The standalone Windows build bundles PyQt6
-(GPL-3.0); its complete source is this repository.
+belongs to Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md). The standalone Windows build
+bundles PyQt6 (GPL-3.0); its complete source is this repository.

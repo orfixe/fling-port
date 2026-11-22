@@ -13,8 +13,7 @@ live in the [root README](../README.md).
 ## In short
 
 Fling for Windows, Linux & Android (with browser extensions) is an unofficial port of
-[Fling](https://github.com/tatianathevisionary/fling) — original code by Damion Rashford,
-published by Tatiana (see [CREDITS.md](../CREDITS.md)).
+[Fling](https://github.com/tatianathevisionary/fling) by Damion Rashford and Tatiana.
 On Windows and Linux it is one PyQt6 app (`desktop/`, plus a Bluetooth service on Linux); casting goes through
 `catt`, TV control through `androidtvremote2`. On Android it is plain Java with
 its own small clients for every protocol and no third-party libraries. The browser
