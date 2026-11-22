@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-"""Fling for Linux — tray caster + TV remote. A port of the macOS Fling panel
-(menu-bar popover) to KDE Plasma: cast the current Firefox tab to a
-Chromecast / Google TV via catt, and drive the TV over the Android TV Remote
-protocol (androidtvremote2)."""
+"""Fling for Linux and Windows — tray caster + TV remote. A port of the macOS
+Fling panel (menu-bar popover) to KDE Plasma and Windows: cast the current
+browser tab to a Chromecast / Google TV via catt, and drive the TV over the
+Android TV Remote protocol (androidtvremote2).  OS-specific code lives in
+fling_platform.py; the browser extensions talk to fling_bridge.py."""
 from __future__ import annotations
 
 import ast
 import asyncio
-import glob
 import json
 import os
 import re
-import shutil
 import signal
 import subprocess
 import sys
@@ -20,21 +19,10 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse, parse_qs
 
-os.environ.setdefault("QT_QPA_PLATFORM", "xcb")  # popups need real positioning
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import fling_platform as P
 
-def _xwayland_scale():
-    """KWin 'apply scaling themselves' for XWayland: match the desktop scale."""
-    try:
-        import configparser
-        c = configparser.ConfigParser()
-        c.read(os.path.expanduser("~/.config/kwinrc"))
-        return float(c.get("Xwayland", "Scale", fallback="1"))
-    except Exception:
-        return 1.0
-
-if os.environ["QT_QPA_PLATFORM"] == "xcb" and "QT_SCALE_FACTOR" not in os.environ:
-    os.environ["QT_SCALE_FACTOR"] = str(_xwayland_scale())
-    os.environ["QT_FONT_DPI"] = "96"
+P.prepare_qt_env()
 
 from PyQt6.QtCore import (QObject, Qt, QTimer, QRectF, QPoint, QSize, QUrl,
                           pyqtSignal)
@@ -43,26 +31,26 @@ from PyQt6.QtGui import (QAction, QColor, QFont, QIcon, QLinearGradient, QPainte
                          QCursor, QGuiApplication)
 from PyQt6.QtNetwork import (QLocalServer, QLocalSocket, QNetworkAccessManager,
                              QNetworkRequest)
-from PyQt6.QtWidgets import (QApplication, QGridLayout, QHBoxLayout, QLabel,
+from PyQt6.QtWidgets import (QApplication, QGraphicsOpacityEffect, QGridLayout, QHBoxLayout, QLabel,
                              QLineEdit, QMenu, QPushButton, QSizePolicy,
                              QSystemTrayIcon, QVBoxLayout, QWidget, QFrame,
                              QSlider, QToolButton)
 
-HOME = os.path.expanduser("~")
-CATT = shutil.which("catt") or f"{HOME}/.local/bin/catt"
-DATA = f"{HOME}/.local/share/fling"
-CONF = f"{HOME}/.config/fling.json"
-AUTOSTART = f"{HOME}/.config/autostart/fling.desktop"
+HOME = P.HOME
+CATT = P.find_catt()
+DATA = P.DATA
+CONF = P.CONF
 SOCKET = "fling-panel"
 SEEK = 30
-GLOBAL_SHORTCUT = "Meta+Shift+C"
-SHORTCUT_LABEL = "Meta ⇧ C"
+GLOBAL_SHORTCUT = P.GLOBAL_SHORTCUT
+SHORTCUT_LABEL = P.SHORTCUT_LABEL
+VERSION = "0.2.0"
 
 # ---------------------------------------------------------------- config
 
 def load_conf() -> dict:
     try:
-        with open(CONF) as f:
+        with open(CONF, encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {}
@@ -70,7 +58,7 @@ def load_conf() -> dict:
 def save_conf(c: dict) -> None:
     os.makedirs(os.path.dirname(CONF), exist_ok=True)
     tmp = CONF + ".tmp"
-    with open(tmp, "w") as f:
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(c, f, indent=1, ensure_ascii=False)
     os.replace(tmp, CONF)
 
@@ -133,14 +121,12 @@ def clock(t) -> str:
 # ---------------------------------------------------------------- browser (Firefox session store)
 
 def firefox_running() -> bool:
-    return subprocess.run(["pgrep", "-x", "firefox"], capture_output=True).returncode == 0 or \
-           subprocess.run(["pgrep", "-f", "/firefox/firefox"], capture_output=True).returncode == 0
+    return P.process_running("firefox")
 
 def read_firefox_tab() -> dict | None:
     """Active tab of the most recently used Firefox window: {url,title}."""
     import lz4.block
-    files = glob.glob(f"{HOME}/snap/firefox/common/.mozilla/firefox/*/sessionstore-backups/recovery.jsonlz4") + \
-            glob.glob(f"{HOME}/.mozilla/firefox/*/sessionstore-backups/recovery.jsonlz4")
+    files = P.firefox_session_files()
     if not files or not firefox_running():
         return None
     path = max(files, key=os.path.getmtime)
@@ -163,6 +149,18 @@ def read_firefox_tab() -> dict | None:
     e = entries[max(0, min(len(entries), t.get("index", len(entries))) - 1)]
     return {"url": e.get("url", ""), "title": e.get("title", ""), "browser": "Firefox"}
 
+BROWSER_TAB_TTL = 180      # s: the extensions re-report the active tab every minute while the browser runs
+
+
+def current_tab(browser_tab: dict | None) -> dict | None:
+    """The tab to cast: what a Fling browser extension last reported, else Firefox's session store."""
+    if browser_tab and time.monotonic() - browser_tab.get("at", 0) < BROWSER_TAB_TTL:
+        return browser_tab
+    try:
+        return read_firefox_tab()
+    except Exception:
+        return None
+
 # ---------------------------------------------------------------- catt (CattClient.swift + CattParser.swift)
 
 class CattError(Exception):
@@ -170,7 +168,8 @@ class CattError(Exception):
 
 def catt_run(args: list[str], timeout: float = 25) -> str:
     try:
-        r = subprocess.run([CATT, *args], capture_output=True, text=True, timeout=timeout)
+        r = P.run(P.catt_cmd(CATT, args), capture_output=True, text=True, timeout=timeout,
+                  encoding="utf-8", errors="replace")
     except subprocess.TimeoutExpired:
         raise CattError("catt не ответил вовремя и был остановлен. Попробуйте ещё раз.")
     except FileNotFoundError:
@@ -296,17 +295,17 @@ class ATV(QObject):
         self._rec = None
 
     def _dir(self, host):
-        d = f"{DATA}/atv/{host}"
+        d = os.path.join(DATA, "atv", host)
         os.makedirs(d, exist_ok=True)
         return d
 
     def paired(self, host) -> bool:
-        return bool(host) and os.path.exists(f"{DATA}/atv/{host}/paired")
+        return bool(host) and os.path.exists(os.path.join(DATA, "atv", host, "paired"))
 
     def _make(self, host):
         from androidtvremote2 import AndroidTVRemote
         d = self._dir(host)
-        return AndroidTVRemote("Fling (Linux)", f"{d}/cert.pem", f"{d}/key.pem", host,
+        return AndroidTVRemote(P.CLIENT_NAME, os.path.join(d, "cert.pem"), os.path.join(d, "key.pem"), host,
                                loop=self.loop, enable_voice=True)
 
     def _go(self, coro):
@@ -354,7 +353,7 @@ class ATV(QObject):
             self.pairing.emit("verifying", "")
             try:
                 await self.remote.async_finish_pairing(pin)
-                open(f"{self._dir(self.host)}/paired", "w").close()
+                open(os.path.join(self._dir(self.host), "paired"), "w").close()
                 self.pairing.emit("idle", "")
                 await self._connect(self.host)
             except Exception as e:
@@ -416,33 +415,29 @@ class ATV(QObject):
 
     # voice: mic → 16-bit mono 8 kHz PCM → TV voice search
     def voice_start(self, host):
-        rec = shutil.which("parecord") or shutil.which("pw-record")
+        why = P.MicRecorder.available()
         async def run():
             await self._connect(host)
             self._voice_stream = await self.remote.start_voice()
-            if rec.endswith("parecord"):
-                cmd = [rec, "--raw", "--format=s16le", "--rate=8000", "--channels=1"]
-            else:
-                cmd = [rec, "--format=s16", "--rate=8000", "--channels=1", "-"]
-            self._rec = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-            stream, proc, loop = self._voice_stream, self._rec, self.loop
-            def pump():
-                while True:
-                    chunk = proc.stdout.read(8192)
-                    if not chunk:
-                        break
-                    loop.call_soon_threadsafe(stream.send_chunk, chunk)
-            threading.Thread(target=pump, daemon=True).start()
+            stream, loop = self._voice_stream, self.loop
+            self._rec = P.MicRecorder()
+            try:
+                self._rec.start(lambda chunk: loop.call_soon_threadsafe(stream.send_chunk, chunk))
+            except Exception:
+                self._rec = None
+                stream.end()
+                self._voice_stream = None
+                raise
             self.voice.emit(True)
-        if not rec:
-            self.error.emit("Нет parecord/pw-record для записи микрофона.")
+        if why:
+            self.error.emit(why)
             return
         self._go(run())
 
     def voice_stop(self):
         async def run():
             if self._rec:
-                self._rec.terminate()
+                self._rec.stop()
                 await asyncio.sleep(0.15)
                 self._rec = None
             if self._voice_stream:
@@ -503,7 +498,7 @@ class Lounge(QObject):
         from pyytlounge import YtLoungeApi
         while True:
             try:
-                async with YtLoungeApi("Fling (Linux)", self._listener()) as api:
+                async with YtLoungeApi(P.CLIENT_NAME, self._listener()) as api:
                     api.load_auth_state(self.conf["yt_lounge"])
                     self.api = api
                     while True:
@@ -539,7 +534,7 @@ class Lounge(QObject):
         async def run():
             from pyytlounge import YtLoungeApi
             try:
-                async with YtLoungeApi("Fling (Linux)") as api:
+                async with YtLoungeApi(P.CLIENT_NAME) as api:
                     if not await api.pair(code):
                         raise RuntimeError("код не подошёл")
                     self._save(api)
@@ -561,22 +556,17 @@ class Lounge(QObject):
 # ---------------------------------------------------------------- Bluetooth remote (bt_remote.py service)
 
 BT_SOCK = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "fling-bt.sock")
+BT_SUPPORTED = P.IS_LINUX          # BlueZ GATT peripheral; Windows can't act as a BLE HID remote
 BT_NAMES = {26: "power", 3: "home", 4: "back", 19: "up", 20: "down", 21: "left", 22: "right",
             23: "ok", 24: "vol_up", 25: "vol_down", 164: "mute", 85: "play_pause", 89: "rewind", 90: "ffwd"}
 
 
-def on_battery() -> bool:
-    """True when the laptop runs on battery (no AC adapter online)."""
-    for f in glob.glob("/sys/class/power_supply/*/online"):
-        try:
-            if "AC" in f or "ADP" in f or "ACAD" in f:
-                return open(f).read().strip() == "0"
-        except Exception:
-            pass
-    return False
+on_battery = P.on_battery
 
 
 def bt_call(cmd: str, timeout=1.5) -> dict:
+    if not BT_SUPPORTED:
+        return {}
     import socket as _s
     c = _s.socket(_s.AF_UNIX, _s.SOCK_STREAM)
     c.settimeout(timeout)
@@ -589,6 +579,8 @@ def bt_call(cmd: str, timeout=1.5) -> dict:
 
 
 def bt_ensure_running():
+    if not BT_SUPPORTED:
+        return
     try:
         bt_call("status", 0.5)
     except OSError:
@@ -601,7 +593,7 @@ def bt_ensure_running():
 # ---------------------------------------------------------------- TV media session over ADB (real now-playing)
 
 _THUMB: dict = {}
-_ADB = shutil.which("adb") or f"{HOME}/Android/Sdk/platform-tools/adb"
+_ADB = P.find_adb()
 
 
 def adb_now_playing(ip: str) -> dict | None:
@@ -609,10 +601,11 @@ def adb_now_playing(ip: str) -> dict | None:
     artist, play state and position. None when ADB isn't authorised."""
     serial = f"{ip}:5555"
     def sh(cmd, t=6):
-        return subprocess.run([_ADB, "-s", serial, "shell", cmd], capture_output=True, text=True, timeout=t)
+        return P.run([_ADB, "-s", serial, "shell", cmd], capture_output=True, text=True, timeout=t,
+                     encoding="utf-8", errors="replace")
     r = sh("dumpsys media_session; echo __UP__; cat /proc/uptime")
     if r.returncode != 0 or "__UP__" not in r.stdout:
-        subprocess.run([_ADB, "connect", serial], capture_output=True, timeout=6)
+        P.run([_ADB, "connect", serial], capture_output=True, timeout=6)
         r = sh("dumpsys media_session; echo __UP__; cat /proc/uptime")
         if r.returncode != 0 or "__UP__" not in r.stdout:
             return None
@@ -699,6 +692,8 @@ class State(QObject):
         self.bridge.call.connect(lambda f: f())
         self.catt_ok = os.path.exists(CATT)
         self.tab = None
+        self.browser_tab = None      # active tab reported by a browser extension (fling_bridge)
+        self.panel_visible = lambda: False
         self.status = {}
         self.volume = 50
         self.devices = self.conf.get("devices", [])
@@ -774,11 +769,11 @@ class State(QObject):
                 return {"error": {"unauthorized": "Снимок экрана: подтвердите на ТВ «Разрешить отладку».",
                                   "closed": "Снимок экрана работает через ADB — включите его: «Подключение ТВ…» → ADB."}
                         .get(st, "Снимок экрана: ADB не подключён — откройте «Подключение ТВ…».")}
-            r = subprocess.run([_ADB, "-s", f"{ip}:5555", "exec-out", "screencap", "-p"],
+            r = P.run([_ADB, "-s", f"{ip}:5555", "exec-out", "screencap", "-p"],
                                capture_output=True, timeout=20)
             if r.returncode != 0 or not r.stdout.startswith(b"\x89PNG"):
                 return {"error": "Снимок экрана не получился: " + (r.stderr.decode(errors="ignore").strip() or "нет данных")}
-            pics = subprocess.run(["xdg-user-dir", "PICTURES"], capture_output=True, text=True).stdout.strip() or f"{HOME}/Pictures"
+            pics = P.pictures_dir()
             folder = os.path.join(pics, "Fling")
             os.makedirs(folder, exist_ok=True)
             path = os.path.join(folder, time.strftime("tv-%Y%m%d-%H%M%S.png"))
@@ -795,7 +790,7 @@ class State(QObject):
             if r.get("error"):
                 self._set(last_error=r["error"])
                 return
-            subprocess.Popen(["xdg-open", r["path"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            P.open_path(r["path"])
             if r["black"]:
                 self._set(last_error="Снимок чёрный: видео защищено от снимков (DRM у YouTube/Netflix). "
                                      "Меню и главный экран ТВ снимаются нормально.")
@@ -928,12 +923,7 @@ class State(QObject):
         self._refreshing = True
         ip = self.ip
         def work():
-            tab = None
-            if with_tab:
-                try:
-                    tab = read_firefox_tab()
-                except Exception:
-                    tab = None
+            tab = current_tab(self.browser_tab) if with_tab else None
             st = None
             if ip:
                 try:
@@ -1080,7 +1070,7 @@ class State(QObject):
             QTimer.singleShot(400, lambda: self.refresh(with_tab=False))
         self.bg(lambda: catt_run(["-d", ip, *args], timeout=timeout), done)
 
-    def cast(self, url, notify=False):
+    def cast(self, url, notify=False, start=None, title=None):
         kind, reason = classify(url)
         if kind == "none":
             self._set(last_error=reason)
@@ -1092,6 +1082,10 @@ class State(QObject):
         self.cast_in_flight = True
         self.changed.emit()
         opts = ["-f"] if kind == "direct" and not os.path.isfile(url) else []
+        if start and start > 3:                       # "Resume on TV at 12:34"
+            opts += ["-t", str(int(start))]
+        if title and kind == "direct":
+            opts += ["-l", title[:200]]
         def after():
             self.cast_in_flight = False
             if notify:
@@ -1103,11 +1097,17 @@ class State(QObject):
             if not tab:
                 self._set(last_error="Нет открытой страницы")
                 if notify:
-                    notify_send("Нет открытой вкладки Firefox")
+                    notify_send("Нет открытой вкладки браузера")
                 return
             self.tab = tab
-            self.cast(tab["url"], notify)
-        self.bg(read_firefox_tab, done)
+            url, start = tab["url"], None
+            m = tab.get("media") or {}
+            if m.get("src") and classify(url)[0] == "maybe" and classify(m["src"])[0] == "direct":
+                url = m["src"]                         # the page's own stream, for sites yt-dlp can't crack
+            if m.get("time") and m.get("duration") and m["duration"] - m["time"] > 10:
+                start = m["time"]
+            self.cast(url, notify, start=start, title=tab.get("title"))
+        self.bg(lambda: current_tab(self.browser_tab), done)
 
     def cast_clipboard(self, notify=False):
         txt = (QApplication.clipboard().text() or "").strip()
@@ -1150,7 +1150,7 @@ class State(QObject):
         def check():
             if self.status.get("state") == before and self.cast_stuck:
                 self._set(last_error="Телевизор игнорирует паузу по Chromecast (так ведёт себя YouTube на ТВ). "
-                                     "Нажмите «Настроить управление ТВ…» ниже — тогда пауза пойдёт как кнопка пульта.")
+                                     "Нажмите «Связать пульт с ТВ…» ниже — тогда пауза пойдёт как кнопка пульта.")
         self._catt([want], after=lambda: QTimer.singleShot(1500, check))
 
     def seek(self, s):
@@ -1287,24 +1287,28 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Голосовой поиск уже идёт.", "Voice search is already running."), ("Голосовой поиск", "Voice search"),
     ("Движок трансляции не установлен. Установите его один раз — Fling его найдёт.",
      "The Cast engine isn't installed. Install it once and Fling will find it."),
-    ("Домой", "Home"), ("Запускать при входе", "Open at Login"),
+    ("Домой", "Home"), ("Запускать при входе", "Start at login"),
     ("или крутите колёсико / тачпад в любом месте панели", "or scroll anywhere to move around the TV"),
     ("и тут появятся настоящие обложка, название и время.", "and the real artwork, title and time will show here."),
     ("код не подошёл", "the code didn't work"),
     ("Код не совпадает — посмотрите на экран ТВ ещё раз.", "That code doesn't match — read it off the TV again."),
     ("Код YouTube — это 12 цифр с экрана ТВ.", "The YouTube code is the 12 digits on the TV screen."),
     ("можно отправить", "castable"), ("можно попробовать", "worth a try"),
-    ("Нажмите «Настроить управление ТВ…» ниже — тогда пауза пойдёт как кнопка пульта.",
-     "Click “Set Up TV Power…” below and pause will be sent as a remote button."),
-    ("Напечатать на ТВ", "Type on TV"), ("Настроить управление ТВ…", "Set Up TV Power…"),
+    ("Нажмите «Связать пульт с ТВ…» ниже — тогда пауза пойдёт как кнопка пульта.",
+     "Click “Pair TV remote…” below and pause will be sent as a remote button."),
+    ("Напечатать на ТВ", "Type on TV"), ("Связать пульт с ТВ…", "Pair TV remote…"),
     ("На ТВ: YouTube → Настройки → «Подключить телефон / Связать с ТВ по коду». ",
      "On the TV: YouTube → Settings → “Link with TV code”. "),
     ("НА ТЕЛЕВИЗОРЕ", "ON THE TV"),
-    ("Нет открытой вкладки Firefox", "No Firefox tab open"), ("Нет открытой страницы", "No page open"),
+    ("Нет открытой вкладки браузера", "No browser tab open"), ("Нет открытой страницы", "No page open"),
     ("Нет parecord/pw-record для записи микрофона.", "parecord/pw-record not found for the microphone."),
     ("Остановить трансляцию", "Stop casting"),
-    ("Откройте вкладку в Firefox и попробуйте снова.", "Open a tab in Firefox, then try again."),
-    ("Отмена", "Cancel"), ("Отправить ссылку из буфера", "Cast clipboard URL"),
+    ("Откройте вкладку в браузере и попробуйте снова.", "Open a tab in your browser, then try again."),
+    ("Нет модуля sounddevice для записи микрофона.", "The sounddevice module is missing for the microphone."),
+    ("Микрофон недоступен: ", "Microphone unavailable: "),
+    ("Снимок экрана ТВ: ", "TV screenshot: "),
+    ("Уведомлять о смене видео", "Notify when the video changes"), ("Сейчас на ТВ: ", "Now on TV: "), ("Возобновить на ТВ с ", "Resume on TV at "),
+    ("Отмена", "Cancel"), ("Отправить скопированную ссылку", "Cast copied link"),
     ("Отправить эту вкладку вместо", "Cast this tab instead"), ("Отправить эту вкладку", "Cast this tab"),
     ("Отправляю…", "Casting…"), ("Пауза / Играть", "Play / Pause"), ("Пауза на ТВ", "Pause on TV"),
     ("Предыдущее видео", "Previous video"), ("Следующее видео", "Next video"), ("Пробел", "Space"),
@@ -1333,7 +1337,7 @@ EN_PHRASES = [  # longest first is applied automatically
     ("YouTube на ТВ не отвечает", "YouTube on the TV isn't answering"),
     ("Не удалось связать с YouTube: ", "Couldn't link YouTube: "),
     ("Не удалось связаться с ТВ", "Couldn't reach the TV"), ("Нельзя отправить: ", "Can't cast: "),
-    ("catt завершился с ошибкой", "catt failed"), ("Язык: Русский", "Language: English"),
+    ("catt завершился с ошибкой", "catt failed"),
     ("Пауза", "Pause"), ("Играть", "Play"), ("Назад", "Back"), ("Вперёд", "Forward"),
     ("Громкость", "Volume"), ("Сейчас: ", "Now: "), ("На ТВ: ", "On TV: "), (" на ТВ", " on the TV"),
     ("файл", "file"),
@@ -1348,6 +1352,18 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Окно сопряжения закрылось — нажмите «Подключить как Bluetooth-пульт» ещё раз.", "The pairing window closed — click “Connect as Bluetooth remote” again."),
     ("Bluetooth-пульт · ", "Bluetooth remote · "), ("Готово", "Done"),
     ("По Bluetooth можно печатать только латиницу и цифры.", "Over Bluetooth only Latin letters and digits can be typed."),
+]
+EN_PHRASES += [   # rows that had no English text yet
+    ("Снимок экрана ТВ", "TV screenshot"), ("Как пользоваться", "How to use"),
+    ("Подключение ТВ…", "Connect TV…"), ("Fling — подключение ТВ", "Fling — Connect TV"),
+    ("Fling — как пользоваться", "Fling — How to use"),
+    ("Сменить ТВ", "Switch TV"), ("Выбрать ТВ", "Choose TV"),
+    ("Компактный вид", "Compact view"), ("Пауза / Играть", "Play / Pause"), ("Полный вид", "Full view"),
+    ("Уведомления включены", "Notifications on"), ("Уведомления выключены", "Notifications off"),
+    ("Запускать при входе", "Start at login"), ("Связать пульт с ТВ…", "Pair TV remote…"),
+    ("Отправить скопированную ссылку", "Cast copied link"), ("Ищу ТВ…", "Looking for TVs…"), ("Телевизор", "TV"), ("ТВ…", "TV…"),
+    ("Fling создан Damion Rashford и Tatiana · неофициальный порт",
+     "Fling by Damion Rashford and Tatiana · unofficial port"),
 ]
 EN_PHRASES.sort(key=lambda kv: -len(kv[0]))
 EN_REGEX = [(re.compile(r"(\d+) с\b"), r"\1s")]
@@ -1399,22 +1415,10 @@ def install_translation():
 # ---------------------------------------------------------------- helpers
 
 def notify_send(msg):
-    msg = tr(msg)
-    subprocess.Popen(["notify-send", "-a", "Fling", "-i", "video-display", "Fling", msg],
-                     stderr=subprocess.DEVNULL)
+    P.notify(tr(msg))
 
-def login_enabled():
-    return os.path.exists(AUTOSTART)
-
-def toggle_login():
-    if login_enabled():
-        os.remove(AUTOSTART)
-    else:
-        os.makedirs(os.path.dirname(AUTOSTART), exist_ok=True)
-        with open(AUTOSTART, "w") as f:
-            f.write("[Desktop Entry]\nType=Application\nName=Fling\n"
-                    f"Exec={HOME}/.local/bin/fling\nIcon=video-display\n"
-                    "X-KDE-autostart-after=panel\n")
+login_enabled = P.login_enabled
+toggle_login = P.toggle_login
 
 # ---------------------------------------------------------------- theme
 
@@ -1442,7 +1446,7 @@ class Theme:
 T: Theme = None  # set in main
 
 def font(px, weight=QFont.Weight.Normal, mono=False):
-    f = QFont("monospace" if mono else QApplication.font().family())
+    f = QFont(P.MONO_FONT if mono else QApplication.font().family())
     f.setPixelSize(int(round(px)))
     f.setWeight(weight)
     if mono:
@@ -1575,11 +1579,128 @@ def glyph(name, size=14, color=None, weight=1.7):
         p.drawRoundedRect(QRectF(s*.12, s*.3, s*.76, s*.52), s*.08, s*.08)
         path((s*.36, s*.3), (s*.42, s*.18), (s*.58, s*.18), (s*.64, s*.3))
         p.drawEllipse(QRectF(c - s*.14, s*.42, s*.28, s*.28))
+    elif name == "bell":                                     # notifications
+        pa = QPainterPath(); pa.moveTo(s*.22, s*.7)
+        pa.cubicTo(s*.3, s*.6, s*.28, s*.5, s*.3, s*.4)
+        pa.cubicTo(s*.32, s*.18, s*.68, s*.18, s*.7, s*.4)
+        pa.cubicTo(s*.72, s*.5, s*.7, s*.6, s*.78, s*.7); pa.closeSubpath()
+        p.drawPath(pa)
+        p.drawArc(QRectF(s*.42, s*.66, s*.16, s*.16), 180*16, 180*16)
+    elif name == "login":                                    # arrow into a door: start at login
+        path((s*.5, s*.16), (s*.82, s*.16), (s*.82, s*.84), (s*.5, s*.84))
+        path((s*.14, c), (s*.6, c))
+        path((s*.44, s*.34), (s*.6, c), (s*.44, s*.66))
+    elif name == "quit":                                     # arrow out of a door
+        path((s*.5, s*.16), (s*.18, s*.16), (s*.18, s*.84), (s*.5, s*.84))
+        path((s*.4, c), (s*.86, c))
+        path((s*.7, s*.34), (s*.86, c), (s*.7, s*.66))
+    elif name in ("play", "pause", "stop", "rew", "fwd", "prev", "next"):
+        p.setBrush(color or T.fg); p.setPen(Qt.PenStyle.NoPen)
+        if name == "play":
+            path((s*.32, s*.2), (s*.32, s*.8), (s*.8, c), close=True)
+        elif name == "pause":
+            p.drawRoundedRect(QRectF(s*.26, s*.2, s*.16, s*.6), s*.04, s*.04)
+            p.drawRoundedRect(QRectF(s*.58, s*.2, s*.16, s*.6), s*.04, s*.04)
+        elif name == "stop":
+            p.drawRoundedRect(QRectF(s*.25, s*.25, s*.5, s*.5), s*.06, s*.06)
+        elif name == "rew":
+            path((s*.5, s*.24), (s*.5, s*.76), (s*.14, c), close=True)
+            path((s*.86, s*.24), (s*.86, s*.76), (s*.5, c), close=True)
+        elif name == "fwd":
+            path((s*.5, s*.24), (s*.5, s*.76), (s*.86, c), close=True)
+            path((s*.14, s*.24), (s*.14, s*.76), (s*.5, c), close=True)
+        elif name == "prev":
+            p.drawRect(QRectF(s*.2, s*.24, s*.09, s*.52))
+            path((s*.8, s*.24), (s*.8, s*.76), (s*.3, c), close=True)
+        elif name == "next":
+            p.drawRect(QRectF(s*.71, s*.24, s*.09, s*.52))
+            path((s*.2, s*.24), (s*.2, s*.76), (s*.7, c), close=True)
+    elif name == "compact":                                  # arrows pointing inwards
+        path((s*.18, s*.4), (s*.4, s*.4), (s*.4, s*.18))
+        path((s*.82, s*.6), (s*.6, s*.6), (s*.6, s*.82))
+        path((s*.12, s*.12), (s*.4, s*.4)); path((s*.88, s*.88), (s*.6, s*.6))
+    elif name == "expand":                                   # arrows pointing outwards
+        path((s*.14, s*.36), (s*.14, s*.14), (s*.36, s*.14))
+        path((s*.86, s*.64), (s*.86, s*.86), (s*.64, s*.86))
+        path((s*.14, s*.14), (s*.42, s*.42)); path((s*.86, s*.86), (s*.58, s*.58))
     elif name == "tv":
         p.drawRoundedRect(QRectF(s*.1, s*.2, s*.8, s*.54), s*.08, s*.08)
         p.drawLine(QPoint(int(s*.32), int(s*.86)), QPoint(int(s*.68), int(s*.86)))
     p.end()
     return QIcon(pm)
+
+
+def flag_icon(code, w=22, h=15):
+    """Small rounded flag: "en" = United Kingdom, "ru" = Russia."""
+    dpr = QGuiApplication.primaryScreen().devicePixelRatio() if QGuiApplication.primaryScreen() else 1
+    k = dpr * 2
+    pm = QPixmap(int(w * k), int(h * k)); pm.setDevicePixelRatio(k)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm); p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    clip = QPainterPath(); clip.addRoundedRect(QRectF(0, 0, w, h), 2.5, 2.5)
+    p.setClipPath(clip)
+    if code == "ru":
+        for i, col in enumerate(("#ffffff", "#0039a6", "#d52b1e")):
+            p.fillRect(QRectF(0, i * h / 3, w, h / 3 + 0.5), QColor(col))
+    else:
+        p.fillRect(QRectF(0, 0, w, h), QColor("#012169"))
+        for col, width in (("#ffffff", h * .2), ("#c8102e", h * .08)):
+            p.setPen(QPen(QColor(col), width))
+            p.drawLine(QPoint(0, 0), QPoint(w, h)); p.drawLine(QPoint(0, h), QPoint(w, 0))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.fillRect(QRectF(w / 2 - h * .17, 0, h * .34, h), QColor("#ffffff"))
+        p.fillRect(QRectF(0, h / 2 - h * .17, w, h * .34), QColor("#ffffff"))
+        p.fillRect(QRectF(w / 2 - h * .1, 0, h * .2, h), QColor("#c8102e"))
+        p.fillRect(QRectF(0, h / 2 - h * .1, w, h * .2), QColor("#c8102e"))
+    p.setClipping(False)
+    p.setPen(QPen(QColor(0, 0, 0, 60), 0.8)); p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawRoundedRect(QRectF(0.4, 0.4, w - 0.8, h - 0.8), 2.5, 2.5)
+    p.end()
+    return QIcon(pm)
+
+
+class CornerBar(QWidget):
+    """Top-right corner of the panel: compact-mode toggle and the 🇬🇧 / 🇷🇺 language flags."""
+    def __init__(self, panel):
+        super().__init__()
+        self.panel = panel
+        lay = QHBoxLayout(self); lay.setContentsMargins(14, 7, 10, 0); lay.setSpacing(4)
+        lay.addStretch(1)
+        self.compact = QToolButton()
+        self.compact.setIconSize(QSize(14, 14))
+        self.compact.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.compact.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.compact.setStyleSheet(f"QToolButton{{border:none;border-radius:4px;padding:2px}}"
+                                   f"QToolButton:hover{{background:{Theme.css(T.acc_a(0.2))}}}")
+        self.compact.clicked.connect(panel.toggle_compact)
+        self.help = QToolButton()                       # "How to use" guide
+        self.help.setIcon(glyph("help", 15, T.fg_a(0.6))); self.help.setIconSize(QSize(15, 15))
+        self.help.setToolTip("Как пользоваться")
+        self.help.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.help.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.help.setStyleSheet(self.compact.styleSheet())
+        self.help.clicked.connect(lambda: (panel.hide(), open_help(panel)))
+        lay.addWidget(self.help)
+        lay.addWidget(self.compact)
+        lay.addSpacing(4)
+        for code, name in (("en", "English"), ("ru", "Русский")):
+            b = QToolButton()
+            active = code == LANG
+            b.setIcon(flag_icon(code, 20, 14)); b.setIconSize(QSize(20, 14))
+            b.setToolTip(name)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            ring = Theme.css(T.accent) if active else "transparent"
+            b.setStyleSheet(f"QToolButton{{border:1.5px solid {ring};border-radius:4px;padding:1px}}"
+                            f"QToolButton:hover{{background:{Theme.css(T.acc_a(0.2))}}}")
+            if not active:
+                eff = QGraphicsOpacityEffect(b); eff.setOpacity(0.55); b.setGraphicsEffect(eff)
+                b.clicked.connect(panel._toggle_lang)
+            lay.addWidget(b)
+
+    def sync(self, compact):
+        self.compact.setIcon(glyph("expand" if compact else "compact", 14, T.fg_a(0.6)))
+        self.compact.setToolTip("Полный вид" if compact else "Компактный вид")
 
 
 def tray_icon(casting=False):
@@ -1653,6 +1774,13 @@ class MenuRow(QPushButton):
 
     def setText(self, s):
         self.t.setText(s)
+
+    def set_shortcut(self, s):
+        self.k.setText(s)
+
+    def set_icon_color(self, color):
+        if self._icon_name:
+            self.ic.setPixmap(glyph(self._icon_name, 14, color).pixmap(15, 15))
 
     def setEnabled(self, en):
         super().setEnabled(en)
@@ -1881,6 +2009,22 @@ class KeyButton(QPushButton):
             self.clicked.connect(on)
 
 
+def key_bar(*keys):
+    """Compact row of round icon buttons: keys = (glyph, tooltip, callback, size, accented)."""
+    w = QWidget()
+    lay = QHBoxLayout(w); lay.setContentsMargins(12, 8, 12, 6); lay.setSpacing(10)
+    lay.addStretch(1)
+    out = []
+    for g, tip, fn, size, acc in keys:
+        b = KeyButton(g, size=size, accented=acc, on=fn)
+        b.setToolTip(tip)
+        lay.addWidget(b)
+        out.append(b)
+    lay.addStretch(1)
+    w.keys = out
+    return w
+
+
 class Pill(QPushButton):
     def __init__(self, glyph_name, text, on):
         super().__init__()
@@ -2009,7 +2153,9 @@ class Panel(QWidget):
     def __init__(self, state: State):
         super().__init__(None, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint |
                          Qt.WindowType.NoDropShadowWindowHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.translucent = P.translucent_ok(state.conf)
+        if self.translucent:
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setWindowTitle("Fling")
         self.state = state
         self.hidden_at = 0.0
@@ -2023,6 +2169,9 @@ class Panel(QWidget):
         v = QVBoxLayout(self.body)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(0)
+
+        self.corner = CornerBar(self)
+        v.addWidget(self.corner)
 
         # setup (catt missing)
         self.setup = QWidget()
@@ -2068,19 +2217,36 @@ class Panel(QWidget):
         tl = QHBoxLayout(); tl.addWidget(self.c_el); tl.addStretch(1); tl.addWidget(self.c_rem)
         pl.addLayout(tl)
         cl.addWidget(pw)
+        # compact view: one row of icon keys, the words live in the tooltips
+        self.c_bar = key_bar(
+            ("prev", "Предыдущее видео", state.yt_prev, 28, False),
+            ("rew", f"Назад {SEEK} с  (←)", lambda: state.seek(-SEEK), 32, False),
+            ("pause", "Пауза / Играть  (Пробел)", state.toggle_play, 40, True),
+            ("fwd", f"Вперёд {SEEK} с  (→)", lambda: state.seek(SEEK), 32, False),
+            ("next", "Следующее видео", state.yt_next, 28, False),
+            ("stop", "Остановить трансляцию  (Ctrl+.)", state.stop, 28, False),
+            ("play_on_tv", "Отправить эту вкладку вместо", state.cast_tab, 28, False))
+        self.c_bar_prev, _, self.c_bar_play, _, self.c_bar_next, _, _ = self.c_bar.keys
+        cl.addWidget(self.c_bar)
+        self.c_rows = QWidget()
+        cr = QVBoxLayout(self.c_rows); cr.setContentsMargins(0, 0, 0, 0); cr.setSpacing(0)
         self.c_play = MenuRow("Пауза", shortcut="Пробел", on=state.toggle_play)
-        cl.addWidget(self.c_play)
-        cl.addWidget(MenuRow(f"Назад {SEEK} с", shortcut="←", on=lambda: state.seek(-SEEK)))
-        cl.addWidget(MenuRow(f"Вперёд {SEEK} с", shortcut="→", on=lambda: state.seek(SEEK)))
+        cr.addWidget(self.c_play)
+        cr.addWidget(MenuRow(f"Назад {SEEK} с", shortcut="←", on=lambda: state.seek(-SEEK)))
+        cr.addWidget(MenuRow(f"Вперёд {SEEK} с", shortcut="→", on=lambda: state.seek(SEEK)))
         self.c_prev = MenuRow("Предыдущее видео", on=state.yt_prev)
         self.c_next = MenuRow("Следующее видео", on=state.yt_next)
-        cl.addWidget(self.c_prev); cl.addWidget(self.c_next)
+        cr.addWidget(self.c_prev); cr.addWidget(self.c_next)
+        cl.addWidget(self.c_rows)
         self.c_vol = VolumeRow(state)
         cl.addWidget(self.c_vol)
-        cl.addWidget(Separator())
+        self.c_tail = QWidget()
+        ct = QVBoxLayout(self.c_tail); ct.setContentsMargins(0, 0, 0, 0); ct.setSpacing(0)
+        ct.addWidget(Separator())
         self.c_cast = MenuRow("Отправить эту вкладку", shortcut=SHORTCUT_LABEL, on=state.cast_tab)
-        cl.addWidget(self.c_cast)
-        cl.addWidget(MenuRow("Остановить трансляцию", shortcut="Ctrl+.", on=state.stop))
+        ct.addWidget(self.c_cast)
+        ct.addWidget(MenuRow("Остановить трансляцию", shortcut="Ctrl+.", on=state.stop))
+        cl.addWidget(self.c_tail)
         v.addWidget(self.casting)
 
         # ---- idle
@@ -2097,14 +2263,23 @@ class Panel(QWidget):
         hl = QHBoxLayout(); hl.setSpacing(4); hl.addWidget(self.i_host); hl.addWidget(label("·", 11, T.fg_a(0.55))); hl.addWidget(self.i_kind); hl.addStretch(1)
         bl.addLayout(hl)
         il.addWidget(box)
-        il.addWidget(Separator())
+        self.i_bar = key_bar(
+            ("play_on_tv", f"Отправить эту вкладку  ({SHORTCUT_LABEL})", state.cast_tab, 40, True),
+            ("clipboard", "Отправить скопированную ссылку", state.cast_clipboard, 32, False))
+        self.i_bar_cast = self.i_bar.keys[0]
+        il.addWidget(self.i_bar)
+        self.i_rows = QWidget()
+        ir = QVBoxLayout(self.i_rows); ir.setContentsMargins(0, 0, 0, 0); ir.setSpacing(0)
+        ir.addWidget(Separator())
         self.i_cast = MenuRow("Отправить эту вкладку", icon="play_on_tv", shortcut=SHORTCUT_LABEL,
                               accented=True, on=state.cast_tab)
-        il.addWidget(self.i_cast)
+        ir.addWidget(self.i_cast)
+        il.addWidget(self.i_rows)
         self.i_why = label("", 11, T.orange, wrap=True)
         self.i_why_box = padded(self.i_why, 14, 0, 14, 7)
         il.addWidget(self.i_why_box)
-        il.addWidget(MenuRow("Отправить ссылку из буфера", icon="clipboard", on=state.cast_clipboard))
+        self.i_clip = MenuRow("Отправить скопированную ссылку", icon="clipboard", on=state.cast_clipboard)
+        il.addWidget(self.i_clip)
         self.i_vol_sep = Separator()
         il.addWidget(self.i_vol_sep)
         self.i_vol = VolumeRow(state)
@@ -2145,8 +2320,9 @@ class Panel(QWidget):
         sl.addWidget(padded(label("Свяжите один раз с ТВ, чтобы открыть приложения, крестовину и ввод текста.",
                                   11, T.fg_a(0.55), wrap=True), 14, 10, 14, 6))
         sl.addWidget(MenuRow("Включить ТВ", icon="power", on=state.wake))
-        sl.addWidget(MenuRow("Настроить управление ТВ…", icon="waves", accented=True, on=state.start_pairing))
-        sl.addWidget(MenuRow("Подключить как Bluetooth-пульт…", icon="bt", on=state.bt_pair))
+        sl.addWidget(MenuRow("Связать пульт с ТВ…", icon="waves", accented=True, on=state.start_pairing))
+        if BT_SUPPORTED:
+            sl.addWidget(MenuRow("Подключить как Bluetooth-пульт…", icon="bt", on=state.bt_pair))
         v.addWidget(self.r_setup)
 
         self.r_bt = QWidget()
@@ -2230,18 +2406,21 @@ class Panel(QWidget):
         self.err_box = padded(self.err, 14, 4, 14, 4)
         v.addWidget(self.err_box)
 
+        self.house = QWidget()
+        hv = QVBoxLayout(self.house); hv.setContentsMargins(0, 0, 0, 0); hv.setSpacing(0)
+        v.addWidget(self.house)
+        v_main, v = v, hv
         v.addWidget(Separator())
         self.shot_row = MenuRow("Снимок экрана ТВ", icon="camera", on=state.tv_screenshot)
         v.addWidget(self.shot_row)
-        self.help_row = MenuRow("Как пользоваться", icon="help", on=lambda: (self.hide(), open_help(self)))   # opens the guide
-        v.addWidget(self.help_row)
         self.setup_row = MenuRow("Подключение ТВ…", icon="tv", on=lambda: (self.hide(), self.open_setup()))
         v.addWidget(self.setup_row)
-        self.login = MenuRow("Запускать при входе", on=self._toggle_login)
+        self.notify_row = MenuRow("Уведомлять о смене видео", icon="bell", on=self._toggle_notify)
+        v.addWidget(self.notify_row)
+        self.login = MenuRow("Запускать при входе", icon="login", on=self._toggle_login)
         v.addWidget(self.login)
-        self.lang_row = MenuRow("Язык: Русский" if LANG == "ru" else "Language: English", on=self._toggle_lang)
-        v.addWidget(self.lang_row)
-        v.addWidget(MenuRow("Выйти из Fling", shortcut="Ctrl+Q", on=QApplication.quit))
+        v.addWidget(MenuRow("Выйти из Fling", icon="quit", shortcut="Ctrl+Q", on=QApplication.quit))
+        v = v_main
         v.addWidget(Separator())
 
         # footer
@@ -2350,8 +2529,7 @@ class Panel(QWidget):
         c = load_conf()
         c["lang"] = "en" if LANG == "ru" else "ru"
         save_conf(c)
-        subprocess.Popen(["bash", "-c", f"sleep 1; exec {HOME}/.local/bin/fling show"],
-                         start_new_session=True)
+        P.restart_app()
         QApplication.quit()
 
     def open_setup(self):
@@ -2362,6 +2540,18 @@ class Panel(QWidget):
     def _toggle_login(self):
         toggle_login()
         self.sync()
+
+    def toggle_compact(self):
+        s = self.state
+        s.conf["compact"] = not s.conf.get("compact")
+        save_conf(s.conf)
+        s.changed.emit()
+
+    def _toggle_notify(self):
+        s = self.state
+        s.conf["notify_track"] = not s.conf.get("notify_track", True)
+        save_conf(s.conf)
+        s.changed.emit()
 
     # --- state → widgets
     def sync(self):
@@ -2421,7 +2611,7 @@ class Panel(QWidget):
             self.i_cast.setText("Отправляю…" if s.cast_in_flight else "Отправить эту вкладку")
             self.i_cast.set_accented(ok)
             self.i_cast.setEnabled(ok and not s.cast_in_flight)
-            why = {"Нет открытой страницы": "Откройте вкладку в Firefox и попробуйте снова."}.get(reason, reason)
+            why = {"Нет открытой страницы": "Откройте вкладку в браузере и попробуйте снова."}.get(reason, reason)
             self.i_why.setText(why or "")
             self.i_why_box.setVisible(bool(why))
             self.i_vol_sep.setVisible(not s.tv_paired)
@@ -2478,6 +2668,29 @@ class Panel(QWidget):
         self.err.setText(s.last_error or "")
         self.err_box.setVisible(bool(s.last_error))
         self.login.setText(("✓ " if login_enabled() else "") + "Запускать при входе")
+        notify_on = s.conf.get("notify_track", True)
+        self.notify_row.setText("Уведомлять о смене видео")
+        self.notify_row.set_icon_color(T.green if notify_on else T.red)
+        self.notify_row.setToolTip("Уведомления включены" if notify_on else "Уведомления выключены")
+
+        # compact mode: just what's playing / this tab, volume and the footer
+        compact = bool(s.conf.get("compact"))
+        self.corner.sync(compact)
+        if compact:
+            for w in (self.sep_remote, self.r_starting_box, self.r_pin, self.r_setup, self.r_bt,
+                      self.r_ctl, self.r_fail_box, self.house):
+                w.setVisible(False)
+        else:
+            self.house.setVisible(True)
+        for w in (self.c_rows, self.c_tail, self.i_rows, self.i_clip):
+            w.setVisible(not compact)
+        self.c_bar.setVisible(compact)
+        self.i_bar.setVisible(compact)
+        if compact:
+            self.c_bar_prev.setVisible(self.c_prev.isVisibleTo(self.c_rows))
+            self.c_bar_next.setVisible(self.c_next.isVisibleTo(self.c_rows))
+            self.c_bar_play.setIcon(glyph("pause" if s.is_playing else "play", 16, T.accent, 2.0))
+            self.i_bar_cast.setEnabled(self.i_cast.isEnabled())
 
         # footer
         col = T.green if s.device else T.fg_a(0.4)
@@ -2486,7 +2699,7 @@ class Panel(QWidget):
         self.dev_name.setText((s.device["name"] + (f" ({s.device['ip']})" if dup else "")) if s.device
                               else ("Ищу ТВ…" if s.scanning else "Устройство не найдено"))
         self.switch.setVisible(True)                   # always available: rescan / add by IP even with one TV
-        self.switch.setText("Сменить ТВ" if len(s.devices) > 1 else "ТВ…")
+        self.switch.setText("Сменить ТВ" if len(s.devices) > 1 else "Выбрать ТВ")
         if self.isVisible():
             QTimer.singleShot(0, self.place)
 
@@ -2496,7 +2709,10 @@ class Panel(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
         p.setPen(QPen(T.fg_a(0.16), 1))
-        bg = QColor(T.bg); bg.setAlphaF(0.86)
+        bg = QColor(T.bg); bg.setAlphaF(0.86 if P.IS_LINUX else 1.0)   # no blur behind on Windows: opaque
+        if not self.translucent:                         # square, solid panel (RDP, VMs, old drivers)
+            bg.setAlphaF(1.0)
+            p.fillRect(self.rect(), bg)
         p.setBrush(bg)
         p.drawRoundedRect(r, 10, 10)
 
@@ -2524,6 +2740,8 @@ class Panel(QWidget):
 
     def _blur(self):
         """KWin blur behind the translucent panel (X11 property, honoured for XWayland)."""
+        if not P.IS_LINUX:
+            return
         try:
             subprocess.Popen(["xprop", "-id", str(int(self.winId())), "-f", "_KDE_NET_WM_BLUR_BEHIND_REGION",
                               "32c", "-set", "_KDE_NET_WM_BLUR_BEHIND_REGION", "0"],
@@ -2589,8 +2807,8 @@ def adb_state(ip: str) -> str:
     finally:
         c.close()
     serial = f"{ip}:5555"
-    subprocess.run([_ADB, "connect", serial], capture_output=True, timeout=8)
-    out = subprocess.run([_ADB, "devices"], capture_output=True, text=True, timeout=5).stdout
+    P.run([_ADB, "connect", serial], capture_output=True, timeout=8)
+    out = P.run([_ADB, "devices"], capture_output=True, text=True, timeout=5).stdout
     for line in out.splitlines():
         if line.startswith(serial):
             return line.split()[1]
@@ -2601,7 +2819,7 @@ class SetupWindow(QWidget):
     def __init__(self, state: State):
         super().__init__(None, Qt.WindowType.Window)
         self.state = state
-        self.setWindowTitle("Fling — подключение ТВ")
+        self.setWindowTitle(tr("Fling — подключение ТВ"))
         self.setMinimumWidth(460)
         self.adb = "?"
         self.found = []
@@ -2623,6 +2841,8 @@ class SetupWindow(QWidget):
         for key, title in (("find", "Поиск ТВ в локальной сети"), ("remote", "Пульт ТВ (по сети)"),
                            ("adb", "ADB: что играет, название и обложка"), ("yt", "YouTube на ТВ (по коду)"),
                            ("bt", "Bluetooth-пульт (запасной)")):
+            if key == "bt" and not BT_SUPPORTED:
+                continue
             v.addWidget(self._row(key, title))
         v.addStretch(1)
         c2 = label(f'<a href="https://github.com/tatianathevisionary/fling" style="color:{Theme.css(T.fg_a(0.55))}">'
@@ -2679,7 +2899,9 @@ class SetupWindow(QWidget):
         return box
 
     def _set(self, key, mark, info, btn=None, extra=None):
-        r = self.rows[key]
+        r = self.rows.get(key)
+        if r is None:                      # row not shown on this OS (Bluetooth on Windows)
+            return
         sym, col = {"ok": ("✓", T.green), "run": ("⏳", T.accent), "need": ("!", T.orange),
                     "fail": ("✗", T.red), "off": ("•", T.fg_a(0.4))}[mark]
         r["mark"].setText(sym); r["mark"].setStyleSheet(f"color:{Theme.css(col)}")
@@ -2750,7 +2972,7 @@ class SetupWindow(QWidget):
             self._set("adb", "need", "Введите порт и 6-значный код из «Беспроводной отладки» на ТВ.", "Проверить", True)
             return
         def work():
-            r = subprocess.run([_ADB, "pair", f"{ip}:{port}", code], capture_output=True, text=True, timeout=20)
+            r = P.run([_ADB, "pair", f"{ip}:{port}", code], capture_output=True, text=True, timeout=20)
             return (r.stdout + r.stderr).strip()
         def done(out, e):
             ok = out and "Successfully paired" in out
@@ -2839,7 +3061,7 @@ class HelpWindow(QWidget):
         area.setStyleSheet("QScrollArea{background:transparent}")
         body = QWidget(); v = QVBoxLayout(body); v.setContentsMargins(22, 18, 22, 18); v.setSpacing(4)
         v.addWidget(label(tr("Как пользоваться"), 19, weight=QFont.Weight.Bold))
-        for title, text in fling_help.HELP["en" if LANG == "en" else "ru"]:   # follow the language switch
+        for title, text in fling_help.sections("en" if LANG == "en" else "ru", P.IS_WIN):   # follow the language switch
             t = label(title, 14, weight=QFont.Weight.DemiBold)
             t.setContentsMargins(0, 14, 0, 2)                # space above each section
             v.addWidget(t)
@@ -2869,6 +3091,8 @@ class Tray(QObject):
         self.icon.setContextMenu(self.menu)
         self.icon.activated.connect(self.activated)
         self.icon.show()
+        if not P.IS_LINUX:                 # no notify-send: show toasts from the tray icon
+            P.set_notifier(lambda msg: self.icon.showMessage("Fling", msg, tray_icon(), 4000))
         self._casting = None
         state.changed.connect(self.sync)
         self.timer = QTimer(interval=2000)
@@ -2915,6 +3139,27 @@ class Tray(QObject):
             self.icon.setToolTip(f"Fling — {s.elapsed_label}  {title}")
         else:
             self.icon.setToolTip("Fling" + (f" — {s.device['name']}" if s.device else ""))
+        self._track_changed()
+
+    def _track_changed(self):
+        """Toast when the TV moves to another video / track (switchable: "Notify when the video changes")."""
+        s = self.state
+        st = s.status if s.panel == "casting" else {}
+        title = (st.get("title") or "").strip()
+        key = (s.ip, title) if title and title not in ("YouTube", "Воспроизводится") else None
+        prev, self._track = getattr(self, "_track", None), key
+        if not key or key == prev or prev is None or prev[0] != key[0]:
+            return                       # nothing playing, same track, first sight, or another TV
+        if not s.conf.get("notify_track", True) or self.state.panel_visible():
+            return                       # switched off, or the panel already shows it
+        sub = st.get("subtitle") or st.get("app") or ""
+        notify_send(f"Сейчас на ТВ: {title}" + (f" — {sub}" if sub else ""))
+
+    def toggle_notify(self):
+        s = self.state
+        s.conf["notify_track"] = not s.conf.get("notify_track", True)
+        save_conf(s.conf)
+        s.changed.emit()
 
     def build_menu(self):
         s, m = self.state, self.menu
@@ -2923,7 +3168,7 @@ class Tray(QObject):
         castable = s.panel == "idle_castable" or casting
         a = m.addAction("Отправить эту вкладку вместо" if casting else "Отправить эту вкладку", s.cast_tab)
         a.setShortcut(QKeySequence(GLOBAL_SHORTCUT)); a.setEnabled(castable)
-        m.addAction("Отправить ссылку из буфера", s.cast_clipboard)
+        m.addAction("Отправить скопированную ссылку", s.cast_clipboard)
         m.addSeparator()
         dm = m.addMenu("Телевизор" + (f" — {s.device['name']}" if s.device else ""))
         fill_device_menu(dm, s, None)
@@ -2938,6 +3183,8 @@ class Tray(QObject):
         m.addSeparator()
         a = m.addAction("Остановить трансляцию", s.stop); a.setEnabled(casting)
         m.addSeparator()
+        na = m.addAction("Уведомлять о смене видео", self.toggle_notify)
+        na.setCheckable(True); na.setChecked(s.conf.get("notify_track", True))
         la = m.addAction("Запускать при входе", toggle_login)
         la.setCheckable(True); la.setChecked(login_enabled())
         m.addAction("Как пользоваться", lambda: open_help(self.panel))   # guide from the tray menu
@@ -2960,13 +3207,144 @@ def send_to_running(cmd: str) -> bool:
     return True
 
 
+class _UiCall(QObject):
+    """Runs callables posted from other threads (hotkey, browser bridge) on the Qt thread."""
+    call = pyqtSignal(object)
+
+
+def bridge_handler(state: "State", panel: "Panel"):
+    """Requests from the browser extensions (fling_bridge.py) → State actions. Runs on the Qt thread."""
+    apps = {name.lower(): link for name, link, _ in TV_APPS}
+
+    def snapshot():
+        st = state.status or {}
+        return {
+            "ok": True, "app": "fling", "version": VERSION, "os": P.OS_NAME, "lang": LANG,
+            "catt": state.catt_ok,
+            "device": ({"name": state.device["name"], "ip": state.device["ip"]} if state.device else None),
+            "devices": [{"name": d["name"], "ip": d["ip"]} for d in state.devices],
+            "scanning": state.scanning,
+            "panel": state.panel, "casting": state.cast_in_flight,
+            "media": {k: st.get(k) for k in ("state", "title", "subtitle", "image", "elapsed", "duration", "app")},
+            "volume": state.volume,
+            "remote": {"paired": state.tv_paired, "on": state.tv_on, "app": app_name(state.tv_app),
+                       "pairing": state.tv_pairing, "voice": state.tv_voice},
+            "youtube_linked": state.lounge.is_linked,
+            "notify_track": state.conf.get("notify_track", True),
+            "apps": [name for name, _, _ in TV_APPS],
+            "error": tr(state.last_error) if state.last_error else None,
+        }
+
+    def handle(path, body):
+        if path in ("/v1/ping", "/v1/status"):
+            return snapshot()
+        if path == "/v1/tab":                      # the active tab of the browser that has focus
+            url = str(body.get("url") or "")[:4096]
+            if url.startswith(("http://", "https://")):
+                media = body.get("media") if isinstance(body.get("media"), dict) else None
+                state.browser_tab = {"url": url, "title": str(body.get("title") or "")[:300],
+                                     "browser": str(body.get("browser") or "Browser")[:40],
+                                     "media": media, "at": time.monotonic()}
+                if panel.isVisible():
+                    state.tab = state.browser_tab
+                    state.changed.emit()
+            return {"ok": True}
+        a = body.get("action")
+        if a == "cast":
+            url = str(body.get("url") or "").strip()
+            src = str(body.get("media_src") or "")
+            if src and classify(url)[0] == "maybe" and classify(src)[0] == "direct":
+                url = src
+            start = body.get("start")
+            state.last_error = None
+            state.cast(url, notify=not panel.isVisible(),
+                       start=float(start) if isinstance(start, (int, float)) else None,
+                       title=str(body.get("title") or "") or None)
+        elif a == "play_pause":
+            state.toggle_play()
+        elif a == "seek":
+            state.seek(int(body.get("seconds") or SEEK))
+        elif a == "stop":
+            state.stop()
+        elif a == "volume":
+            state.set_volume(int(body.get("level", state.volume)))
+        elif a == "key":
+            name = body.get("key")
+            if name not in KEY:
+                raise ValueError(f"unknown key {name!r}")
+            state.tv_key(KEY[name])
+        elif a == "launch":
+            link = apps.get(str(body.get("app") or "").lower())
+            if not link:
+                raise ValueError("unknown app")
+            state.tv_launch(link)
+        elif a == "text":
+            state.tv_text(str(body.get("text") or "")[:500])
+        elif a == "wake":
+            state.wake()
+        elif a == "select_device":
+            d = next((x for x in state.devices if x["ip"] == body.get("ip")), None)
+            if d:
+                state.select_device(d)
+        elif a == "notify_track":
+            state.conf["notify_track"] = bool(body.get("on", not state.conf.get("notify_track", True)))
+            save_conf(state.conf)
+            state.changed.emit()
+        elif a == "rescan":
+            state.scan()
+        elif a == "refresh":
+            state.refresh(with_tab=False)
+        elif a == "open_panel":
+            panel.show_panel()
+        elif a == "open_setup":
+            panel.open_setup()
+        elif a == "pair_remote":
+            panel.show_panel()
+            state.start_pairing()
+        else:
+            raise ValueError(f"unknown action {a!r}")
+        return snapshot()
+    return handle
+
+
+def catt_main(args):
+    """Frozen build: `Fling.exe --catt …` is the bundled catt CLI."""
+    sys.argv = ["catt", *args]
+    if P.IS_WIN and (sys.stdout is None or sys.stderr is None):
+        # windowed build: Python has no stdio, but the parent gave us pipes — attach to them
+        import ctypes, msvcrt
+        k32 = ctypes.windll.kernel32
+        for std, name, mode in ((-11, "stdout", "w"), (-12, "stderr", "w")):
+            h = k32.GetStdHandle(std)
+            if h and h != -1:
+                try:
+                    fd = msvcrt.open_osfhandle(h, os.O_WRONLY)
+                    setattr(sys, name, open(fd, mode, encoding="utf-8", errors="replace", buffering=1))
+                except OSError:
+                    pass
+            if getattr(sys, name) is None:
+                setattr(sys, name, open(os.devnull, "w"))
+    from catt.cli import main as cm
+    return cm()
+
+
 def main():
     global T
+    if len(sys.argv) > 1 and sys.argv[1] == "--catt":
+        return catt_main(sys.argv[2:])
+    P.setup_logging()
+    if "--after-restart" in sys.argv:              # language switch: let the old instance exit first
+        sys.argv.remove("--after-restart")
+        time.sleep(1.2)
     cmd = sys.argv[1] if len(sys.argv) > 1 else "show"
     app = QApplication(sys.argv)
     app.setApplicationName("Fling")
     app.setDesktopFileName("fling")
     app.setQuitOnLastWindowClosed(False)
+    app.setWindowIcon(tray_icon())
+    if cmd == "--make-icon":                       # installer: write fling.ico
+        tray_icon().pixmap(256, 256).save(sys.argv[2])
+        return 0
     if send_to_running(cmd):
         return 0
     T = Theme(app)
@@ -2975,6 +3353,7 @@ def main():
 
     state = State()
     panel = Panel(state)
+    state.panel_visible = panel.isVisible
     tray = Tray(state, panel)
 
     def handle(c):
@@ -3004,6 +3383,26 @@ def main():
         conn.readyRead.connect(read)
         conn.disconnected.connect(conn.deleteLater)
     server.newConnection.connect(incoming)
+
+    ui = _UiCall()
+    ui.call.connect(lambda f: f(), Qt.ConnectionType.QueuedConnection)
+
+    # Windows: system-wide Win+Shift+C (Linux registers its shortcut with KDE in install.sh)
+    hotkey = P.GlobalHotkey(lambda: ui.call.emit(lambda: handle("cast-tab")))
+    if P.IS_WIN:
+        got = hotkey.start()
+        if got:
+            for row in (panel.c_cast, panel.i_cast):
+                row.set_shortcut(got)
+        app.aboutToQuit.connect(hotkey.stop)
+
+    # browser extensions → this app
+    from fling_bridge import BrowserBridge, DEFAULT_PORT
+    bridge = BrowserBridge(bridge_handler(state, panel), ui.call.emit,
+                           int(state.conf.get("bridge_port") or DEFAULT_PORT))
+    if state.conf.get("bridge", True):
+        bridge.start()
+        app.aboutToQuit.connect(bridge.stop)
 
     state.atv.connect(state.ip)
     state.refresh()

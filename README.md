@@ -1,57 +1,91 @@
+<p align="right">
+  <a href="README.md">🇬🇧 English</a> &nbsp;·&nbsp; <a href="README.ru.md">🇷🇺 Русский</a>
+</p>
+
 <div align="center">
 
-# Fling for Linux & Android
+<img src="docs/screenshots/logo.png" width="96" alt="Fling logo">
 
-**Your TV, from the KDE tray and from your phone.**
+# Fling for Windows, Linux & Android
 
-An **unofficial** Linux (KDE Plasma) and Android port of **[Fling](https://github.com/tatianathevisionary/fling)** —
-the macOS menu-bar caster and TV remote created by
-**[Damion Rashford](https://github.com/damionrashford)** and published by **[Tatiana](https://github.com/tatianathevisionary)**.
+**Your TV, from the Windows tray, the KDE panel, your browser and your phone.**
+
 Cast a browser tab or a link to a Chromecast / Google TV — and drive the TV itself:
 power, apps, d-pad, volume, typing, voice search.
 
-<img src="docs/screenshots/linux-panel-en.png" width="300" alt="Fling panel on KDE Plasma">
-&nbsp;&nbsp;
-<img src="docs/screenshots/android-en.png" width="230" alt="Fling on Android">
+[![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white)](docs/install-windows.md)
+[![Linux KDE](https://img.shields.io/badge/Linux-KDE%20Plasma-1D99F3?logo=kde&logoColor=white)](#install--linux)
+[![Android 8+](https://img.shields.io/badge/Android-8%2B-3DDC84?logo=android&logoColor=white)](#install--android)
+<br>
+[![Chrome / Edge](https://img.shields.io/badge/Chrome%20%2F%20Edge-extension-4285F4?logo=googlechrome&logoColor=white)](#browser-extension)
+[![Firefox](https://img.shields.io/badge/Firefox-extension-FF7139?logo=firefoxbrowser&logoColor=white)](#browser-extension)
+[![Safari](https://img.shields.io/badge/Safari-extension-006CFF?logo=safari&logoColor=white)](#browser-extension)
+[![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+
+<img src="docs/screenshots/windows-panel-en.png" width="250" alt="Fling panel on Windows">
+&nbsp;
+<img src="docs/screenshots/extension-popup-en.png" width="250" alt="Fling browser extension">
+&nbsp;
+<img src="docs/screenshots/linux-panel-en.png" width="250" alt="Fling panel on KDE Plasma">
+&nbsp;
+<img src="docs/screenshots/android-en.png" width="190" alt="Fling on Android">
+
+<sub>Windows panel · browser extension · KDE Plasma · Android</sub>
 
 </div>
 
-> **Authorship.** Fling — its idea, design, wording, app catalog and protocol work — belongs to
-> **Damion Rashford** (author of the original code) and **Tatiana** (owner of the original repository).
-> This repository is not their project and is not affiliated with or endorsed by them; it only
-> brings their app to Linux and Android.
+> **Authorship.** An **unofficial** port of **[Fling](https://github.com/tatianathevisionary/fling)** —
+> the macOS menu-bar caster and TV remote created by **[Damion Rashford](https://github.com/damionrashford)**
+> (author of the original code) and published by **[Tatiana](https://github.com/tatianathevisionary)**.
+> Its idea, design, wording, app catalog and protocol work belong to them. This repository is not
+> their project and is not affiliated with or endorsed by them; it only brings their app to
+> Windows, Linux, Android and the browser.
 >
-> **Status:** private preview. This is an independent re-implementation (Python/Qt and Java),
-> not a fork: no Swift code was copied. The look, wording and app catalog follow the original
-> Fling, whose repository has no license yet — the project stays private until its author agrees.
-> See [CREDITS.md](CREDITS.md).
+> **Status:** private preview. An independent re-implementation (Python/Qt, Java, JavaScript),
+> not a fork: no Swift code was copied. The original repository has no license yet — this project
+> stays private until its author agrees. See [CREDITS.md](CREDITS.md).
 
 ---
 
+## Quick start
+
+| I have… | Do this |
+|---|---|
+| **Windows 10 / 11** | Download `Fling-Windows-….zip` from [Releases](../../releases), unzip, double-click **Install shortcuts.cmd**. Step by step: **[Windows guide](docs/install-windows.md)** |
+| **Chrome / Edge / Firefox / Safari** | Install the app first, then the [browser extension](#browser-extension) |
+| **Linux (KDE)** | `git clone` and `linux/install.sh` — [details](#install--linux) |
+| **Android phone** | Install `Fling.apk` from [Releases](../../releases) — [details](#install--android) |
+
+The computer / phone and the TV must be on the same network.
+
 **Contents** · [Features](#features) · [How it works](#how-it-works) ·
-[Install — Linux](#install--linux) · [Install — Android](#install--android) ·
-[Connecting the TV](#connecting-the-tv) · [Usage](#usage) · [Troubleshooting](#troubleshooting) ·
-[Privacy](#privacy) · [Project layout](#project-layout) · [Documentation](#documentation) · [Credits](#credits) · [License](#license)
+[Windows](#install--windows) · [Browser extension](#browser-extension) · [Linux](#install--linux) ·
+[Android](#install--android) · [Connecting the TV](#connecting-the-tv) · [Usage](#usage) ·
+[Troubleshooting](#troubleshooting) · [Privacy](#privacy) · [Project layout](#project-layout) ·
+[Documentation](#documentation) · [Credits](#credits) · [License](#license)
 
 ## Features
 
-| | Linux (KDE) | Android |
-|---|:---:|:---:|
-| Tray/panel UI modelled on the macOS Fling popover | ✓ | ✓ |
-| Cast the current Firefox tab (global shortcut **Meta+Shift+C**) | ✓ | — |
-| Cast a link from the clipboard / share sheet | ✓ | ✓ |
-| Play / pause, ±30 s, volume, stop | ✓ | ✓ |
-| **Real now-playing** (title, artist, artwork, time) via ADB | ✓ | ✓ |
-| YouTube "Link with TV code" (live video + position) | ✓ | — |
-| TV remote over the network: power, app launcher, d-pad, volume, typing, voice | ✓ | ✓ |
-| Laptop as a **Bluetooth LE remote** (HID over GATT) | ✓ | — |
-| One-click **Connect TV** window: find on LAN / pair remote / ADB / YouTube / Bluetooth | ✓ | — |
-| Scroll / swipe anywhere = d-pad | ✓ | ✓ (touchpad) |
-| Phone volume keys control the TV | — | ✓ |
-| Quick Settings tile "Pause on TV" | — | ✓ |
-| English / Russian UI (auto, switchable) | ✓ | ✓ |
-| Terminal remote (`fling-tui`) | ✓ | — |
-| TV screenshot over ADB (saved to Pictures/Fling) | ✓ | ✓ |
+| | Windows | Linux (KDE) | Android | Browser extension |
+|---|:---:|:---:|:---:|:---:|
+| Tray/panel UI modelled on the macOS Fling popover | ✓ | ✓ | ✓ | ✓ popup |
+| Cast the current browser tab | ✓ **Win+Shift+C** | ✓ **Meta+Shift+C** | — | ✓ **Alt+Shift+C** |
+| Resume on the TV where the page's video is | ✓ ¹ | ✓ ¹ | — | ✓ |
+| Cast a link: clipboard / share sheet / right-click menu | ✓ | ✓ | ✓ | ✓ |
+| Play / pause, ±30 s, volume, stop | ✓ | ✓ | ✓ | ✓ |
+| **Real now-playing** (title, artist, artwork, time) via ADB | ✓ | ✓ | ✓ | ✓ |
+| Notification when the TV moves to the next video / track (can be turned off) | ✓ | ✓ | — | — |
+| YouTube "Link with TV code" (live video + position) | ✓ | ✓ | — | — |
+| TV remote: power, app launcher, d-pad, volume, typing | ✓ | ✓ | ✓ | ✓ |
+| Voice search through the microphone | ✓ | ✓ | ✓ | — |
+| Laptop as a **Bluetooth LE remote** (HID over GATT) | — ² | ✓ | — | — |
+| One-click **Connect TV** window | ✓ | ✓ | — | — |
+| Scroll / swipe anywhere = d-pad | ✓ | ✓ | ✓ | ✓ |
+| Phone volume keys, Quick Settings tile | — | — | ✓ | — |
+| English / Russian UI | ✓ | ✓ | ✓ | ✓ |
+| TV screenshot over ADB (saved to Pictures/Fling) | ✓ | ✓ | ✓ | — |
+
+<sub>¹ when the extension casts the tab. ² Windows doesn't let apps act as a Bluetooth keyboard / remote.</sub>
 
 ## How it works
 
@@ -59,16 +93,57 @@ Fling talks to the TV over several open protocols and uses whichever is availabl
 
 | Channel | Used for | Library / implementation |
 |---|---|---|
-| **Google Cast v2** (TLS :8009) | casting media, play/pause/seek/volume | [catt](https://github.com/skorokithakis/catt) on Linux; own Java client on Android |
-| **Android TV Remote v2** (TLS :6466/:6467) | power, keys, app links, typing, voice | [androidtvremote2](https://github.com/tronikos/androidtvremote2) on Linux; own Java client on Android |
-| **ADB over network** (:5555) | what is *really* playing (`dumpsys media_session`) | platform-tools `adb` on Linux; own Java ADB client on Android |
+| **Google Cast v2** (TLS :8009) | casting media, play/pause/seek/volume | [catt](https://github.com/skorokithakis/catt) on Windows/Linux; own Java client on Android |
+| **Android TV Remote v2** (TLS :6466/:6467) | power, keys, app links, typing, voice | [androidtvremote2](https://github.com/tronikos/androidtvremote2) on Windows/Linux; own Java client on Android |
+| **ADB over network** (:5555) | what is *really* playing (`dumpsys media_session`) | platform-tools `adb` on Windows/Linux; own Java ADB client on Android |
 | **YouTube Lounge API** | exact video and position in the YouTube TV app | [pyytlounge](https://github.com/FabioGNR/pyytlounge) |
-| **Bluetooth LE HID** | keys when the network remote isn't paired | BlueZ D-Bus (`linux/bt_remote.py`) |
+| **Bluetooth LE HID** | keys when the network remote isn't paired (Linux) | BlueZ D-Bus (`linux/bt_remote.py`) |
+| **Local bridge** (HTTP, 127.0.0.1:47613) | browser extension ↔ desktop app | `desktop/fling_bridge.py`, `extension/` |
 
 Why so many? Native YouTube on Google TV reports a *frozen* Cast session (stuck in
 `BUFFERING`, old artwork) and ignores Cast pause. Fling detects that, hides the stale data,
 and routes control through the TV remote protocol, while ADB or YouTube Lounge provide the
 real title, artwork and position.
+
+## Install — Windows
+
+**→ Full step-by-step guide: [docs/install-windows.md](docs/install-windows.md)
+([по-русски](docs/install-windows.ru.md)).**
+
+Windows 10 (1809+) or 11, 64-bit (ARM laptops via emulation). No administrator rights needed.
+
+- **Ready-made build:** download `Fling-Windows-….zip` from [Releases](../../releases), unzip to a
+  permanent folder, double-click **`Install shortcuts.cmd`** (Start menu entry + `fling` command).
+  Python, Qt, catt and yt-dlp are bundled. SmartScreen may warn about an unsigned app:
+  *More info → Run anyway*.
+- **From source:** double-click **`windows\install.cmd`** — installs [uv](https://docs.astral.sh/uv/),
+  a private Python 3.12, PyQt6, catt and ADB into `%LOCALAPPDATA%\Fling`, adds Fling to the Start
+  menu and the `fling` command. `windows\uninstall.cmd` removes everything.
+
+On first start allow Fling on **Private networks** in the Windows Firewall prompt — otherwise it
+can't find the TV.
+
+## Browser extension
+
+One extension for **Chrome, Edge, Brave, Opera, Vivaldi, Yandex, Firefox and Safari**
+(`extension/src`, built with `python extension/build.py`). It is the browser half of the desktop app:
+
+- a toolbar popup with *Cast this tab* (or **Resume on TV at 12:34** when the page's video is
+  mid-play), now playing, play/pause/seek/stop, volume and the full TV remote;
+- *Cast link / video / page to TV* in the right-click menu, **Alt+Shift+C** in the browser;
+- tells the app which tab is active, so the panel's *Cast this tab* and the system-wide
+  shortcut work with any browser, not just Firefox.
+
+It talks **only** to the Fling app on the same computer (`http://127.0.0.1:47613`), which accepts
+browser extensions and local tools and refuses web pages.
+
+| Browser | Install |
+|---|---|
+| Chrome, Edge, Brave, Opera, Vivaldi, Yandex | `chrome://extensions` → Developer mode → **Load unpacked** → the `extension\chrome` folder of the Windows zip, or `fling-chrome-….zip` from Releases, unzipped |
+| Firefox | `about:debugging` → **Load Temporary Add-on** → `fling-firefox-….zip` (a permanent install needs Developer Edition until it's on AMO) |
+| Safari (Mac) | `extension/safari/build-safari.sh` on a Mac with Xcode; works with Fling running on that Mac |
+
+Details: [Windows guide → Part 2](docs/install-windows.md#part-2-the-browser-extension).
 
 ## Install — Linux
 
@@ -86,7 +161,7 @@ catt, a private Python venv in `~/.local/share/fling`, launchers in `~/.local/bi
 and the **Meta+Shift+C** shortcut (active after re-login). Remove everything with
 `./install.sh --uninstall`.
 
-Commands:
+Commands (the same on Windows, in PowerShell / cmd):
 
 ```text
 fling             open the panel (starts Fling if needed)
@@ -94,10 +169,10 @@ fling tray        start only the tray icon
 fling setup       open the Connect TV window
 fling help        open the "How to use" guide
 fling screenshot  save a TV screenshot (needs ADB)
-fling cast-tab    cast the current Firefox tab
+fling cast-tab    cast the current browser tab
 fling clip        cast the link from the clipboard
 fling quit        exit
-fling tui         terminal remote
+fling tui         terminal remote (Linux)
 ```
 
 ## Install — Android
@@ -127,21 +202,24 @@ Each step shows ✓ done · ⏳ working · ! needs you on the TV · ✗ failed.
    *Settings → System → Developer options → USB debugging + Wireless debugging*.
    If the TV shows a pairing port and code, enter them in the window (`adb pair`).
 4. **YouTube on the TV** *(optional)* — *YouTube → Settings → Link with TV code*, enter the 12 digits.
-5. **Bluetooth remote** *(backup)* — on the TV: *Settings → Remotes & Accessories → Pair accessory →
+5. **Bluetooth remote** *(backup, Linux)* — on the TV: *Settings → Remotes & Accessories → Pair accessory →
    "Fling Remote"*. KDE asks you to confirm pairing.
 
 ## Usage
 
 - **Panel:** click the tray icon. Space = play/pause, ←/→ = ±30 s, Ctrl+. = stop,
   scroll anywhere = d-pad, Esc = close. The ⟳ button on the artwork refreshes.
-- **Cast this tab:** Fling reads the active Firefox tab from the session store. For instant
-  pick-up set `browser.sessionstore.interval` to `2000` in `about:config`.
+- **Cast this tab:** with the [browser extension](#browser-extension) Fling knows the active tab of
+  Chrome, Edge, Firefox or Safari instantly. Without it, it reads the active Firefox tab from the
+  session store (set `browser.sessionstore.interval` to `2000` in `about:config` for quick pick-up).
+- **Notifications:** when the TV moves to another video or track you get a notification with the
+  new title; turn it off with *Notify when the video changes* in the panel or the tray menu.
 - **Android:** share a link to **Fling** from YouTube or a browser — it goes straight to the TV.
   Volume keys control the TV while the app is open. Add the *Pause on TV* Quick Settings tile.
 
 What can be cast: YouTube (opened in the TV's YouTube app), direct media files
 (mp4, mkv, webm, mp3, m3u8, mpd, …) and most sites [yt-dlp](https://github.com/yt-dlp/yt-dlp)
-understands (Linux). DRM services (Netflix etc.) can be launched and controlled but not cast.
+understands. DRM services (Netflix etc.) can be launched and controlled but not cast.
 
 ## Troubleshooting
 
@@ -152,42 +230,57 @@ understands (Linux). DRM services (Netflix etc.) can be launched and controlled 
 | "Not a video page" | Plain web pages can't be cast; open the video page itself. |
 | Can't type the TV code | Use the on-screen keys under the field. |
 | TV screenshot is black | DRM: video surfaces are protected; Fling uses media metadata instead. |
-| Bluetooth remote not visible | Press *Connect as Bluetooth remote* again (the window lasts 3 min); check `bluetoothctl show` lists *Human Interface Device*. |
-| Panel is tiny / blurry | Fling reads the XWayland scale from `~/.config/kwinrc`; set `QT_SCALE_FACTOR` to override. |
+| Bluetooth remote not visible (Linux) | Press *Connect as Bluetooth remote* again (the window lasts 3 min); check `bluetoothctl show` lists *Human Interface Device*. |
+| Panel is tiny / blurry (Linux) | Fling reads the XWayland scale from `~/.config/kwinrc`; set `QT_SCALE_FACTOR` to override. |
+| Windows: TV not found, extension offline, mic, shortcuts, black corners | See the [Windows guide](docs/install-windows.md#troubleshooting). |
 
-Logs: `~/.cache/fling/app.log`, `~/.cache/fling/bt.log`.
+Logs: `~/.cache/fling/app.log`, `~/.cache/fling/bt.log` (Linux), `%LOCALAPPDATA%\Fling\logs\app.log` (Windows).
 
 ## Privacy
 
 Everything stays on your network. Fling contacts only your TV, plus `youtube.com` for
 titles/artwork lookups (oEmbed and search) and the YouTube Lounge API when you link it.
-Pairing certificates live in `~/.local/share/fling/atv/` (Linux) or the app's private storage
-(Android). No analytics, no accounts.
+The browser extension sends tab addresses only to the Fling app on the same computer and never
+from private windows. Pairing certificates live in `~/.local/share/fling/atv/` (Linux),
+`%LOCALAPPDATA%\Fling\atv\` (Windows) or the app's private storage (Android).
+No analytics, no accounts.
 
 ## Project layout
 
 ```text
+desktop/             shared by Windows and Linux (PyQt6)
+  fling_app.py       tray + panel + Connect TV window + help window
+  fling_platform.py  everything OS-specific: paths, processes, autostart, hotkey, microphone
+  fling_bridge.py    local HTTP bridge for the browser extensions (127.0.0.1 only)
+  fling_help.py      texts of the built-in "How to use" guide (EN + RU, Windows variants)
+  sf_icons.py        line icons in SF-Symbols style
+windows/
+  install.ps1        install from source / update / uninstall (install.cmd, uninstall.cmd)
+  build.ps1          standalone Fling.exe + release zip (PyInstaller)
+  setup-shortcuts.ps1  Start menu + `fling` command for the standalone build
 linux/
-  fling_app.py     tray + panel + Connect TV window (PyQt6)
-  fling_help.py    texts of the built-in "How to use" guide (EN + RU)
-  bt_remote.py     Bluetooth LE HID remote service (BlueZ D-Bus)
-  sf_icons.py      line icons in SF-Symbols style
-  fling            launcher (single instance, commands)
-  fling-tui        terminal remote (bash + catt)
-  install.sh       installer / uninstaller
+  bt_remote.py       Bluetooth LE HID remote service (BlueZ D-Bus)
+  fling              launcher (single instance, commands)
+  fling-tui          terminal remote (bash + catt)
+  install.sh         installer / uninstaller
+extension/
+  src/               background, popup, options, locales — one source for every browser
+  build.py           → dist/chrome, dist/firefox, dist/safari + zips
+  safari/            Xcode wrapper script for Safari
 android/
-  src/app/fling/   MainActivity, Ui, Atv (TV remote), Cast (Cast v2), Adb (ADB client), Discovery (mDNS),
-                   Proto (protobuf), Tls (self-signed client cert), L (i18n), PauseTile
+  src/app/fling/     MainActivity, Ui, Atv (TV remote), Cast (Cast v2), Adb (ADB client), Discovery (mDNS),
+                     Proto (protobuf), Tls (self-signed client cert), L (i18n), PauseTile
   res/, AndroidManifest.xml, build.sh
-docs/screenshots/
+docs/                guides, architecture, protocols, screenshots
 ```
 
 ## Documentation
 
 | Document | What it covers |
 |---|---|
-| [Architecture](docs/architecture.md) | Components, threading, now-playing sources, files |
-| [Protocols](docs/protocols.md) | Cast v2, Android TV Remote v2, ADB, YouTube Lounge, Bluetooth LE HID |
+| [Windows install guide](docs/install-windows.md) · [RU](docs/install-windows.ru.md) | Step by step: app, browser extension, first start, troubleshooting |
+| [Architecture](docs/architecture.md) | Components, threading, the browser bridge, now-playing sources, files |
+| [Protocols](docs/protocols.md) | Cast v2, Android TV Remote v2, ADB, YouTube Lounge, Bluetooth LE HID, the bridge API |
 | [Development](docs/development.md) | Building, checks, testing on a real TV, translations, releases |
 | [Changelog](CHANGELOG.md) | What changed in each version |
 
@@ -200,11 +293,14 @@ docs/screenshots/
 - [catt](https://github.com/skorokithakis/catt) (BSD-2-Clause),
   [androidtvremote2](https://github.com/tronikos/androidtvremote2) (Apache-2.0),
   [pyytlounge](https://github.com/FabioGNR/pyytlounge) (MIT),
-  [PyQt6](https://www.riverbankcomputing.com/software/pyqt/), BlueZ, Android platform-tools.
+  [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) (GPL-3.0),
+  [python-sounddevice](https://github.com/spatialaudio/python-sounddevice) (MIT),
+  [PyInstaller](https://pyinstaller.org/), BlueZ, Android platform-tools.
 
 Details in [CREDITS.md](CREDITS.md).
 
 ## License
 
 The code in this repository is [MIT](LICENSE). The original Fling — its design, texts and idea —
-belongs to Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
+belongs to Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md). The standalone Windows build
+bundles PyQt6 (GPL-3.0); its complete source is this repository.

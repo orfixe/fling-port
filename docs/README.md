@@ -5,6 +5,7 @@ live in the [root README](../README.md).
 
 | Document | What it covers |
 |---|---|
+| [Windows install guide](install-windows.md) · [RU](install-windows.ru.md) | Installing the Windows app and the browser extensions, step by step |
 | [Architecture](architecture.md) | Components of the Linux and Android apps, threading, where data comes from |
 | [Protocols](protocols.md) | Cast v2, Android TV Remote v2, ADB over TCP, YouTube Lounge, Bluetooth LE HID |
 | [Development](development.md) | Building, checking, testing on a real TV, translations, releases |
