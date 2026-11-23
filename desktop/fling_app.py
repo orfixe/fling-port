@@ -1581,7 +1581,7 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Отправляю…", "Casting…"), ("Пауза / Играть", "Play / Pause"), ("Пауза на ТВ", "Pause on TV"),
     ("Предыдущее видео", "Previous video"), ("Следующее видео", "Next video"), ("Пробел", "Space"),
     ("Проверьте код — он действует несколько минут.", "Check the code — it's valid for a few minutes."),
-    ("Свяжите один раз с ТВ, чтобы открыть приложения, крестовину и ввод текста.",
+    ("Свяжите один раз с ТВ, чтобы открыть приложения, стрелки и ввод текста.",
      "Pair once with the TV to unlock apps, the d-pad, and typing."),
     ("Связать с YouTube на ТВ — видеть, что играет", "Link YouTube on the TV — see what's playing"),
     ("Связать", "Pair"), ("Скопировать команду установки", "Copy install command"),
@@ -1714,7 +1714,7 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
     ('Выбран: ', 'Selected: '),
     (' · найдено ', ' · found '),
     ('ТВ ещё не найден.', 'No TV found yet.'),
-    ('Связан: кнопки приложений, крестовина, пауза, ввод текста.', 'Paired: app buttons, d-pad, pause, typing.'),
+    ('Связан: кнопки приложений, стрелки, пауза, ввод текста.', 'Paired: app buttons, d-pad, pause, typing.'),
     ('Связать заново', 'Pair again'),
     ('Связываюсь с ТВ…', 'Contacting the TV…'),
     ('Введите код, который показал ТВ (A–F и цифры; русская раскладка подойдёт).', 'Enter the code shown on the TV (A–F and digits; a Russian layout works too).'),
@@ -2744,7 +2744,7 @@ class Panel(QWidget):
 
         self.r_setup = QWidget()
         sl = QVBoxLayout(self.r_setup); sl.setContentsMargins(0, 0, 0, 4); sl.setSpacing(0)
-        sl.addWidget(padded(label("Свяжите один раз с ТВ, чтобы открыть приложения, крестовину и ввод текста.",
+        sl.addWidget(padded(label("Свяжите один раз с ТВ, чтобы открыть приложения, стрелки и ввод текста.",
                                   11, T.fg_a(0.55), wrap=True), 14, 10, 14, 6))
         sl.addWidget(MenuRow("Включить ТВ", icon="power", on=state.wake))
         pair = MenuRow("Связать с ТВ", icon="tv_plus", accented=True, on=state.start_pairing)
@@ -4074,7 +4074,7 @@ class SetupWindow(QWidget):
             self._set("find", "off", "ТВ ещё не найден.", "Искать")
         p = s.tv_pairing
         if s.tv_paired:
-            self._set("remote", "ok", "Связан: кнопки приложений, крестовина, пауза, ввод текста.", "Связать заново", False)
+            self._set("remote", "ok", "Связан: кнопки приложений, стрелки, пауза, ввод текста.", "Связать заново", False)
         elif p == "starting":
             self._set("remote", "run", "Связываюсь с ТВ…", None, False)
         elif p in ("pin", "verifying"):
