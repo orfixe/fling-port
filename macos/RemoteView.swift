@@ -47,6 +47,54 @@ struct RemoteView: View {
     }
 
     /// Says so while the Mac keyboard goes to the TV instead of the app the user was in.
+    /// How to drive the TV from the Mac keyboard; follows the arrows / WASD switch.
+    private var keyLegend: some View {
+        let lines: [String] = capture.scheme == .wasd ? [
+            "W A S D — move · E or Return — OK · Q or Delete — Back",
+            "Home — home screen · + / − — volume · Space — OK / pause",
+            "Shift + A / D — seek · ⌘V — paste text · Esc — release keyboard",
+        ] : [
+            "↑ ↓ ← → — move · Return — OK · Delete — Back",
+            "Home — home screen · + / − — volume · Space — OK / pause",
+            "Shift + ← / → — seek · ⌘V — paste text · Esc — release keyboard",
+        ]
+        return VStack(spacing: 1) {
+            ForEach(lines, id: \.self) { Text($0) }
+            Text("or scroll anywhere to move around the TV")
+        }
+        .font(.system(size: 9.5)).foregroundStyle(.tertiary)
+        .multilineTextAlignment(.center)
+        .id(capture.scheme)
+        .transition(.opacity)
+    }
+
+    /// Two-position switch under the d-pad: arrow keys ↔ W A S D.
+    private var schemeSwitch: some View {
+        HStack(spacing: 0) {
+            schemeOption(.arrows) { Image(systemName: "arrowkeys").font(.system(size: 9.5)) }
+                .help("Move with the arrow keys")
+            schemeOption(.wasd) { Text("WASD").font(.system(size: 8, weight: .bold, design: .rounded)) }
+                .help("Move with W A S D (E = OK, Q = Back)")
+        }
+        .padding(1.5)
+        .background(Color.primary.opacity(0.06), in: Capsule())
+    }
+
+    private func schemeOption<L: View>(_ scheme: KeyScheme, @ViewBuilder label: () -> L) -> some View {
+        let on = capture.scheme == scheme
+        return Button {
+            withAnimation(.easeInOut(duration: 0.12)) { capture.scheme = scheme }
+        } label: {
+            label()
+                .foregroundStyle(on ? Color.primary : Color.secondary)
+                .frame(width: 30, height: 15)
+                .background(on ? Color.accentColor.opacity(0.25) : Color.clear, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(scheme == .wasd ? "WASD" : "Arrow keys")
+    }
+
     private var keysCaptured: Bool { capture.on && !typeFocused }
     /// Badge shows while the keyboard is captured, and always when capture is off
     /// (so it can be turned back on).
@@ -166,8 +214,8 @@ struct RemoteView: View {
                     .help("Home")
             }
             KeyButton(symbol: "chevron.down", size: 30, state: state, code: ATVKeyCode.dpadDown)
-            Text("arrow keys, or scroll anywhere, to move around the TV")
-                .font(.system(size: 9.5)).foregroundStyle(.quaternary)
+            schemeSwitch.padding(.top, 2)
+            keyLegend
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 6).padding(.bottom, 8)

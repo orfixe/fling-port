@@ -116,6 +116,18 @@ private enum RU {
         "Back": "Назад",
         "Home": "Домой",
         "or scroll anywhere to move around the TV": "или крутите колёсико / тачпад в любом месте панели",
+        "W A S D — move · E or Return — OK · Q or Delete — Back":
+            "W A S D — движение · E или Return — OK · Q или Delete — Назад",
+        "↑ ↓ ← → — move · Return — OK · Delete — Back": "↑ ↓ ← → — движение · Return — OK · Delete — Назад",
+        "Home — home screen · + / − — volume · Space — OK / pause":
+            "Home — главный экран · + / − — громкость · Пробел — OK / пауза",
+        "Shift + A / D — seek · ⌘V — paste text · Esc — release keyboard":
+            "Shift + A / D — перемотка · ⌘V — вставить текст · Esc — отпустить клавиатуру",
+        "Shift + ← / → — seek · ⌘V — paste text · Esc — release keyboard":
+            "Shift + ← / → — перемотка · ⌘V — вставить текст · Esc — отпустить клавиатуру",
+        "Move with the arrow keys": "Управлять стрелками",
+        "Move with W A S D (E = OK, Q = Back)": "Управлять W A S D (E = OK, Q = Назад)",
+        "Arrow keys": "Стрелки",
         "arrow keys, or scroll anywhere, to move around the TV":
             "стрелки на клавиатуре или колёсико / тачпад — движение по ТВ",
         "Vol −": "Громк −",

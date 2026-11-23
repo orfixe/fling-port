@@ -4,7 +4,7 @@ import FlingKit
 
 /// While the panel is open, the Mac keyboard drives the TV — the same keys as the
 /// Windows / Linux port: arrows (hold to repeat), Return = OK, Delete = Back,
-/// Home, + / − volume, Space (play/pause while casting, OK otherwise),
+/// Home, + / − volume — or W A S D (E = OK, Q = Back) when that scheme is picked, Space (play/pause while casting, OK otherwise),
 /// Shift+← / → seek, ⌘V pastes the clipboard text on the TV. Not paired yet but casting: ← / → seek, Space pauses.
 ///
 /// Works like ScrollRemote: a local monitor, only for events in the panel's
@@ -31,6 +31,28 @@ final class KeyRemote {
         static let space: UInt16 = 49, home: UInt16 = 115
         static let equal: UInt16 = 24, minus: UInt16 = 27, padPlus: UInt16 = 69, padMinus: UInt16 = 78
         static let escape: UInt16 = 53, v: UInt16 = 9
+        // WASD scheme (+ E = OK, Q = Back); key positions, so any layout works
+        static let w: UInt16 = 13, a: UInt16 = 0, s: UInt16 = 1, d: UInt16 = 2, q: UInt16 = 12, e: UInt16 = 14
+        static let none: UInt16 = 0xFFFF
+    }
+
+    /// The chosen scheme drives the d-pad; the other one's keys are left alone.
+    private static func remap(_ key: UInt16, _ scheme: KeyScheme) -> UInt16 {
+        switch scheme {
+        case .arrows:
+            return key
+        case .wasd:
+            switch key {
+            case K.w: return K.up
+            case K.a: return K.left
+            case K.s: return K.down
+            case K.d: return K.right
+            case K.e: return K.ret
+            case K.q: return K.delete
+            case K.up, K.down, K.left, K.right: return K.none
+            default: return key
+            }
+        }
     }
     private static let repeatable: Set<UInt16> = [K.left, K.right, K.up, K.down,
                                                   K.equal, K.minus, K.padPlus, K.padMinus]
@@ -113,7 +135,8 @@ final class KeyRemote {
             return true
         }
         if event.modifierFlags.intersection([.command, .control, .option]) != [] { return false }
-        let key = event.keyCode
+        let key = Self.remap(event.keyCode, KeyCapture.shared.scheme)
+        if key == K.none { return false }
         if key == K.escape, let popover, popover.isShown {          // Esc: close the panel, keys go back
             popover.performClose(nil)
             return true
@@ -173,10 +196,17 @@ final class KeyCapture: ObservableObject {
     static let shared = KeyCapture()
     @Published var on = false
     /// User switch (the ⌨ badge): capture the Mac keyboard at all. On by default.
+    /// Which keys move around the TV: arrows or W A S D. Arrows by default.
+    @Published var scheme: KeyScheme = KeyScheme(rawValue: UserDefaults.standard.string(forKey: "keyScheme") ?? "")
+                                       ?? .arrows {
+        didSet { UserDefaults.standard.set(scheme.rawValue, forKey: "keyScheme") }
+    }
     @Published var enabled: Bool = UserDefaults.standard.object(forKey: "keyCapture") as? Bool ?? true {
         didSet { UserDefaults.standard.set(enabled, forKey: "keyCapture") }
     }
 }
+
+enum KeyScheme: String { case arrows, wasd }
 
 /// Android key codes the upstream ATVKeyCode table doesn't list.
 enum PortKey {

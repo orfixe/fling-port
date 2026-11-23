@@ -18,6 +18,8 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   search) or sends on Return (right-click to choose); paste the clipboard on the TV with the
   clipboard button or ⌘V.
 - macOS: the small ⌨ badge beside the TV power key turns keyboard capture on / off (on by default).
+- macOS: W A S D as an alternative to the arrow keys (E = OK, Q = Back), picked with a small
+  arrows / WASD switch under the d-pad; the key guide below it follows the switch.
 
 ### Changed
 
