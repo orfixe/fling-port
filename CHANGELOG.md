@@ -25,6 +25,11 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 - Desktop: a strip at the top of the panel says when the keyboard is captured for the TV
   (Esc releases it); it hides while a text field is open.
 
+### Fixed
+
+- Windows installer: Fling is stopped before catt is updated. Updating catt while Fling was
+  running could fail and leave casting without catt; a rerun now repairs that.
+
 ## [0.3.0] - 2026-11-22
 
 ### Added

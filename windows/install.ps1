@@ -61,6 +61,8 @@ function Stop-Fling {
   Get-CimInstance Win32_Process -Filter "Name='pythonw.exe' OR Name='python.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -like '*fling_app.py*' } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+  # a running catt.exe (Fling polls the TV with it) is locked and breaks `uv tool install`
+  Get-Process catt -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 }
 
 # ------------------------------------------------------------------ uninstall
@@ -110,12 +112,13 @@ Note $Uv
 
 # ------------------------------------------------------------------ catt
 Step 'Cast engine (catt)'
-Exec $Uv tool install --upgrade --python $PySpec catt
+Stop-Fling                                    # before catt: its catt.exe must not be running
+# --force: take over a catt.exe left behind by an earlier, interrupted install
+Exec $Uv tool install --upgrade --force --python $PySpec catt
 Exec $Uv tool update-shell -AllowFail       # puts %USERPROFILE%\.local\bin on PATH
 
 # ------------------------------------------------------------------ Python environment
 Step 'Python environment'
-Stop-Fling
 New-Item -ItemType Directory -Force -Path $App, $Bin, (Join-Path $App 'app'), (Join-Path $App 'logs') | Out-Null
 if (-not (Test-Path $Py)) {
   Exec $Uv venv --python $PySpec $Venv
