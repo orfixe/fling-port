@@ -30,6 +30,10 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 - Desktop: TV volume as a slider with the TV's own level (the TV reports it over the remote
   session, no polling); the speaker icon mutes. TVs that don't report a volume keep the
   − / mute / + keys. The laptop's own volume keys no longer drive the TV.
+- Desktop: the volume shows in percent; while you drag, a bubble above the slider shows the
+  level. Works on TVs whose scale isn't 0–100.
+- Desktop: shorter button labels ("Settings", "Reboot", "Turn on" instead of "… TV"), and the
+  keyboard hint under the d-pad is gone — each button's tooltip names its key.
 
 ### Fixed
 
