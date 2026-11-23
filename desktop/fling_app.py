@@ -286,9 +286,10 @@ REMOTE_KEYS = {
     # Escape closes the panel (see shortcuts) — Backspace / Delete / BrowserBack go to the TV
     "back": _qt_keys("Key_Backspace", "Key_Delete", "Key_Back", "Key_0"),
     "home": _qt_keys("Key_Home", "Key_H", "Key_Cyrillic_Ha", "Key_3"),
-    "vol_up": _qt_keys("Key_VolumeUp", "Key_Plus", "Key_Equal", "Key_BracketRight"),
-    "vol_down": _qt_keys("Key_VolumeDown", "Key_Minus", "Key_BracketLeft"),
-    "mute": _qt_keys("Key_VolumeMute", "Key_M", "Key_Cyrillic_Em"),
+    # not Key_VolumeUp / Down / Mute: the laptop's own volume keys stay with the laptop
+    "vol_up": _qt_keys("Key_Plus", "Key_Equal", "Key_BracketRight"),
+    "vol_down": _qt_keys("Key_Minus", "Key_BracketLeft"),
+    "mute": _qt_keys("Key_M", "Key_Cyrillic_Em"),
     "play_pause": _qt_keys("Key_MediaTogglePlayPause", "Key_MediaPlay", "Key_MediaPause",
                            "Key_Space", "Key_P", "Key_Cyrillic_Ze"),
     "ffwd": _qt_keys("Key_MediaNext", "Key_Period", "Key_Greater"),
@@ -338,9 +339,11 @@ class ATV(QObject):
     pairing = pyqtSignal(str, str)   # state, message
     error = pyqtSignal(str)
     voice = pyqtSignal(bool)
+    volume = pyqtSignal(object)      # {"level", "max", "muted"} as the TV reports it | None
 
     def __init__(self):
         super().__init__()
+        self._vol_task = None
         self.loop = asyncio.new_event_loop()
         threading.Thread(target=self.loop.run_forever, daemon=True).start()
         self.remote = None
@@ -437,17 +440,22 @@ class ATV(QObject):
         self.host = host
         self.remote.add_is_on_updated_callback(lambda on: self.power.emit(on))
         self.remote.add_current_app_updated_callback(lambda a: self.app.emit(a))
+        # the TV pushes its own volume whenever it changes (remote, our keys, CEC) — no polling
+        self.remote.add_volume_info_updated_callback(lambda v: self.volume.emit(dict(v) if v else None))
         def avail(ok):
             self.connected = ok
             if not ok:
                 self.power.emit(None)
                 self.app.emit(None)
+                self.volume.emit(None)
         self.remote.add_is_available_updated_callback(avail)
         await self.remote.async_connect()
         self.connected = True
         self.remote.keep_reconnecting()
         self.power.emit(self.remote.is_on)
         self.app.emit(self.remote.current_app)
+        if self.remote.volume_info:
+            self.volume.emit(dict(self.remote.volume_info))
 
     def connect(self, host):
         if self.paired(host):
@@ -461,6 +469,36 @@ class ATV(QObject):
 
     def key(self, host, code):
         self._send(host, lambda r: r.send_key_command(code))
+
+    def set_volume(self, host, target: int):
+        """Walk the TV volume to `target` with VOLUME_UP / VOLUME_DOWN: the remote protocol has
+        no "set level" command. A newer target replaces the walk in progress."""
+        async def walk():
+            await self._connect(host)
+            r = self.remote
+            stuck = 0
+            for _ in range(200):                        # never more steps than a full scale twice
+                v = r.volume_info
+                if not v or v.get("level") == target:
+                    return
+                before = v["level"]
+                r.send_key_command(24 if target > before else 25)
+                # next step only once the TV has answered with its new level (or after 0.4 s),
+                # so a slow TV doesn't overshoot
+                for _ in range(20):
+                    await asyncio.sleep(0.02)
+                    if (r.volume_info or {}).get("level") != before:
+                        stuck = 0
+                        break
+                else:
+                    stuck += 1
+                    if stuck >= 3:                      # the TV ignores the steps (limit, locked): stop
+                        return
+        async def start():
+            if self._vol_task and not self._vol_task.done():
+                self._vol_task.cancel()
+            self._vol_task = asyncio.ensure_future(walk())
+        self._go(start())
 
     def launch(self, host, link):
         self._send(host, lambda r: r.send_launch_app_command(link))
@@ -822,6 +860,12 @@ class State(QObject):
         self.atv.app.connect(lambda v: self._set(tv_app=v))
         self.atv.error.connect(lambda m: self._set(last_error=m))
         self.atv.voice.connect(lambda v: self._set(tv_voice=v))
+        self.tv_volume = None        # {"level", "max", "muted"} pushed by the TV over the remote session
+        self.atv.volume.connect(self._on_tv_volume)
+        self._tv_vol_want = None
+        self._tv_vol_timer = QTimer(singleShot=True, interval=150)
+        self._tv_vol_timer.timeout.connect(lambda: self.ip and self._tv_vol_want is not None
+                                           and self.atv.set_volume(self.ip, self._tv_vol_want))
         self.atv.pairing.connect(self._on_pairing)
         self.yt = {}
         self.bt = {}
@@ -1476,6 +1520,23 @@ class State(QObject):
     def _send_volume(self):
         self._catt(["volume", str(self.volume)])
 
+    # TV volume (Android TV Remote): the level the TV itself reports, not the Cast app volume
+    def _on_tv_volume(self, v):
+        self.tv_volume = v
+        if v and self._tv_vol_want == v.get("level"):
+            self._tv_vol_want = None                    # arrived
+        self.changed.emit()
+
+    def set_tv_volume(self, level: int):
+        v = self.tv_volume
+        if not v:
+            return
+        self._tv_vol_want = max(0, min(int(v.get("max") or 100), int(level)))
+        self._tv_vol_timer.start()                      # wait until the slider stops moving
+
+    def toggle_tv_mute(self):
+        self.tv_key(KEY["mute"])
+
     def wake(self):
         ip = self.ip
         def work():
@@ -1583,9 +1644,11 @@ EN_PHRASES = [  # longest first is applied automatically
     ("или крутите колёсико / тачпад в любом месте панели", "or scroll anywhere to move around the TV"),
     ("Клавиатура: стрелки/WASD · Enter=OK · Backspace=Назад · Home · +/− громкость · Пробел пауза · колёсико",
      "Keyboard: arrows/WASD · Enter=OK · Backspace=Back · Home · +/− volume · Space pause · scroll"),
-    ("Громкость −  (− / [ / VolumeDown)", "Volume −  (− / [ / VolumeDown)"),
-    ("Громкость +  (+ / ] / VolumeUp)", "Volume +  (+ / ] / VolumeUp)"),
-    ("Без звука  (M / VolumeMute)", "Mute  (M / VolumeMute)"),
+    ("Громкость −  (− / [)", "Volume −  (− / [)"),
+    ("Громкость +  (+ / ])", "Volume +  (+ / ])"),
+    ("Без звука  (M)", "Mute  (M)"),
+    ("Звук ТВ: щёлкните, чтобы выключить / включить", "TV sound: click to mute / unmute"),
+    ("Громкость телевизора", "TV volume"), ("Громкость трансляции", "Cast volume"),
     ("Вверх  (↑ / W)", "Up  (↑ / W)"),
     ("Вниз  (↓ / S)", "Down  (↓ / S)"),
     ("Влево  (← / A)", "Left  (← / A)"),
@@ -2689,14 +2752,26 @@ def small_button(text, on):
     return b
 
 
+def tv_volume_known(s: "State"):
+    """The TV's own volume, if the paired TV reports one ({"level", "max", "muted"}).
+    Not every TV does (sound through a soundbar / receiver, some makers) — then None."""
+    v = s.tv_volume
+    return v if (s.tv_paired and v and v.get("max")) else None
+
+
 class VolumeRow(QWidget):
+    """Volume slider. With the TV reporting its volume over the remote session it shows and
+    sets the TV's own level on the TV's scale; otherwise the Cast volume (catt)."""
     def __init__(self, state: State):
         super().__init__()
         self.state = state
         lay = QHBoxLayout(self)
         lay.setContentsMargins(14, 3, 14, 3)
         lay.setSpacing(9)
-        self.ic = QLabel(); self.ic.setFixedWidth(13)
+        self.ic = QPushButton(); self.ic.setFixedSize(18, 18)
+        self.ic.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.ic.setStyleSheet("QPushButton{border:none;background:transparent}")
+        self.ic.clicked.connect(self._mute)
         self.slider = SlimSlider()
         self.slider.valueChanged.connect(self._moved)
         self.num = label("50", 10.5, T.fg_a(0.3))
@@ -2707,17 +2782,39 @@ class VolumeRow(QWidget):
         self._updating = False
 
     def _moved(self, v):
-        if not self._updating:
+        if self._updating:
+            return
+        if tv_volume_known(self.state):
+            self.num.setText(str(v))
+            self.state.set_tv_volume(v)
+        else:
             self.state.set_volume(v)
 
+    def _mute(self):
+        if tv_volume_known(self.state):
+            self.state.toggle_tv_mute()
+
     def sync(self):
-        v = self.state.volume
+        s = self.state
+        tv = tv_volume_known(s)
+        if tv:
+            top = int(tv["max"])
+            v = s._tv_vol_want if s._tv_vol_want is not None else int(tv["level"])
+            muted = bool(tv.get("muted")) or v == 0
+        else:
+            top, v = 100, s.volume
+            muted = v == 0
         self._updating = True
+        if self.slider.maximum() != top:
+            self.slider.setRange(0, top)
         if self.slider.value() != v:
             self.slider.setValue(v)
         self._updating = False
         self.num.setText(str(v))
-        self.ic.setPixmap(glyph("spk_slash" if v == 0 else "spk_wave", 13, T.fg_a(0.55)).pixmap(13, 13))
+        self.ic.setIcon(glyph("spk_slash" if muted else "spk_wave", 13, T.fg_a(0.55)))
+        self.ic.setCursor(Qt.CursorShape.PointingHandCursor if tv else Qt.CursorShape.ArrowCursor)
+        self.ic.setToolTip("Звук ТВ: щёлкните, чтобы выключить / включить" if tv else "")
+        self.setToolTip("Громкость телевизора" if tv else "Громкость трансляции")
 
 
 # ---------------------------------------------------------------- the panel (PanelView.swift)
@@ -2993,15 +3090,21 @@ class Panel(QWidget):
                      "+/− громкость · Пробел пауза · колёсико", 9.5, T.fg_a(0.4), wrap=True)
         hint.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         rl.addWidget(padded(hint, 10, 0, 10, 6))
-        vk = QHBoxLayout(); vk.setContentsMargins(12, 8, 12, 4); vk.setSpacing(5)
+        # TV volume: the level the TV reports, as a slider; TVs that don't report one keep the keys
+        self.r_vol = VolumeRow(state)
+        self.r_vol.layout().setContentsMargins(14, 8, 14, 4)
+        self.r_vol.hide()
+        rl.addWidget(self.r_vol)
+        self.vol_keys = QWidget()
+        vk = QHBoxLayout(self.vol_keys); vk.setContentsMargins(12, 8, 12, 4); vk.setSpacing(5)
         vd = Pill("spk_minus", " Громк −", k("vol_down"), repeat=True)
-        vd.setToolTip("Громкость −  (− / [ / VolumeDown)")
+        vd.setToolTip("Громкость −  (− / [)")
         vm = Pill("spk_slash", " Без звука", k("mute"))
-        vm.setToolTip("Без звука  (M / VolumeMute)")
+        vm.setToolTip("Без звука  (M)")
         vu = Pill("spk_plus", " Громк +", k("vol_up"), repeat=True)
-        vu.setToolTip("Громкость +  (+ / ] / VolumeUp)")
+        vu.setToolTip("Громкость +  (+ / ])")
         vk.addWidget(vd); vk.addWidget(vm); vk.addWidget(vu)
-        rl.addLayout(vk)
+        rl.addWidget(self.vol_keys)
         # Keyboard icon → reveal type field (sendText over Android TV Remote, as in Damion's Fling)
         ty = QVBoxLayout(); ty.setContentsMargins(14, 4, 14, 9); ty.setSpacing(3)
         tr = QHBoxLayout(); tr.setSpacing(6)
@@ -3531,6 +3634,12 @@ class Panel(QWidget):
         bt_only = ready and not s.tv_paired
         self.grid_box.setVisible(not bt_only)      # app links need the network remote
         self.mic.setVisible(not bt_only)
+        # the TV's own volume as a slider when it reports one; otherwise the − / mute / + keys
+        tv_vol = tv_volume_known(s) is not None
+        self.r_vol.setVisible(tv_vol)
+        self.vol_keys.setVisible(not tv_vol)
+        if tv_vol:
+            self.r_vol.sync()
         self.kb_btn.setVisible(True)
         if bt_only:
             self.r_now.setText(f"Bluetooth-пульт · {s.bt.get('peer') or 'ТВ'}")
