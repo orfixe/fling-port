@@ -26,6 +26,8 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   force-stop, reboot, disconnect. The Android button in the panel opens the same menu.
 - macOS: a private build of Fling with the keyboard icon, installed from Terminal
   (`macos/install.sh`) so macOS doesn't quarantine it.
+- macOS: the Mac keyboard drives the TV while the panel is open — arrows, Return = OK,
+  Delete = Back, Home, +/− volume, Space, Shift+←/→ seeks; the matching key lights up.
 
 ### Fixed
 

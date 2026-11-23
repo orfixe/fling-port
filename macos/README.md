@@ -1,6 +1,7 @@
 # Private macOS build (keyboard icon)
 
-Unofficial build of Fling for macOS with the keyboard-icon `RemoteView` change.
+Unofficial build of Fling for macOS with the keyboard-icon `RemoteView` change, and the
+Mac keyboard as the TV remote while the panel is open (`KeyRemote.swift`).
 Fling is by Damion Rashford and Tatiana, see [CREDITS.md](../CREDITS.md).
 This build is not affiliated with them.
 
