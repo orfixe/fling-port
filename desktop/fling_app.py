@@ -1737,6 +1737,19 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Нет parecord/pw-record для записи микрофона.", "parecord/pw-record not found for the microphone."),
     ("Остановить трансляцию", "Stop casting"),
     ("Откройте вкладку в браузере и попробуйте снова.", "Open a tab in your browser, then try again."),
+    ("Fling не видит вкладки браузера", "Fling can't see your browser tabs"),
+    ("Чтобы Fling видел вкладки Chrome и Edge, нужно один раз добавить в браузер расширение Fling.",
+     "For Fling to see Chrome and Edge tabs, add the Fling extension to the browser once."),
+    ("Установить расширение…", "Install the extension…"),
+    ("Папка расширения не найдена — переустановите Fling.", "The extension folder is missing — reinstall Fling."),
+    ("Расширение Fling для Chrome", "Fling extension for Chrome"), ("Один раз в Chrome:", "Once, in Chrome:"),
+    ("1. На открывшейся странице «Расширения» включите «Режим разработчика» (справа вверху).",
+     "1. On the Extensions page that opened, turn on “Developer mode” (top right)."),
+    ("2. Нажмите «Загрузить распакованное расширение».", "2. Click “Load unpacked”."),
+    ("3. Вставьте путь (Ctrl+V — он уже скопирован) и нажмите «Выбор папки».",
+     "3. Paste the path (Ctrl+V — it's already copied) and click “Select Folder”."),
+    ("Или просто перетащите папку chrome из Проводника на страницу расширений.",
+     "Or just drag the chrome folder from Explorer onto the Extensions page."),
     ("Нет модуля sounddevice для записи микрофона.", "The sounddevice module is missing for the microphone."),
     ("Микрофон недоступен: ", "Microphone unavailable: "),
     ("Снимок экрана ТВ: ", "TV screenshot: "),
@@ -2936,6 +2949,58 @@ def pick_apk(state: "State"):
         state.tv_install_apk(paths)
 
 
+def extension_dir() -> str | None:
+    """The unpacked Chrome/Edge extension that came with this Fling: next to Fling.exe in the
+    setup build, in %LOCALAPPDATA%\\Fling for install.ps1, or the repo's build output."""
+    here = os.path.dirname(os.path.abspath(sys.executable if P.FROZEN else __file__))
+    for d in (os.path.join(here, "extension", "chrome"),
+              os.path.join(os.environ.get("LOCALAPPDATA", ""), "Fling", "extension", "chrome"),
+              os.path.join(here, "..", "extension", "dist", "chrome")):
+        if os.path.isfile(os.path.join(d, "manifest.json")):
+            return os.path.normpath(d)
+    return None
+
+
+def _chrome_exe() -> tuple[str, str] | None:
+    """(browser exe, its extensions page): Chrome first, then Edge."""
+    roots = [os.environ.get(k, "") for k in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA")]
+    for rel, page in ((r"Google\Chrome\Application\chrome.exe", "chrome://extensions"),
+                      (r"Microsoft\Edge\Application\msedge.exe", "edge://extensions")):
+        for r in roots:
+            p = os.path.join(r, rel)
+            if r and os.path.isfile(p):
+                return p, page
+    return None
+
+
+def install_extension(parent=None):
+    """Walk the user through loading the unpacked extension: the folder path goes to the
+    clipboard, Explorer shows the folder, the browser opens its extensions page."""
+    from PyQt6.QtWidgets import QMessageBox
+    d = extension_dir()
+    if not d:
+        QMessageBox.warning(parent, "Fling", tr("Папка расширения не найдена — переустановите Fling."))
+        return
+    QApplication.clipboard().setText(d)
+    if P.IS_WIN:
+        P.popen(["explorer", "/select,", d])
+        b = _chrome_exe()
+        if b:
+            P.popen([b[0], b[1]])
+    else:
+        P.open_path(os.path.dirname(d))
+    box = QMessageBox(parent)
+    box.setWindowTitle(tr("Расширение Fling для Chrome"))
+    box.setIcon(QMessageBox.Icon.Information)
+    box.setText(tr("Один раз в Chrome:"))
+    box.setInformativeText(
+        tr("1. На открывшейся странице «Расширения» включите «Режим разработчика» (справа вверху).") + "\n" +
+        tr("2. Нажмите «Загрузить распакованное расширение».") + "\n" +
+        tr("3. Вставьте путь (Ctrl+V — он уже скопирован) и нажмите «Выбор папки».") + "\n\n" +
+        tr("Или просто перетащите папку chrome из Проводника на страницу расширений.") + "\n\n" + d)
+    box.exec()
+
+
 class Panel(QWidget):
     def __init__(self, state: State):
         super().__init__(None, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint |
@@ -3058,8 +3123,10 @@ class Panel(QWidget):
         self.i_kind = label("", 11, T.green)
         box = QWidget(); bl = QVBoxLayout(box); bl.setContentsMargins(14, 10, 14, 6); bl.setSpacing(3)
         bl.addWidget(self.i_title)
-        hl = QHBoxLayout(); hl.setSpacing(4); hl.addWidget(self.i_host); hl.addWidget(label("·", 11, T.fg_a(0.55))); hl.addWidget(self.i_kind); hl.addStretch(1)
-        bl.addLayout(hl)
+        self.i_host_row = QWidget()
+        hl = QHBoxLayout(self.i_host_row); hl.setContentsMargins(0, 0, 0, 0)
+        hl.setSpacing(4); hl.addWidget(self.i_host); hl.addWidget(label("·", 11, T.fg_a(0.55))); hl.addWidget(self.i_kind); hl.addStretch(1)
+        bl.addWidget(self.i_host_row)
         il.addWidget(box)
         self.i_bar = key_bar(
             ("play_on_tv", f"Отправить эту вкладку  ({SHORTCUT_LABEL})", state.cast_tab, 40, True),
@@ -3073,9 +3140,19 @@ class Panel(QWidget):
                               accented=True, on=state.cast_tab)
         ir.addWidget(self.i_cast)
         il.addWidget(self.i_rows)
-        self.i_why = label("", 11, T.orange, wrap=True)
+        self.i_why = label("", 11, T.fg_a(0.6), wrap=True)
         self.i_why_box = padded(self.i_why, 14, 0, 14, 7)
         il.addWidget(self.i_why_box)
+        # no browser extension has ever talked to Fling: say so plainly, with a button
+        self.i_ext = QWidget()
+        el = QVBoxLayout(self.i_ext); el.setContentsMargins(14, 2, 14, 8); el.setSpacing(6)
+        el.addWidget(label("Чтобы Fling видел вкладки Chrome и Edge, нужно один раз добавить в браузер "
+                           "расширение Fling.", 11, T.fg_a(0.6), wrap=True))
+        eh = QHBoxLayout(); eh.setSpacing(0)
+        eh.addWidget(small_button("Установить расширение…", lambda: install_extension(self)))
+        eh.addStretch(1)
+        el.addLayout(eh)
+        il.addWidget(self.i_ext)
         self.i_clip = MenuRow("Отправить скопированную ссылку", icon="clipboard", on=state.cast_clipboard)
         il.addWidget(self.i_clip)
         self.i_vol_sep = Separator()
@@ -3216,7 +3293,7 @@ class Panel(QWidget):
         self.r_fail_box = padded(self.r_fail, 14, 0, 14, 7)
         v.addWidget(self.r_fail_box)
 
-        self.err = label("", 10.5, T.orange, wrap=True)
+        self.err = label("", 10.5, T.fg_a(0.6), wrap=True)
         self.err_box = padded(self.err, 14, 4, 14, 4)
         v.addWidget(self.err_box)
 
@@ -3662,11 +3739,16 @@ class Panel(QWidget):
             yid = youtube_id(url) if url else None
             self.i_art_box.setVisible(bool(yid))
             self.i_art.set_url(f"https://img.youtube.com/vi/{yid}/hqdefault.jpg" if yid else None)
-            self.i_title.setText((s.tab or {}).get("title") or ("Нет открытой страницы" if not s.tab else url))
+            no_ext = not s.tab and not s.conf.get("ext_seen") and not P.IS_MAC
+            self.i_title.setText((s.tab or {}).get("title") or (
+                "Fling не видит вкладки браузера" if no_ext else
+                "Нет открытой страницы" if not s.tab else url))
             self.i_host.setText(host_of(url))
             kind, reason = classify(url)
+            self.i_host_row.setVisible(bool(s.tab))     # no "— · No page open" under the same title
+            self.i_ext.setVisible(no_ext)
             if reason:
-                self.i_kind.setText(reason); self.i_kind.setStyleSheet(f"color:{Theme.css(T.orange)}")
+                self.i_kind.setText(reason); self.i_kind.setStyleSheet(f"color:{Theme.css(T.fg_a(0.55))}")
             elif kind == "maybe":
                 self.i_kind.setText("можно попробовать"); self.i_kind.setStyleSheet(f"color:{Theme.css(T.fg_a(0.55))}")
             else:
@@ -3675,7 +3757,8 @@ class Panel(QWidget):
             self.i_cast.setText("Отправляю…" if s.cast_in_flight else "Отправить эту вкладку")
             self.i_cast.set_accented(ok)
             self.i_cast.setEnabled(ok and not s.cast_in_flight)
-            why = {"Нет открытой страницы": "Откройте вкладку в браузере и попробуйте снова."}.get(reason, reason)
+            # "No page open" is already the title; the extension hint covers the rest
+            why = None if reason == "Нет открытой страницы" else reason
             self.i_why.setText(why or "")
             self.i_why_box.setVisible(bool(why))
             self.i_vol_sep.setVisible(not s.tv_paired)
@@ -3740,6 +3823,13 @@ class Panel(QWidget):
 
         self.err.setText(s.last_error or "")
         self.err_box.setVisible(bool(s.last_error))
+        if s.last_error and s.last_error != getattr(self, "_err_shown", None):
+            # a message is a hint, not a state: it goes away by itself after 10 s
+            def fade(msg=s.last_error):
+                if s.last_error == msg:
+                    s._set(last_error=None)
+            QTimer.singleShot(10000, fade)
+        self._err_shown = s.last_error
 
         # compact mode: just what's playing / this tab, volume and the footer
         compact = bool(s.conf.get("compact"))
@@ -4692,6 +4782,10 @@ def bridge_handler(state: "State", panel: "Panel"):
         }
 
     def handle(path, body):
+        if not state.conf.get("ext_seen"):        # an extension is installed: drop the install hint
+            state.conf["ext_seen"] = True
+            save_conf(state.conf)
+            state.changed.emit()
         if path in ("/v1/ping", "/v1/status"):
             return snapshot()
         if path == "/v1/tab":                      # the active tab of the browser that has focus
