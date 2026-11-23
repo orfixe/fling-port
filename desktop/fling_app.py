@@ -2524,6 +2524,82 @@ class KeyButton(QPushButton):
                 self.clicked.connect(on)
 
 
+class DPadRing(QWidget):
+    """Round pad like a physical remote: ↑ ↓ ← → sit on one ring around OK, all at the
+    same distance from it."""
+    def __init__(self, up, down, left, right, ok, diameter=140):
+        super().__init__()
+        self.setFixedSize(diameter, diameter)
+        c = diameter / 2
+        r = c - 5 - up.width() / 2          # arrow centres, just inside the rim
+        for b, dx, dy in ((up, 0, -1), (down, 0, 1), (left, -1, 0), (right, 1, 0), (ok, 0, 0)):
+            b.setParent(self)
+            b.move(round(c + dx * r - b.width() / 2), round(c + dy * r - b.height() / 2))
+        self._arrows = {"up": up, "down": down, "left": left, "right": right}
+        self._ok_r = ok.width() / 2
+        self._held = None
+        self._rep = QTimer(self)
+        self._rep.setInterval(110)          # same hold-to-repeat as the arrow dots
+        self._rep.timeout.connect(lambda: self._held and self._held.pressed.emit())
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def _sector(self, pos):
+        """Like a real d-pad, the whole quarter of the ring is the key, not just the dot."""
+        c = self.width() / 2
+        dx, dy = pos.x() - c, pos.y() - c
+        d2 = dx * dx + dy * dy
+        if d2 > c * c or d2 < self._ok_r ** 2:
+            return None
+        if abs(dx) > abs(dy):
+            return self._arrows["right" if dx > 0 else "left"]
+        return self._arrows["down" if dy > 0 else "up"]
+
+    def mousePressEvent(self, e):
+        b = self._sector(e.position())
+        if b is None:
+            return super().mousePressEvent(e)
+        self._held = b
+        b.setDown(True)
+        b.pressed.emit()                     # arrows act on press, like the dots themselves
+        QTimer.singleShot(350, lambda: self._held is b and self._rep.start())
+
+    def mouseReleaseEvent(self, e):
+        if self._held is not None:
+            self._held.setDown(False)
+            self._held = None
+            self._rep.stop()
+        super().mouseReleaseEvent(e)
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(QPen(T.fg_a(0.08), 1))
+        p.setBrush(T.fg_a(0.045))
+        p.drawEllipse(QRectF(0.5, 0.5, self.width() - 1, self.height() - 1))
+
+
+def build_dpad(key):
+    """D-pad block: the ring, with Back below-left and Home below-right like on a TV remote.
+    `key(name)` returns the callback for a TV key. Returns (widget, {name: button})."""
+    up = KeyButton("up", size=34, on=key("up"), repeat=True); up.setToolTip("Вверх  (↑ / W)")
+    down = KeyButton("down", size=34, on=key("down"), repeat=True); down.setToolTip("Вниз  (↓ / S)")
+    left = KeyButton("left", size=34, on=key("left"), repeat=True); left.setToolTip("Влево  (← / A)")
+    right = KeyButton("right", size=34, on=key("right"), repeat=True); right.setToolTip("Вправо  (→ / D)")
+    ok = KeyButton(text="OK", size=44, accented=True, on=key("ok")); ok.setToolTip("OK  (Enter / Space)")
+    back = KeyButton("back", size=32, on=key("back")); back.setToolTip("Назад  (Backspace / Delete)")
+    home = KeyButton("home", size=32, on=key("home")); home.setToolTip("Домой  (Home / H)")
+    w = QWidget()
+    row = QHBoxLayout(w); row.setContentsMargins(12, 8, 12, 4); row.setSpacing(6)
+    bottom = Qt.AlignmentFlag.AlignBottom
+    row.addStretch(1)
+    row.addWidget(back, 0, bottom)
+    row.addWidget(DPadRing(up, down, left, right, ok))
+    row.addWidget(home, 0, bottom)
+    row.addStretch(1)
+    return w, {"up": up, "down": down, "left": left, "right": right,
+               "ok": ok, "back": back, "home": home}
+
+
 def key_bar(*keys):
     """Compact row of round icon buttons: keys = (glyph, tooltip, callback, size, accented)."""
     w = QWidget()
@@ -2897,30 +2973,11 @@ class Panel(QWidget):
         for c in range(4):
             grid.setColumnStretch(c, 1)
         rl.addWidget(self.grid_box)
-        # Classic d-pad cross: ↑ / ← OK → / ↓, then Back · Home underneath
         k = lambda n: (lambda: state.tv_key(KEY[n]))
-        dp = QGridLayout(); dp.setContentsMargins(20, 8, 20, 4); dp.setHorizontalSpacing(10); dp.setVerticalSpacing(8)
-        up = KeyButton("up", size=34, on=k("up"), repeat=True); up.setToolTip("Вверх  (↑ / W)")
-        left = KeyButton("left", size=34, on=k("left"), repeat=True); left.setToolTip("Влево  (← / A)")
-        right = KeyButton("right", size=34, on=k("right"), repeat=True); right.setToolTip("Вправо  (→ / D)")
-        down = KeyButton("down", size=34, on=k("down"), repeat=True); down.setToolTip("Вниз  (↓ / S)")
-        dp.addWidget(up, 0, 1, Qt.AlignmentFlag.AlignCenter)
-        dp.addWidget(left, 1, 0, Qt.AlignmentFlag.AlignCenter)
-        ok = KeyButton(text="OK", size=44, accented=True, on=k("ok"))
-        ok.setToolTip("OK  (Enter / Space)")
-        dp.addWidget(ok, 1, 1, Qt.AlignmentFlag.AlignCenter)
-        dp.addWidget(right, 1, 2, Qt.AlignmentFlag.AlignCenter)
-        dp.addWidget(down, 2, 1, Qt.AlignmentFlag.AlignCenter)
-        back = KeyButton("back", size=32, on=k("back")); back.setToolTip("Назад  (Backspace / Delete)")
-        home = KeyButton("home", size=32, on=k("home")); home.setToolTip("Домой  (Home / H)")
-        dp.addWidget(back, 3, 0, Qt.AlignmentFlag.AlignCenter)
-        dp.addWidget(home, 3, 2, Qt.AlignmentFlag.AlignCenter)
-        # lit up for a moment when the same key comes from the laptop keyboard
-        self._dpad = {"up": up, "down": down, "left": left, "right": right,
-                      "ok": ok, "back": back, "home": home}
-        for c in range(3):
-            dp.setColumnStretch(c, 1)
-        rl.addLayout(dp)
+        # Round pad like a physical remote; Back · Home below its sides
+        # (self._dpad: lit up for a moment when the same key comes from the laptop keyboard)
+        pad, self._dpad = build_dpad(k)
+        rl.addWidget(pad)
         hint = label("Клавиатура: стрелки/WASD · Enter=OK · Backspace=Назад · Home · "
                      "+/− громкость · Пробел пауза · колёсико", 9.5, T.fg_a(0.4), wrap=True)
         hint.setAlignment(Qt.AlignmentFlag.AlignHCenter)

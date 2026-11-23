@@ -17,6 +17,12 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   (Windows). Several files at once install one split app. Clear messages for the usual failures
   (other signature, newer version installed, wrong processor, no space).
 
+### Changed
+
+- Desktop: the d-pad is a round pad like on a TV remote — the four arrows sit at the same
+  distance from OK, the whole quarter of the ring presses that arrow (hold to repeat), and
+  Back / Home sit below its sides.
+
 ## [0.3.0] - 2026-11-22
 
 ### Added
