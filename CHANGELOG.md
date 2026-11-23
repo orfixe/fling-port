@@ -10,10 +10,16 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-22
+
 ### Added
 
 - Desktop: the laptop keyboard works as a TV remote — arrow keys (hold to scroll through menus),
   WASD, Enter, Backspace, numpad and media keys; WASD also works on a Russian layout.
+  On Windows this works while the panel is open, even though Windows keeps the keyboard on
+  the browser: arrows, Enter = OK, Backspace = Back, Home, +/− volume, Space, Esc closes the
+  panel, Shift+←/→ seeks. The matching button in the panel lights up. Ctrl / Alt / Win
+  shortcuts are left alone, and a text field gets the keyboard while it is open.
 - Desktop: the keyboard icon opens a field for typing on the TV.
 - Desktop: an Android badge shows whether ADB is connected. Once the TV allows debugging,
   Connect TV offers everyday tools: wake, sleep, home, screenshot, settings, apps,
@@ -145,6 +151,7 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.2.0...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/orfixe/fling-port/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/orfixe/fling-port/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/orfixe/fling-port/releases/tag/v0.1.0
