@@ -374,6 +374,11 @@ class GlobalHotkey:
                     print("hotkey:", e, flush=True)
         user32.UnregisterHotKey(None, 1)
 
+    def stop(self):
+        if IS_WIN and self._tid:
+            import ctypes
+            ctypes.windll.user32.PostThreadMessageW(self._tid, self.WM_QUIT, 0, 0)
+
 
 class RemoteKeyHook:
     """Windows: the laptop keyboard drives the TV while the Fling panel is open.
@@ -396,6 +401,7 @@ class RemoteKeyHook:
     def __init__(self, on_key):
         self.on_key = on_key
         self.active = False              # set from the Qt thread; read by the hook
+        self.keys = set(self.KEYS)       # which of KEYS to swallow right now (Qt thread sets it)
         self._lock = threading.Lock()
         self._thread = None
         self._tid = None
@@ -455,7 +461,7 @@ class RemoteKeyHook:
                 if code == 0 and self.active:
                     kb = ctypes.cast(lparam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
                     vk = kb.vkCode
-                    if vk in self.KEYS and not kb.flags & LLKHF_INJECTED:
+                    if vk in self.keys and not kb.flags & LLKHF_INJECTED:
                         down = wparam in (WM_KEYDOWN, WM_SYSKEYDOWN)
                         if down and not (held(0x11) or held(0x12) or held(0x5B) or held(0x5C)):
                             repeat = vk in self._down
@@ -516,10 +522,6 @@ def force_foreground(win_id) -> bool:
             user32.AttachThreadInput(other, me, False)
     return user32.GetForegroundWindow() == hwnd.value
 
-    def stop(self):
-        if IS_WIN and self._tid:
-            import ctypes
-            ctypes.windll.user32.PostThreadMessageW(self._tid, self.WM_QUIT, 0, 0)
 
 
 # ---------------------------------------------------------------- microphone (voice search: 8 kHz, 16-bit, mono PCM)

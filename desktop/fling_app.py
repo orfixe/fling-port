@@ -30,7 +30,7 @@ from PyQt6.QtCore import (QObject, Qt, QTimer, QRectF, QPoint, QPointF, QSize, Q
                           pyqtSignal, pyqtProperty)
 from PyQt6.QtGui import (QAction, QColor, QFont, QIcon, QLinearGradient, QPainter,
                          QPainterPath, QPen, QPixmap, QKeySequence, QShortcut,
-                         QCursor, QGuiApplication)
+                         QCursor, QGuiApplication, QKeyEvent)
 from PyQt6.QtNetwork import (QLocalServer, QLocalSocket, QNetworkAccessManager,
                              QNetworkRequest)
 from PyQt6.QtWidgets import (QApplication, QGraphicsOpacityEffect, QGridLayout, QHBoxLayout, QLabel,
@@ -2807,6 +2807,9 @@ class Panel(QWidget):
         home = KeyButton("home", size=32, on=k("home")); home.setToolTip("Домой  (Home / H)")
         dp.addWidget(back, 3, 0, Qt.AlignmentFlag.AlignCenter)
         dp.addWidget(home, 3, 2, Qt.AlignmentFlag.AlignCenter)
+        # lit up for a moment when the same key comes from the laptop keyboard
+        self._dpad = {"up": up, "down": down, "left": left, "right": right,
+                      "ok": ok, "back": back, "home": home}
         for c in range(3):
             dp.setColumnStretch(c, 1)
         rl.addLayout(dp)
@@ -2933,8 +2936,70 @@ class Panel(QWidget):
             sc.setContext(Qt.ShortcutContext.WindowShortcut)
             sc.activated.connect(fn)
 
+        # Windows: the tray popup never becomes the active window, so Qt gets no keys.
+        # A keyboard hook, installed only while the panel is open, hands us the arrow
+        # cluster, Enter, Backspace, Space, Home, Esc and +/− instead.
+        self._keyhook = P.RemoteKeyHook(lambda vk, shift, rep: state.bridge.call.emit(
+            lambda: self._hook_key(vk, shift, rep))) if P.IS_WIN else None
+        self._was_editing = False
         state.changed.connect(self.sync)
+        state.changed.connect(self._update_keyhook)
         self.sync()
+
+    # --- laptop keyboard → TV (Windows hook; see RemoteKeyHook)
+    _VK_QT = {0x25: Qt.Key.Key_Left, 0x26: Qt.Key.Key_Up, 0x27: Qt.Key.Key_Right, 0x28: Qt.Key.Key_Down,
+              0x0D: Qt.Key.Key_Return, 0x08: Qt.Key.Key_Backspace, 0x20: Qt.Key.Key_Space,
+              0x24: Qt.Key.Key_Home, 0xBB: Qt.Key.Key_Equal, 0x6B: Qt.Key.Key_Plus,
+              0xBD: Qt.Key.Key_Minus, 0x6D: Qt.Key.Key_Minus}
+
+    def _visible_field(self):
+        return any(e.isVisible() for e in self.findChildren(QLineEdit))
+
+    def _update_keyhook(self):
+        h = getattr(self, "_keyhook", None)
+        if h is None:
+            return
+        editing = self.isVisible() and self._visible_field()
+        if editing and not self._was_editing:
+            # a text field just appeared (type on TV, pairing code): give it the keyboard
+            QTimer.singleShot(0, lambda: P.force_foreground(int(self.winId())))
+        self._was_editing = editing
+        s = self.state
+        if s.remote_ready:
+            h.keys = set(h.KEYS)
+        elif s.panel == "casting":           # no remote yet: ← / → seek, Space pauses
+            h.keys = {0x25, 0x27, 0x20, 0x1B}
+        else:
+            h.keys = {0x1B}
+        h.active = self.isVisible() and not editing
+
+    def _hook_key(self, vk, shift, repeat):
+        if not self.isVisible():
+            return
+        if vk == 0x1B:
+            self._escape()
+            return
+        if shift and vk in (0x25, 0x27) and self.state.panel == "casting":
+            if not repeat:
+                self.state.seek(SEEK if vk == 0x27 else -SEEK)
+            return
+        key = self._VK_QT.get(vk)
+        if key is None:
+            return
+        text = " " if vk == 0x20 else ""
+        ev = QKeyEvent(QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier, text, repeat)
+        if self._handle_key(ev):
+            name = _REMOTE_BY_QT.get(key)
+            if name == "play_pause" and self.state.panel != "casting":
+                name = "ok"
+            self._flash(name)
+
+    def _flash(self, name):
+        b = getattr(self, "_dpad", {}).get(name)
+        if b is None or not b.isVisible():
+            return
+        b.setDown(True)
+        QTimer.singleShot(120, lambda: b.setDown(False))
 
     # --- input helpers
     def _editing(self):
@@ -3076,6 +3141,7 @@ class Panel(QWidget):
         self.type_edit.show()
         self.type_edit.setFocus(Qt.FocusReason.ShortcutFocusReason)
         self._ungrab_keys()
+        self._update_keyhook()
         self.kb_btn.setStyleSheet(
             f"QPushButton{{border:none;border-radius:5px;background:{Theme.css(T.acc_a(0.22))}}}")
         QTimer.singleShot(0, self.place)
@@ -3089,6 +3155,7 @@ class Panel(QWidget):
             f"QPushButton:hover{{background:{Theme.css(T.acc_a(0.2))}}}")
         self.setFocus(Qt.FocusReason.OtherFocusReason)
         self._grab_keys()
+        self._update_keyhook()
         QTimer.singleShot(0, self.place)
 
     def _type_submit(self):
@@ -3388,10 +3455,17 @@ class Panel(QWidget):
         self.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
         # Tray Popup often never becomes the "active" window — grab keys so arrows reach us
         self._grab_keys()
+        if getattr(self, "_keyhook", None):
+            self._keyhook.start()
+            self._update_keyhook()
         self.state.refresh()
 
     def hideEvent(self, e):
         self._ungrab_keys()
+        if getattr(self, "_keyhook", None):
+            self._keyhook.active = False
+            self._keyhook.stop()
+        self._was_editing = False
         self.hidden_at = time.monotonic()
         self._wheel = [0.0, 0.0, 0.0]
         super().hideEvent(e)
