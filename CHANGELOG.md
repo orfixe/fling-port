@@ -26,6 +26,7 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   (Esc releases it); it hides while a text field is open.
 - Windows (installed from source): Fling runs as `Fling.exe` with its own name and icon, so Task
   Manager lists "Fling" as one process instead of two "Python" ones.
+- macOS: the same round d-pad and "keyboard captured" strip; Esc closes the panel.
 
 ### Fixed
 
