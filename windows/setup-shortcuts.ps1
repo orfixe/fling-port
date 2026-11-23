@@ -9,6 +9,7 @@ $Bin = Join-Path $env:LOCALAPPDATA 'Fling\bin'
 
 if ($Remove) {
   Remove-Item $Lnk -Force -ErrorAction SilentlyContinue
+  Remove-Item 'HKCU:\Software\Classes\SystemFileAssociations\.apk\shell\FlingInstallApk' -Recurse -Force -ErrorAction SilentlyContinue
   Remove-Item $Bin -Recurse -Force -ErrorAction SilentlyContinue
   $p = [Environment]::GetEnvironmentVariable('Path', 'User')
   [Environment]::SetEnvironmentVariable('Path', (($p -split ';') | Where-Object { $_ -and $_ -ne $Bin }) -join ';', 'User')
@@ -22,6 +23,14 @@ $s = (New-Object -ComObject WScript.Shell).CreateShortcut($Lnk)
 $s.TargetPath = $Exe; $s.Arguments = 'show'; $s.WorkingDirectory = $Here
 $s.IconLocation = "$Exe,0"; $s.Description = 'Fling - cast to Chromecast / Google TV and control the TV'
 $s.Save()
+
+# Explorer: right-click an .apk -> "Install on TV (Fling)" (fling install-apk)
+$apkKey = 'HKCU:\Software\Classes\SystemFileAssociations\.apk\shell\FlingInstallApk'
+$apkTitle = if ((Get-Culture).TwoLetterISOLanguageName -eq 'ru') { ((-join [char[]](0x423,0x441,0x442,0x430,0x43D,0x43E,0x432,0x438,0x442,0x44C,0x20,0x43D,0x430,0x20,0x422,0x412)) + ' (Fling)') } else { 'Install on TV (Fling)' }
+New-Item -Path "$apkKey\command" -Force | Out-Null
+Set-ItemProperty -Path $apkKey -Name 'MUIVerb' -Value $apkTitle
+Set-ItemProperty -Path $apkKey -Name 'Icon' -Value "$Exe,0"
+Set-Item -Path "$apkKey\command" -Value "`"$Exe`" install-apk `"%1`""
 
 New-Item -ItemType Directory -Force -Path $Bin | Out-Null
 # The .cmd stays ASCII. The real path lives in a UTF-8 script, so a Cyrillic profile name still works.

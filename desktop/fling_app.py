@@ -909,6 +909,74 @@ class State(QObject):
                 self._set(last_error=None)
         self.bg(work, done)
 
+    # adb install failure codes → what to do about them
+    _APK_ERRORS = {
+        "INSTALL_FAILED_UPDATE_INCOMPATIBLE": "на ТВ уже есть это приложение с другой подписью — удалите его на ТВ и попробуйте снова.",
+        "INSTALL_FAILED_VERSION_DOWNGRADE": "на ТВ уже стоит более новая версия.",
+        "INSTALL_FAILED_NO_MATCHING_ABIS": "этот APK собран для другого процессора — нужна версия для armeabi-v7a / arm64.",
+        "INSTALL_FAILED_OLDER_SDK": "этот APK требует более новый Android, чем на ТВ.",
+        "INSTALL_FAILED_INSUFFICIENT_STORAGE": "на ТВ не хватает места.",
+        "INSTALL_PARSE_FAILED_NO_CERTIFICATES": "APK не подписан.",
+        "INSTALL_FAILED_INVALID_APK": "файл повреждён или это не APK.",
+        "INSTALL_PARSE_FAILED_NOT_APK": "файл повреждён или это не APK.",
+        "INSTALL_FAILED_MISSING_SPLIT": "приложение состоит из нескольких APK — выберите их все сразу.",
+        "INSTALL_FAILED_USER_RESTRICTED": "ТВ запретил установку — подтвердите её на экране ТВ.",
+    }
+
+    def tv_install_apk(self, paths: list[str]):
+        """Install an APK on the TV over ADB (`adb install -r`). Several files at once are
+        the parts of one split app (`install-multiple`)."""
+        paths = [p for p in paths if p]
+        ip = self.ip
+        if not paths:
+            return
+        if not ip:
+            self._set(last_error="Устройство не выбрано")
+            return
+        name = os.path.basename(paths[0])
+
+        def work():
+            if not P.adb_available():
+                return {"error": "Установка APK: ADB не установлен — откройте «Подключение ТВ…» и скачайте platform-tools."}
+            st = adb_state(ip, force=True)
+            if st != "device":
+                return {"error": {"unauthorized": "Установка APK: подтвердите на ТВ «Разрешить отладку».",
+                                  "closed": "Установка APK работает через ADB — включите его: «Подключение ТВ…» → ADB."}
+                        .get(st, "Установка APK: ADB не подключён — откройте «Подключение ТВ…».")}
+            cmd = ["install-multiple", "-r"] if len(paths) > 1 else ["install", "-r"]
+            try:
+                r = adb_cmd(ip, cmd + paths, timeout=600)
+            except subprocess.TimeoutExpired:
+                return {"error": "Установка APK: ТВ не ответил за 10 минут."}
+            out = f"{r.stdout}\n{r.stderr}"
+            if r.returncode == 0 and "Success" in out:
+                return {"ok": True}
+            m = re.search(r"(INSTALL_[A-Z_]+)", out)
+            why = self._APK_ERRORS.get(m[1]) if m else None
+            last = next((l.strip() for l in reversed(out.splitlines()) if l.strip()), "нет ответа")
+            return {"error": "Установка APK не удалась: " + (why or (m[1] if m else last))}
+
+        def run():
+            try:
+                r, e = work(), None
+            except Exception as ex:
+                r, e = None, ex
+            self.bridge.call.emit(lambda: done(r, e))
+
+        def done(r, e):
+            print("apk:", name, e or r, flush=True)
+            if e or not r:
+                self._set(last_error=f"Установка APK: {e}")
+            elif r.get("error"):
+                self._set(last_error=r["error"])
+            else:
+                self._set(last_error=None)
+                notify_send(f"Установлено на ТВ: {name}")
+
+        notify_send(f"Устанавливаю на ТВ: {name}…")
+        # its own thread: a big APK can take minutes and must not hold up the pool
+        threading.Thread(target=run, daemon=True, name="fling-apk").start()
+
     def adb_ok(self) -> bool:
         """True when this TV recently answered as an authorized ADB device."""
         ip = self.ip
@@ -1754,6 +1822,35 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
     ('Снимок чёрный: видео защищено от снимков (DRM у YouTube/Netflix). Меню и главный экран ТВ снимаются нормально.', 'The screenshot is black: the video is copy-protected (DRM on YouTube/Netflix). Menus and the home screen capture fine.'),
     ('ТВ', 'TV'),
 ]
+EN_PHRASES += [   # installing an APK on the TV
+    ("Установить APK на ТВ", "Install APK on the TV"),
+    ("Установить APK…", "Install APK…"),
+    ("Приложения Android (*.apk);;Все файлы (*)", "Android apps (*.apk);;All files (*)"),
+    ("Установка APK: ADB не установлен — откройте «Подключение ТВ…» и скачайте platform-tools.",
+     "Installing an APK: ADB is not installed — open “Connect TV…” and download platform-tools."),
+    ("Установка APK: подтвердите на ТВ «Разрешить отладку».", "Installing an APK: confirm “Allow debugging” on the TV."),
+    ("Установка APK работает через ADB — включите его: «Подключение ТВ…» → ADB.",
+     "Installing an APK works over ADB — turn it on: “Connect TV…” → ADB."),
+    ("Установка APK: ADB не подключён — откройте «Подключение ТВ…».", "Installing an APK: ADB isn't connected — open “Connect TV…”."),
+    ("Установка APK: ТВ не ответил за 10 минут.", "Installing an APK: the TV didn't answer for 10 minutes."),
+    ("Установка APK не удалась: ", "The APK didn't install: "),
+    ("Установка APK: ", "Installing an APK: "),
+    ("Устанавливаю на ТВ: ", "Installing on the TV: "),
+    ("Установлено на ТВ: ", "Installed on the TV: "),
+    ("на ТВ уже есть это приложение с другой подписью — удалите его на ТВ и попробуйте снова.",
+     "the TV already has this app with a different signature — uninstall it on the TV and try again."),
+    ("на ТВ уже стоит более новая версия.", "the TV already has a newer version."),
+    ("этот APK собран для другого процессора — нужна версия для armeabi-v7a / arm64.",
+     "this APK is built for another processor — get the armeabi-v7a / arm64 version."),
+    ("этот APK требует более новый Android, чем на ТВ.", "this APK needs a newer Android than the TV has."),
+    ("на ТВ не хватает места.", "the TV is out of storage."),
+    ("APK не подписан.", "the APK isn't signed."),
+    ("файл повреждён или это не APK.", "the file is damaged or isn't an APK."),
+    ("приложение состоит из нескольких APK — выберите их все сразу.",
+     "the app comes in several APKs — select them all at once."),
+    ("ТВ запретил установку — подтвердите её на экране ТВ.", "the TV blocked the install — confirm it on the TV screen."),
+    ("нет ответа", "no answer"),
+]
 EN_PHRASES.sort(key=lambda kv: -len(kv[0]))
 EN_REGEX = [(re.compile(r"(\d+) с\b"), r"\1s")]
 
@@ -2573,6 +2670,17 @@ def fill_device_menu(menu: QMenu, s: "State", parent=None):
             fm.addAction(d["name"], lambda d=d: s.forget_device(d))
 
 
+def pick_apk(state: "State"):
+    """Choose APK file(s) and install them on the TV. Several files = one split app."""
+    from PyQt6.QtWidgets import QFileDialog
+    start = os.path.join(os.path.expanduser("~"), "Downloads")
+    paths, _ = QFileDialog.getOpenFileNames(
+        None, tr("Установить APK на ТВ"), start if os.path.isdir(start) else os.path.expanduser("~"),
+        tr("Приложения Android (*.apk);;Все файлы (*)"))
+    if paths:
+        state.tv_install_apk(paths)
+
+
 class Panel(QWidget):
     def __init__(self, state: State):
         super().__init__(None, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint |
@@ -3221,6 +3329,7 @@ class Panel(QWidget):
                 ("Настройки ТВ", "settings"),
                 ("Приложения", "apps"),
                 ("Закрыть приложение", "force_stop"),
+                ("Установить APK…", "apk"),
                 ("Перезагрузить ТВ", "reboot"),
                 ("Отключить ADB", "disconnect"),
                 (None, None),
@@ -3232,6 +3341,9 @@ class Panel(QWidget):
                     m.addAction(title, lambda: (self.hide(), self.open_setup()))
                 elif act == "screenshot":
                     m.addAction(title, self.state.tv_screenshot)
+                elif act == "apk":
+                    # the popup would close under the file dialog anyway
+                    m.addAction(title, lambda: (self.hide(), pick_apk(self.state)))
                 else:
                     m.addAction(title, lambda a=act: self.state.adb_action(a))
             m.exec(self.adb_badge.mapToGlobal(self.adb_badge.rect().bottomLeft()))
@@ -3814,6 +3926,7 @@ class SetupWindow(QWidget):
                 ("Закрыть приложение", "force_stop"),
                 ("Перезагрузить", "reboot"),
                 ("Отключить ADB", "disconnect"),
+                ("Установить APK…", "apk"),
             ]
             for i, (title, act) in enumerate(actions):
                 b = small_button(title, lambda _=False, a=act: self._adb_tool(a))
@@ -4058,6 +4171,9 @@ class SetupWindow(QWidget):
     def _adb_tool(self, action: str):
         if action == "screenshot":
             self.state.tv_screenshot()
+            return
+        if action == "apk":
+            pick_apk(self.state)
             return
         self.state.adb_action(action)
 
@@ -4411,6 +4527,11 @@ def main():
         sys.argv.remove("--after-restart")
         time.sleep(1.2)
     cmd = sys.argv[1] if len(sys.argv) > 1 else "show"
+    if cmd.lower().endswith(".apk") and os.path.isfile(cmd):     # "Open with Fling" on an .apk
+        cmd = "install-apk"
+        sys.argv.insert(1, cmd)
+    if cmd == "install-apk":                       # `fling install-apk app.apk [split2.apk …]`
+        cmd = "\t".join(["install-apk", *(os.path.abspath(a) for a in sys.argv[2:])])
     app = QApplication(sys.argv)
     app.setApplicationName("Fling")
     app.setDesktopFileName("fling")
@@ -4443,6 +4564,9 @@ def main():
             open_help(panel)
         elif c == "screenshot":
             state.tv_screenshot()
+        elif c.startswith("install-apk"):
+            files = [f for f in c.split("\t")[1:] if f]
+            state.tv_install_apk(files) if files else pick_apk(state)
         elif c == "setup":
             panel.open_setup()
         elif c == "quit":
