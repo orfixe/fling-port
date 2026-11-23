@@ -57,12 +57,31 @@ def load_conf() -> dict:
     except Exception:
         return {}
 
+_CONF_LOCK = threading.Lock()   # the UI thread and the YouTube (asyncio) thread both save
+
 def save_conf(c: dict) -> None:
-    os.makedirs(os.path.dirname(CONF), exist_ok=True)
-    tmp = CONF + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(c, f, indent=1, ensure_ascii=False)
-    os.replace(tmp, CONF)
+    """Write fling.json atomically. Never raises: antivirus or OneDrive can briefly lock
+    the file on Windows, and a failed save must not take the whole app down."""
+    with _CONF_LOCK:
+        tmp = f"{CONF}.{os.getpid()}.{threading.get_ident()}.tmp"   # unique per writer
+        try:
+            os.makedirs(os.path.dirname(CONF), exist_ok=True)
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(c, f, indent=1, ensure_ascii=False)
+            for attempt in range(5):                  # a locked target frees up within ~1 s
+                try:
+                    os.replace(tmp, CONF)
+                    return
+                except PermissionError:
+                    if attempt == 4:
+                        raise
+                    time.sleep(0.2)
+        except Exception as e:
+            print(f"fling: could not save settings: {e!r}", file=sys.stderr)
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
 
 # ---------------------------------------------------------------- URL classifier (URLClassifier.swift)
 
@@ -1335,7 +1354,7 @@ class State(QObject):
         """Add a TV that discovery can't see (other subnet, mDNS blocked) by its IP address."""
         ip = ip.strip()
         parts = ip.split(".")                      # IPv4: 4 numbers, each 0..255
-        if len(parts) != 4 or not all(x.isdigit() and int(x) <= 255 for x in parts):
+        if len(parts) != 4 or not all(x.isascii() and x.isdigit() and int(x) <= 255 for x in parts):
             self._set(last_error="Это не похоже на IP-адрес (пример: 192.168.1.50).")
             return
         def work():
@@ -4753,6 +4772,12 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--catt":
         return catt_main(sys.argv[2:])
     P.setup_logging()
+    # PyQt6 aborts the whole process on an exception inside a slot unless an excepthook
+    # is set. Log it and keep running: one failed click must not kill the tray icon.
+    import traceback
+    def excepthook(kind, value, tb):
+        traceback.print_exception(kind, value, tb, file=sys.stderr)
+    sys.excepthook = excepthook
     if "--after-restart" in sys.argv:              # language switch: let the old instance exit first
         sys.argv.remove("--after-restart")
         time.sleep(1.2)
