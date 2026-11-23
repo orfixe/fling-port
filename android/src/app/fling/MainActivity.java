@@ -71,8 +71,22 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private static final int REQ_MIC = 7;
 
     private Ui ui;
-    private final Handler main = new Handler(Looper.getMainLooper());
+    /** Set in onDestroy. Cast/Atv/Discovery callbacks keep arriving after that; without
+     *  this they reached sync() → net.execute() on a shut-down pool and crashed the app. */
+    private volatile boolean destroyed;
+    /** Main-thread handler that drops every post once the activity is destroyed. */
+    private final Handler main = new Handler(Looper.getMainLooper()) {
+        @Override public boolean sendMessageAtTime(android.os.Message msg, long uptimeMillis) {
+            return !destroyed && super.sendMessageAtTime(msg, uptimeMillis);
+        }
+    };
     private final ExecutorService net = Executors.newFixedThreadPool(3);
+
+    /** Run on the network pool; a no-op after onDestroy. */
+    private void bg(Runnable r) {
+        if (destroyed) return;
+        try { net.execute(r); } catch (java.util.concurrent.RejectedExecutionException ignored) {}
+    }
     private SharedPreferences prefs;
     private Updater updater;
     private Cast cast;
@@ -187,6 +201,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     }
 
     @Override protected void onDestroy() {
+        destroyed = true;
+        main.removeCallbacksAndMessages(null);    // pending polls, ticks and result posts
         super.onDestroy();
         cast.disconnect();
         atv.disconnect();
@@ -219,7 +235,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         final String key = title + "|" + artist;
         if (arts.containsKey(key)) return arts.get(key);
         arts.put(key, null);
-        net.execute(() -> {
+        bg(() -> {
             String[] r = adb.lookup(title, artist);
             if (r != null) main.post(() -> { arts.put(key, "https://img.youtube.com/vi/" + r[0] + "/hqdefault.jpg"); sync(); });
         });
@@ -237,7 +253,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         adbBusy = true;
         // every 3 s while healthy; long quiet period after a refused / closed link
         adbNext = now + 3000;
-        net.execute(() -> {
+        bg(() -> {
             Cast.Status r = null;
             try { r = adb.nowPlaying(h); } catch (Exception e) {
                 // ADB off, or waiting for "Allow debugging": do NOT keep re-prompting the TV
@@ -315,7 +331,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         final String h = host;
         if (h == null) { showError(L.t("Устройство не выбрано")); return; }
         showError(L.t("Делаю снимок экрана ТВ…"));
-        net.execute(() -> {
+        bg(() -> {
             try {
                 byte[] png = adb.shellBytes(h, "exec:screencap -p");
                 if (png.length < 8 || (png[0] & 0xFF) != 0x89 || png[1] != 'P') throw new java.io.IOException("no image");
@@ -338,6 +354,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                     if (uri != null) try (java.io.OutputStream o = getContentResolver().openOutputStream(uri)) { o.write(png); }
                 } catch (Exception ignored) {}   // pre-Android 10 without storage permission: just show it
                 main.post(() -> {
+                    if (isFinishing() || isDestroyed()) return;   // Back pressed during the capture
                     android.widget.ImageView iv = new android.widget.ImageView(this);
                     iv.setImageBitmap(bmp);
                     iv.setAdjustViewBounds(true);
@@ -607,7 +624,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     /** Checks there is a Cast device at the address, asks the TV its name, saves and selects it. */
     private void addByIp(String ip) {
         if (!validIp(ip)) { showError(L.t("Это не похоже на IP-адрес (пример: 192.168.1.50).")); return; }   // 4 numbers, each 0..255
-        net.execute(() -> {
+        bg(() -> {
             String name = ip;
             try (java.net.Socket s = new java.net.Socket()) {
                 s.connect(new java.net.InetSocketAddress(ip, 8009), 2500);   // 8009 = Google Cast port
@@ -780,7 +797,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     private void fetchYoutubeTitle(String id, StrCb cb) {
         if (ytTitles.containsKey(id)) { cb.on(ytTitles.get(id)); return; }
-        net.execute(() -> {
+        bg(() -> {
             try {
                 HttpURLConnection c = (HttpURLConnection) new URL("https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=" + id).openConnection();
                 c.setConnectTimeout(5000);
@@ -806,7 +823,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         Bitmap cached = images.get(url);
         into.setBitmap(cached);
         if (cached != null) return;
-        net.execute(() -> {
+        bg(() -> {
             try {
                 HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
                 c.setConnectTimeout(6000);
@@ -1294,7 +1311,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     }
 
     private void sync() {
-        if (root == null) return;
+        if (root == null || destroyed) return;
         final Cast.Status st = view();
         boolean paired = paired();
 
