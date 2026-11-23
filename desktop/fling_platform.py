@@ -267,8 +267,14 @@ def self_command(*args: str) -> list[str]:
     script = os.path.abspath(sys.argv[0])
     if IS_WIN:
         py = sys.executable
-        w = os.path.join(os.path.dirname(py), "pythonw.exe")   # no console window
-        return [w if os.path.exists(w) else py, script, *args]
+        if os.path.basename(py).lower() == "fling.exe":         # installer's branded launcher
+            return [py, script, *args]
+        d = os.path.dirname(py)
+        for name in ("Fling.exe", "pythonw.exe"):               # no console window
+            w = os.path.join(d, name)
+            if os.path.exists(w):
+                return [w, script, *args]
+        return [py, script, *args]
     return [os.path.join(HOME, ".local", "bin", "fling"), *args]
 
 

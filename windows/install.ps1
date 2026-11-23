@@ -58,7 +58,7 @@ function Stop-Fling {
     Exec $Py $Main quit -AllowFail
     Start-Sleep -Milliseconds 800
   }
-  Get-CimInstance Win32_Process -Filter "Name='pythonw.exe' OR Name='python.exe'" -ErrorAction SilentlyContinue |
+  Get-CimInstance Win32_Process -Filter "Name='pythonw.exe' OR Name='python.exe' OR Name='Fling.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -like '*fling_app.py*' } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
   # a running catt.exe (Fling polls the TV with it) is locked and breaks `uv tool install`
@@ -129,6 +129,25 @@ Exec $Uv pip install --python $Py -r (Join-Path $PSScriptRoot 'requirements.txt'
 Step 'Files'
 Copy-Item (Join-Path $Repo 'desktop\*.py') (Join-Path $App 'app') -Force
 Exec $Py $Main --make-icon (Join-Path $App 'fling.ico')
+
+# Fling.exe: the venv's interpreter under Fling's own name and icon, so Task Manager lists
+# "Fling" instead of "Python", as one process. Falls back to pythonw.exe if anything fails.
+$FlingExe = Join-Path $Venv 'Scripts\Fling.exe'
+try {
+  $home_ = ((Get-Content (Join-Path $Venv 'pyvenv.cfg')) -match '^home\s*=' | Select-Object -First 1) -replace '^home\s*=\s*', ''
+  $home_ = $home_.Trim()
+  $scripts = Join-Path $Venv 'Scripts'
+  Copy-Item (Join-Path $home_ 'pythonw.exe') $FlingExe -Force
+  # the copy loads the Python DLLs from its own folder; pyvenv.cfg one level up gives it the venv
+  Get-ChildItem $home_ -Filter '*.dll' | Where-Object { $_.Name -like 'python*.dll' -or $_.Name -like 'vcruntime*.dll' } |
+    ForEach-Object { Copy-Item $_.FullName $scripts -Force }
+  $ver = (Select-String -Path $Main -Pattern '^VERSION = "(.+)"').Matches[0].Groups[1].Value
+  Exec $Uv run --no-project --quiet --with pyinstaller python (Join-Path $PSScriptRoot 'brand-exe.py') $FlingExe (Join-Path $App 'fling.ico') $ver
+  $Pyw = $FlingExe
+  Note "launcher: $FlingExe"
+} catch {
+  Note "Fling.exe not made ($($_.Exception.Message)) - using pythonw.exe"
+}
 
 # browser extensions: built folders the browsers can load
 Exec $Py (Join-Path $Repo 'extension\build.py')

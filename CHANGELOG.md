@@ -24,6 +24,8 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   Back / Home sit below its sides.
 - Desktop: a strip at the top of the panel says when the keyboard is captured for the TV
   (Esc releases it); it hides while a text field is open.
+- Windows (installed from source): Fling runs as `Fling.exe` with its own name and icon, so Task
+  Manager lists "Fling" as one process instead of two "Python" ones.
 
 ### Fixed
 
