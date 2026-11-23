@@ -12,6 +12,13 @@ command -v swift >/dev/null || { echo "swift not found — need macOS with Xcode
 uname | grep -q Darwin || { echo "this build only runs on macOS"; exit 1; }
 
 rm -rf "$WORK" "$OUT"
+# Command Line Tools on macOS 27 ship SwiftUI's @State as a macro without its plugin
+# (only full Xcode has it). Fall back to the newest SDK < 27 when Xcode is absent.
+if [ -z "${SDKROOT:-}" ] && [[ "$(xcode-select -p)" == *CommandLineTools* ]]; then
+  OLD_SDK="$(ls -d /Library/Developer/CommandLineTools/SDKs/MacOSX2[0-6].*.sdk 2>/dev/null | sort -V | tail -1 || true)"
+  [ -n "$OLD_SDK" ] && export SDKROOT="$OLD_SDK" && echo "using SDK: $SDKROOT"
+fi
+
 mkdir -p "$WORK" "$OUT"
 git clone --depth 1 --branch "$REF" "$UPSTREAM_URL" "$WORK/fling"
 cp "$ROOT/macos/RemoteView.swift" "$WORK/fling/Sources/Fling/RemoteView.swift"
@@ -26,7 +33,10 @@ git -C "$WORK/fling" apply "$ROOT/macos/patches/StatusItemController-keyboard.pa
   APP="$WORK/fling/build/Fling.app"
   rm -rf "$APP"
   mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-  cp .build/apple/Products/Release/Fling "$APP/Contents/MacOS/Fling"
+  # output dir differs between toolchains (.build/apple or .build/out)
+  BIN="$(ls .build/apple/Products/Release/Fling .build/out/Products/Release/Fling 2>/dev/null | head -1 || true)"
+  [ -n "$BIN" ] || { echo "built binary not found"; exit 1; }
+  cp "$BIN" "$APP/Contents/MacOS/Fling"
   # Port-specific plist (own bundle id) — not upstream com.damionrashford.fling
   cp "$ROOT/macos/Info.plist" "$APP/Contents/Info.plist"
   codesign --force --deep --sign - "$APP"

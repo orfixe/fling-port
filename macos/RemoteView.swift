@@ -125,18 +125,22 @@ struct RemoteView: View {
         .padding(.horizontal, 12).padding(.bottom, 8)
     }
 
-    /// Round pad like a TV remote — the four arrows at the same distance from OK,
-    /// Back and Home below its sides.
+    /// Classic remote layout — Back and Home flank the OK row.
     private var dpad: some View {
         VStack(spacing: 6) {
-            HStack(alignment: .bottom, spacing: 6) {
+            KeyButton(symbol: "chevron.up", size: 30, state: state, code: ATVKeyCode.dpadUp)
+            HStack(spacing: 13) {
                 KeyButton(symbol: "arrow.uturn.backward", size: 30,
                           state: state, code: ATVKeyCode.back)
                     .help("Back")
-                DPadRing(state: state)
+                KeyButton(symbol: "chevron.left", size: 30, state: state, code: ATVKeyCode.dpadLeft)
+                KeyButton(label: "OK", size: 40, accented: true,
+                          state: state, code: ATVKeyCode.dpadCenter)
+                KeyButton(symbol: "chevron.right", size: 30, state: state, code: ATVKeyCode.dpadRight)
                 KeyButton(symbol: "house", size: 30, state: state, code: ATVKeyCode.home)
                     .help("Home")
             }
+            KeyButton(symbol: "chevron.down", size: 30, state: state, code: ATVKeyCode.dpadDown)
             Text("arrow keys, or scroll anywhere, to move around the TV")
                 .font(.system(size: 9.5)).foregroundStyle(.quaternary)
         }
@@ -232,73 +236,6 @@ struct RemoteView: View {
 }
 
 // MARK: - controls
-
-/// The d-pad ring. Like a real remote, the whole quarter of the ring presses that
-/// arrow (hold to repeat), not just the dot.
-struct DPadRing: View {
-    @ObservedObject var state: AppState
-    private let diameter: CGFloat = 128
-    private let arrow: CGFloat = 30
-    @State private var held: Int32?
-    @State private var repeater: Task<Void, Never>?
-
-    var body: some View {
-        let r = diameter / 2 - 5 - arrow / 2          // arrow centres, just inside the rim
-        ZStack {
-            Circle()
-                .fill(Color.primary.opacity(0.045))
-                .overlay(Circle().stroke(Color.primary.opacity(0.08), lineWidth: 1))
-                .contentShape(Circle())
-                .gesture(DragGesture(minimumDistance: 0)
-                    .onChanged { v in if held == nil { press(sector(v.startLocation)) } }
-                    .onEnded { _ in release() })
-            KeyButton(symbol: "chevron.up", size: arrow, state: state, code: ATVKeyCode.dpadUp)
-                .offset(y: -r)
-            KeyButton(symbol: "chevron.down", size: arrow, state: state, code: ATVKeyCode.dpadDown)
-                .offset(y: r)
-            KeyButton(symbol: "chevron.left", size: arrow, state: state, code: ATVKeyCode.dpadLeft)
-                .offset(x: -r)
-            KeyButton(symbol: "chevron.right", size: arrow, state: state, code: ATVKeyCode.dpadRight)
-                .offset(x: r)
-            KeyButton(label: "OK", size: 40, accented: true,
-                      state: state, code: ATVKeyCode.dpadCenter)
-        }
-        .frame(width: diameter, height: diameter)
-    }
-
-    private func sector(_ p: CGPoint) -> Int32? {
-        let c = diameter / 2
-        let dx = p.x - c, dy = p.y - c
-        let d2 = dx * dx + dy * dy
-        if d2 > c * c || d2 < 20 * 20 { return nil }
-        if abs(dx) > abs(dy) { return dx > 0 ? ATVKeyCode.dpadRight : ATVKeyCode.dpadLeft }
-        return dy > 0 ? ATVKeyCode.dpadDown : ATVKeyCode.dpadUp
-    }
-
-    private func press(_ code: Int32?) {
-        guard let code else { return }
-        held = code
-        send(code)
-        repeater = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            while !Task.isCancelled {
-                send(code)
-                try? await Task.sleep(nanoseconds: 110_000_000)
-            }
-        }
-    }
-
-    private func send(_ code: Int32) {
-        RemoteKeyFlash.post(code)
-        Task { await state.pressTVKey(code) }
-    }
-
-    private func release() {
-        held = nil
-        repeater?.cancel()
-        repeater = nil
-    }
-}
 
 /// Round icon key for the d-pad cluster and power.
 struct KeyButton: View {
