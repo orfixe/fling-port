@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import FlingKit
 
 /// The TV section of the panel: power, app launcher, d-pad, volume keys, and
@@ -124,7 +125,7 @@ struct RemoteView: View {
                     .help("Home")
             }
             KeyButton(symbol: "chevron.down", size: 30, state: state, code: ATVKeyCode.dpadDown)
-            Text("or scroll anywhere to move around the TV")
+            Text("arrow keys, or scroll anywhere, to move around the TV")
                 .font(.system(size: 9.5)).foregroundStyle(.quaternary)
         }
         .frame(maxWidth: .infinity)
@@ -230,6 +231,7 @@ struct KeyButton: View {
     let code: Int32
 
     @State private var hovering = false
+    @State private var flash = false   // pressed on the Mac keyboard (KeyRemote)
 
     var body: some View {
         Button {
@@ -245,12 +247,18 @@ struct KeyButton: View {
             .foregroundStyle(accented ? Color.accentColor : Color.primary)
             .frame(width: size, height: size)
             .background(
-                Circle().fill(hovering ? Color.accentColor.opacity(0.22)
-                                       : Color.primary.opacity(accented ? 0.1 : 0.07))
+                Circle().fill(flash ? Color.accentColor.opacity(0.35)
+                              : hovering ? Color.accentColor.opacity(0.22)
+                                         : Color.primary.opacity(accented ? 0.1 : 0.07))
             )
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        .onReceive(NotificationCenter.default.publisher(for: RemoteKeyFlash.name)) { note in
+            guard note.userInfo?["code"] as? Int32 == code else { return }
+            flash = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { flash = false }
+        }
     }
 }
 

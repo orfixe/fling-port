@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Private macOS build: official Fling sources + keyboard-icon patch.
+# Private macOS build: official Fling sources + keyboard-icon patch + Mac keyboard as the TV remote.
 # Must run on macOS 14+ with Swift 6.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -15,6 +15,9 @@ rm -rf "$WORK" "$OUT"
 mkdir -p "$WORK" "$OUT"
 git clone --depth 1 --branch "$REF" "$UPSTREAM_URL" "$WORK/fling"
 cp "$ROOT/macos/RemoteView.swift" "$WORK/fling/Sources/Fling/RemoteView.swift"
+cp "$ROOT/macos/KeyRemote.swift" "$WORK/fling/Sources/Fling/KeyRemote.swift"
+# Mac keyboard → TV while the panel is open: StatusItemController creates KeyRemote
+git -C "$WORK/fling" apply "$ROOT/macos/patches/StatusItemController-keyboard.patch"
 
 (
   cd "$WORK/fling"
