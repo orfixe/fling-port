@@ -1,0 +1,35 @@
+name: Windows setup
+# Builds Fling.exe (PyInstaller) and packs it as Fling-Setup-<version>.exe (Inno Setup).
+# Run by hand; the setup is uploaded as a workflow artifact.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["setup/**"]       # try a change to the setup before it goes to main
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") |
+                  Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { choco install innosetup -y --no-progress }
+      - name: Build
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File windows\build.ps1
+      - name: Check the setup exists
+        shell: pwsh
+        run: |
+          $s = Get-ChildItem dist\Fling-Setup-*.exe
+          if (-not $s) { throw "no Fling-Setup-*.exe in dist" }
+          $s | Format-Table Name, Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Fling-Setup
+          path: dist/Fling-Setup-*.exe
+          if-no-files-found: error
