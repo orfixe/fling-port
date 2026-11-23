@@ -27,6 +27,9 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 - Windows (installed from source): Fling runs as `Fling.exe` with its own name and icon, so Task
   Manager lists "Fling" as one process instead of two "Python" ones.
 - macOS: the same round d-pad and "keyboard captured" strip; Esc closes the panel.
+- Desktop: TV volume as a slider with the TV's own level (the TV reports it over the remote
+  session, no polling); the speaker icon mutes. TVs that don't report a volume keep the
+  − / mute / + keys. The laptop's own volume keys no longer drive the TV.
 
 ### Fixed
 
