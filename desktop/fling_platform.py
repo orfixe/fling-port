@@ -88,6 +88,12 @@ def platform_tools_zip_url() -> str:
     return _PLATFORM_TOOLS_ZIP["linux"]
 
 
+# catt is a Python program. With its output going to a pipe, Python on Windows writes in
+# the ANSI code page (cp1251/cp1252), so Cyrillic titles came back as mojibake and emoji
+# crashed `catt info`. Force UTF-8, which is what catt_run decodes.
+CATT_ENV = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
+
+
 def find_adb() -> str:
     found = shutil.which("adb")
     if found:

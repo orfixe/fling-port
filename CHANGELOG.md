@@ -220,7 +220,7 @@ unchanged.
 
 #### Both
 
-- Authorship line "Fling by Damion Rashford & Tatiana · unofficial port",
+- Authorship line "Fling by Damion Rashford & Tatiana · unofficial port by orfixe",
   linking to the original repository.
 
 ### Security

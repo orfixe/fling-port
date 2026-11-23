@@ -57,12 +57,31 @@ def load_conf() -> dict:
     except Exception:
         return {}
 
+_CONF_LOCK = threading.Lock()   # the UI thread and the YouTube (asyncio) thread both save
+
 def save_conf(c: dict) -> None:
-    os.makedirs(os.path.dirname(CONF), exist_ok=True)
-    tmp = CONF + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(c, f, indent=1, ensure_ascii=False)
-    os.replace(tmp, CONF)
+    """Write fling.json atomically. Never raises: antivirus or OneDrive can briefly lock
+    the file on Windows, and a failed save must not take the whole app down."""
+    with _CONF_LOCK:
+        tmp = f"{CONF}.{os.getpid()}.{threading.get_ident()}.tmp"   # unique per writer
+        try:
+            os.makedirs(os.path.dirname(CONF), exist_ok=True)
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(c, f, indent=1, ensure_ascii=False)
+            for attempt in range(5):                  # a locked target frees up within ~1 s
+                try:
+                    os.replace(tmp, CONF)
+                    return
+                except PermissionError:
+                    if attempt == 4:
+                        raise
+                    time.sleep(0.2)
+        except Exception as e:
+            print(f"fling: could not save settings: {e!r}", file=sys.stderr)
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
 
 # ---------------------------------------------------------------- URL classifier (URLClassifier.swift)
 
@@ -171,7 +190,7 @@ class CattError(Exception):
 def catt_run(args: list[str], timeout: float = 25) -> str:
     try:
         r = P.run(P.catt_cmd(CATT, args), capture_output=True, text=True, timeout=timeout,
-                  encoding="utf-8", errors="replace")
+                  encoding="utf-8", errors="replace", env=P.CATT_ENV)
     except subprocess.TimeoutExpired:
         raise CattError("catt не ответил вовремя и был остановлен. Попробуйте ещё раз.")
     except FileNotFoundError:
@@ -349,6 +368,7 @@ class ATV(QObject):
         self.remote = None
         self.host = None
         self.connected = False
+        self._lock = asyncio.Lock()   # used only on self.loop (binds to it on first use)
         self._voice_stream = None
         self._rec = None
 
@@ -395,10 +415,12 @@ class ATV(QObject):
         async def run():
             self.pairing.emit("starting", "")
             try:
-                if self.remote:
-                    self.remote.disconnect()
-                self.remote = self._make(host)
-                self.host = host
+                async with self._lock:             # don't swap the remote under a running connect
+                    if self.remote:
+                        self.remote.disconnect()
+                    self.remote = self._make(host)
+                    self.host = host
+                    self.connected = False
                 await self.remote.async_generate_cert_if_missing()
                 await self.remote.async_start_pairing()
                 self.pairing.emit("pin", "")
@@ -423,39 +445,51 @@ class ATV(QObject):
 
     def cancel_pairing(self):
         async def run():
-            if self.remote:
-                self.remote.disconnect()
-            self.remote = None
-            self.connected = False
+            async with self._lock:
+                if self.remote:
+                    self.remote.disconnect()
+                self.remote = None
+                self.connected = False
             self.pairing.emit("idle", "")
         asyncio.run_coroutine_threadsafe(run(), self.loop)
 
     # session
     async def _connect(self, host):
-        if self.connected and self.host == host and self.remote:
-            return
-        if self.remote:
-            self.remote.disconnect()
-        self.remote = self._make(host)
-        self.host = host
-        self.remote.add_is_on_updated_callback(lambda on: self.power.emit(on))
-        self.remote.add_current_app_updated_callback(lambda a: self.app.emit(a))
-        # the TV pushes its own volume whenever it changes (remote, our keys, CEC) — no polling
-        self.remote.add_volume_info_updated_callback(lambda v: self.volume.emit(dict(v) if v else None))
-        def avail(ok):
-            self.connected = ok
-            if not ok:
-                self.power.emit(None)
-                self.app.emit(None)
-                self.volume.emit(None)
-        self.remote.add_is_available_updated_callback(avail)
-        await self.remote.async_connect()
-        self.connected = True
-        self.remote.keep_reconnecting()
-        self.power.emit(self.remote.is_on)
-        self.app.emit(self.remote.current_app)
-        if self.remote.volume_info:
-            self.volume.emit(dict(self.remote.volume_info))
+        # One connect at a time: several key presses right after the TV wakes up used to
+        # start parallel connects that tore down each other's half-open sessions.
+        async with self._lock:
+            if self.connected and self.host == host and self.remote:
+                return
+            if self.remote:
+                self.remote.disconnect()
+            remote = self.remote = self._make(host)
+            self.host = host
+            # callbacks from a remote we have already replaced must not touch the live state
+            remote.add_is_on_updated_callback(lambda on: remote is self.remote and self.power.emit(on))
+            remote.add_current_app_updated_callback(lambda a: remote is self.remote and self.app.emit(a))
+            # the TV pushes its own volume whenever it changes (remote, our keys, CEC) — no polling
+            remote.add_volume_info_updated_callback(
+                lambda v: remote is self.remote and self.volume.emit(dict(v) if v else None))
+            def avail(ok):
+                if remote is not self.remote:
+                    return
+                self.connected = ok
+                if not ok:
+                    self.power.emit(None)
+                    self.app.emit(None)
+                    self.volume.emit(None)
+            remote.add_is_available_updated_callback(avail)
+            try:
+                await remote.async_connect()
+            except BaseException:
+                self.connected = False
+                raise
+            self.connected = True
+            remote.keep_reconnecting()
+            self.power.emit(remote.is_on)
+            self.app.emit(remote.current_app)
+            if remote.volume_info:
+                self.volume.emit(dict(remote.volume_info))
 
     def connect(self, host):
         if self.paired(host):
@@ -1335,7 +1369,7 @@ class State(QObject):
         """Add a TV that discovery can't see (other subnet, mDNS blocked) by its IP address."""
         ip = ip.strip()
         parts = ip.split(".")                      # IPv4: 4 numbers, each 0..255
-        if len(parts) != 4 or not all(x.isdigit() and int(x) <= 255 for x in parts):
+        if len(parts) != 4 or not all(x.isascii() and x.isdigit() and int(x) <= 255 for x in parts):
             self._set(last_error="Это не похоже на IP-адрес (пример: 192.168.1.50).")
             return
         def work():
@@ -1495,7 +1529,7 @@ class State(QObject):
                 return
         if self.remote_ready and (self.cast_stuck or self.tvm_live):
             QTimer.singleShot(1500, self.poll_tvm)
-            for _ in range(max(1, abs(s) // 10)):   # YouTube TV: one press = 10 s
+            for _ in range(min(60, max(1, abs(s) // 10))):   # YouTube TV: one press = 10 s (max 60 presses)
                 self.tv_key(KEY["ffwd"] if s > 0 else KEY["rewind"])
             return
         self._catt(["ffwd" if s > 0 else "rewind", str(abs(s))])
@@ -1764,8 +1798,8 @@ EN_PHRASES += [   # rows that had no English text yet
     ("Уведомления включены", "Notifications on"), ("Уведомления выключены", "Notifications off"),
     ("Запускать при входе", "Start at login"), ("Связать с ТВ", "Pair with TV"),
     ("Отправить скопированную ссылку", "Cast copied link"), ("Ищу ТВ…", "Looking for TVs…"), ("Телевизор", "TV"), ("ТВ…", "TV…"),
-    ("Fling создан Damion Rashford и Tatiana · неофициальный порт",
-     "Fling by Damion Rashford and Tatiana · unofficial port"),
+    ("Fling создан Damion Rashford и Tatiana · неофициальный порт от orfixe",
+     "Fling by Damion Rashford and Tatiana · unofficial port by orfixe"),
 ]
 EN_PHRASES += [   # Connect TV window, TV menu, screenshots
     ('Добавить ТВ по IP…', 'Add TV by IP…'),
@@ -2549,7 +2583,9 @@ class Artwork(QWidget):
             return
         self.url, self.pix = url, None
         self.update()
-        if not url:
+        # artwork comes from TV metadata that any sender on the LAN sets; file:// would let
+        # it point Windows at an SMB share (NTLM hash leak), so fetch http(s) only
+        if not url or QUrl(url).scheme() not in ("http", "https"):
             return
         reply = Artwork.nam.get(QNetworkRequest(QUrl(url)))
         def done():
@@ -3219,9 +3255,9 @@ class Panel(QWidget):
         ft.addWidget(self.switch)
         fw = QWidget(); fw.setLayout(ft)
         v.addWidget(fw)
-        # authorship: Fling is Damion Rashford's and Tatiana's app; this is an unofficial port
+        # authorship: Fling is Damion Rashford's and Tatiana's app; this is an unofficial port by orfixe
         credit = label(f'<a href="https://github.com/tatianathevisionary/fling" style="color:{Theme.css(T.fg_a(0.45))};text-decoration:none">'
-                       'Fling создан Damion Rashford и Tatiana · неофициальный порт</a>', 10, T.fg_a(0.4))
+                       'Fling создан Damion Rashford и Tatiana · неофициальный порт от orfixe</a>', 10, T.fg_a(0.4))
         credit.setOpenExternalLinks(True)
         credit.setToolTip("github.com/tatianathevisionary/fling")
         # bottom line: credit on the left, a small dimmed language flag on the right
@@ -4064,7 +4100,7 @@ class SetupWindow(QWidget):
             v.addWidget(self._row(key, title))
         v.addStretch(1)
         c2 = label(f'<a href="https://github.com/tatianathevisionary/fling" style="color:{Theme.css(T.fg_a(0.55))}">'
-                   'Fling создан Damion Rashford и Tatiana · неофициальный порт</a>', 10.5, T.fg_a(0.45))
+                   'Fling создан Damion Rashford и Tatiana · неофициальный порт от orfixe</a>', 10.5, T.fg_a(0.45))
         c2.setOpenExternalLinks(True)
         v.addWidget(c2)
         area.setWidget(body)
@@ -4673,6 +4709,12 @@ def bridge_handler(state: "State", panel: "Panel"):
         if a == "cast":
             url = str(body.get("url") or "").strip()
             src = str(body.get("media_src") or "")
+            # Web links only. A local or UNC path here would be served to the whole LAN by
+            # catt, and os.path.isfile on a \\host\share path leaks the Windows login hash (NTLM).
+            if urlparse(url).scheme not in ("http", "https"):
+                return {"ok": False, "error": "Это не веб-страница"}
+            if urlparse(src).scheme not in ("http", "https"):
+                src = ""
             if src and classify(url)[0] == "maybe" and classify(src)[0] == "direct":
                 url = src
             start = body.get("start")
@@ -4683,7 +4725,7 @@ def bridge_handler(state: "State", panel: "Panel"):
         elif a == "play_pause":
             state.toggle_play()
         elif a == "seek":
-            state.seek(int(body.get("seconds") or SEEK))
+            state.seek(max(-3600, min(3600, int(body.get("seconds") or SEEK))))   # bounded: see seek()
         elif a == "stop":
             state.stop()
         elif a == "volume":
@@ -4753,6 +4795,12 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--catt":
         return catt_main(sys.argv[2:])
     P.setup_logging()
+    # PyQt6 aborts the whole process on an exception inside a slot unless an excepthook
+    # is set. Log it and keep running: one failed click must not kill the tray icon.
+    import traceback
+    def excepthook(kind, value, tb):
+        traceback.print_exception(kind, value, tb, file=sys.stderr)
+    sys.excepthook = excepthook
     if "--after-restart" in sys.argv:              # language switch: let the old instance exit first
         sys.argv.remove("--after-restart")
         time.sleep(1.2)

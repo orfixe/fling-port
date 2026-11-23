@@ -36,11 +36,17 @@ New-Item -ItemType Directory -Force -Path $Bin | Out-Null
 # The .cmd stays ASCII. The real path lives in a UTF-8 script, so a Cyrillic profile name still works.
 $run = Join-Path $Bin 'fling-run.ps1'
 $exeLit = $Exe.Replace("'", "''")
-[IO.File]::WriteAllText($run, "Start-Process -FilePath '$exeLit' -ArgumentList `$args`r`n", [Text.UTF8Encoding]::new($true))
+# Quote each argument (Start-Process doesn't), and skip -ArgumentList when there are none:
+# Windows PowerShell 5.1 rejects an empty -ArgumentList, which broke a plain `fling`.
+$runBody = @'
+$a = @($args | ForEach-Object { '"' + $_ + '"' })
+if ($a.Count) { Start-Process -FilePath '__EXE__' -ArgumentList $a } else { Start-Process -FilePath '__EXE__' }
+'@
+[IO.File]::WriteAllText($run, $runBody.Replace('__EXE__', $exeLit), [Text.UTF8Encoding]::new($true))
 "@echo off`r`npowershell -NoProfile -ExecutionPolicy Bypass -File `"%~dp0fling-run.ps1`" %*`r`n" | Set-Content -Encoding ascii (Join-Path $Bin 'fling.cmd')
 $p = [Environment]::GetEnvironmentVariable('Path', 'User')
 if (-not (($p -split ';') -contains $Bin)) {
   [Environment]::SetEnvironmentVariable('Path', (($p, $Bin) -join ';').TrimStart(';'), 'User')
 }
-Write-Host "Start menu: Fling  ·  command: fling (new terminals)"
+Write-Host "Start menu: Fling  -  command: fling (new terminals)"
 Start-Process $Exe -ArgumentList 'show'

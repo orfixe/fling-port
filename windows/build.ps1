@@ -42,7 +42,7 @@ $VerInfo = Join-Path $Work 'version.txt'
 VSVersionInfo(
   ffi=FixedFileInfo(filevers=($($n[0]),$($n[1]),$($n[2]),0), prodvers=($($n[0]),$($n[1]),$($n[2]),0)),
   kids=[StringFileInfo([StringTable('040904B0', [
-    StringStruct('CompanyName', 'Fling for Windows (unofficial port)'),
+    StringStruct('CompanyName', 'Fling for Windows (unofficial port by orfixe)'),
     StringStruct('FileDescription', 'Fling'),
     StringStruct('FileVersion', '$Ver'),
     StringStruct('ProductName', 'Fling'),

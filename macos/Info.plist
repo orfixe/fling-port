@@ -15,7 +15,7 @@
     <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundleLocalizations</key><array><string>en</string><string>ru</string></array>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Fling Port reads the address of your frontmost browser tab so it can send it to your TV. Unofficial port of Fling (Damion Rashford / Tatiana).</string>
+    <string>Fling Port reads the address of your frontmost browser tab so it can send it to your TV. Unofficial port of Fling (Damion Rashford / Tatiana) by orfixe.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Fling Port streams your voice to the TV for voice search.</string>
 </dict>

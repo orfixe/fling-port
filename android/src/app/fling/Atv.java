@@ -20,6 +20,10 @@ import javax.net.ssl.SSLSocket;
 /** Android TV Remote protocol v2: pairing on 6467, session on 6466.
  *  Port of Fling's ATVPairingClient / ATVRemoteClient. */
 final class Atv {
+    /** Remote-protocol messages are a few KB at most. A bigger length prefix (anyone on the
+     *  LAN can send one — the TLS here trusts any certificate) used to allocate it and OOM. */
+    private static final int MAX_FRAME = 1 << 20;
+
     interface Listener {
         void onPower(Boolean on);
         void onApp(String pkg);
@@ -138,6 +142,7 @@ final class Atv {
         InputStream in = pairSock.getInputStream();
         long n = Proto.readVarint(in);
         if (n < 0) throw new IOException(L.t("Телевизор закрыл соединение."));
+        if (n > MAX_FRAME) throw new IOException("frame too large: " + n);
         Proto.R r = new Proto.R(Proto.readFully(in, (int) n));
         Long st = r.varint(2);
         if (st == null || st != 200) throw new IOException(L.f("Телевизор отклонил код (статус %s). Начните заново.", st));
@@ -186,6 +191,7 @@ final class Atv {
             while (true) {
                 long n = Proto.readVarint(in);
                 if (n < 0) break;
+                if (n > MAX_FRAME) break;   // garbage or hostile peer: drop the session, don't OOM
                 handle(new Proto.R(Proto.readFully(in, (int) n)));
             }
         } catch (Exception ignored) {
