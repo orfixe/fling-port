@@ -1529,7 +1529,7 @@ class State(QObject):
                 return
         if self.remote_ready and (self.cast_stuck or self.tvm_live):
             QTimer.singleShot(1500, self.poll_tvm)
-            for _ in range(max(1, abs(s) // 10)):   # YouTube TV: one press = 10 s
+            for _ in range(min(60, max(1, abs(s) // 10))):   # YouTube TV: one press = 10 s (max 60 presses)
                 self.tv_key(KEY["ffwd"] if s > 0 else KEY["rewind"])
             return
         self._catt(["ffwd" if s > 0 else "rewind", str(abs(s))])
@@ -2583,7 +2583,9 @@ class Artwork(QWidget):
             return
         self.url, self.pix = url, None
         self.update()
-        if not url:
+        # artwork comes from TV metadata that any sender on the LAN sets; file:// would let
+        # it point Windows at an SMB share (NTLM hash leak), so fetch http(s) only
+        if not url or QUrl(url).scheme() not in ("http", "https"):
             return
         reply = Artwork.nam.get(QNetworkRequest(QUrl(url)))
         def done():
@@ -4707,6 +4709,12 @@ def bridge_handler(state: "State", panel: "Panel"):
         if a == "cast":
             url = str(body.get("url") or "").strip()
             src = str(body.get("media_src") or "")
+            # Web links only. A local or UNC path here would be served to the whole LAN by
+            # catt, and os.path.isfile on a \\host\share path leaks the Windows login hash (NTLM).
+            if urlparse(url).scheme not in ("http", "https"):
+                return {"ok": False, "error": "Это не веб-страница"}
+            if urlparse(src).scheme not in ("http", "https"):
+                src = ""
             if src and classify(url)[0] == "maybe" and classify(src)[0] == "direct":
                 url = src
             start = body.get("start")
@@ -4717,7 +4725,7 @@ def bridge_handler(state: "State", panel: "Panel"):
         elif a == "play_pause":
             state.toggle_play()
         elif a == "seek":
-            state.seek(int(body.get("seconds") or SEEK))
+            state.seek(max(-3600, min(3600, int(body.get("seconds") or SEEK))))   # bounded: see seek()
         elif a == "stop":
             state.stop()
         elif a == "volume":
