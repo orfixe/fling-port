@@ -16,6 +16,13 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   Connect TV, `fling install-apk app.apk`, or right-click an `.apk` in Explorer → *Install on TV (Fling)*
   (Windows). Several files at once install one split app. Clear messages for the usual failures
   (other signature, newer version installed, wrong processor, no space).
+- Android: Fling checks for a newer release (quietly once a day, or *Version … · Check for updates*
+  at the bottom), downloads `Fling.apk` and opens Android's own install screen; it goes over the
+  old app, pairing and settings stay. While the repository is private, GitHub needs your own
+  read-only token, which Fling asks for once and keeps only on the phone.
+- Windows: a real setup, `Fling-Setup-<version>.exe` (Inno Setup): per-user install without admin
+  rights, Start menu, optional desktop icon and autostart, the `.apk` menu and the `fling` command,
+  uninstall from Settings → Apps.
 
 ### Changed
 
