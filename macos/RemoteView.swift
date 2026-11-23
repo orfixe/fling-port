@@ -43,8 +43,7 @@ struct RemoteView: View {
 
     /// Says so while the Mac keyboard goes to the TV instead of the app the user was in.
     private var keyboardStrip: some View {
-        Text(state.tvPaired ? "⌨  Keyboard captured — keys go to the TV. Esc releases it"
-                            : "⌨  Keyboard captured — ← → seek, Space pauses. Esc releases it")
+        Text("⌨  Keyboard captured — Esc to exit")
             .font(.system(size: 10.5, weight: .semibold))
             .foregroundStyle(Color.accentColor)
             .multilineTextAlignment(.center)

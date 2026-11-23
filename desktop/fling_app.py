@@ -1823,10 +1823,7 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
     ('ТВ', 'TV'),
 ]
 EN_PHRASES += [   # keyboard captured strip
-    ("⌨  Клавиатура захвачена — клавиши идут на ТВ. Esc — отпустить",
-     "⌨  Keyboard captured — keys go to the TV. Esc releases it"),
-    ("⌨  Клавиатура захвачена — ← → перемотка, Пробел пауза. Esc — отпустить",
-     "⌨  Keyboard captured — ← → seek, Space pauses. Esc releases it"),
+    ("⌨  Клавиатура захвачена — Esc, чтобы выйти", "⌨  Keyboard captured — Esc to exit"),
 ]
 EN_PHRASES += [   # installing an APK on the TV
     ("Установить APK на ТВ", "Install APK on the TV"),
@@ -3159,9 +3156,7 @@ class Panel(QWidget):
         strip, box = getattr(self, "kb_strip", None), getattr(self, "kb_box", None)
         if strip is None or box is None:
             return
-        text = ("⌨  Клавиатура захвачена — клавиши идут на ТВ. Esc — отпустить"
-                if remote else
-                "⌨  Клавиатура захвачена — ← → перемотка, Пробел пауза. Esc — отпустить")
+        text = "⌨  Клавиатура захвачена — Esc, чтобы выйти"
         if strip.text() != tr(text):
             strip.setText(text)
         if box.isVisibleTo(self) != on:
