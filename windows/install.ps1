@@ -180,12 +180,18 @@ Step 'Start menu and the `fling` command'
 $run = Join-Path $Bin 'fling-run.ps1'
 $pywLit = $Pyw.Replace("'", "''")
 $mainLit = $Main.Replace("'", "''")
-[IO.File]::WriteAllText($run, "Start-Process -FilePath '$pywLit' -ArgumentList (@('$mainLit') + `$args)`r`n", [Text.UTF8Encoding]::new($true))
+# Start-Process joins -ArgumentList without quoting, so a profile path with a space
+# ("John Smith") reached pythonw as two arguments. Quote every one.
+$runBody = @'
+$a = @('"__MAIN__"') + @($args | ForEach-Object { '"' + $_ + '"' })
+Start-Process -FilePath '__PYW__' -ArgumentList $a
+'@
+[IO.File]::WriteAllText($run, $runBody.Replace('__MAIN__', $mainLit).Replace('__PYW__', $pywLit), [Text.UTF8Encoding]::new($true))
 "@echo off`r`npowershell -NoProfile -ExecutionPolicy Bypass -File `"%~dp0fling-run.ps1`" %*`r`n" | Set-Content -Encoding ascii (Join-Path $Bin 'fling.cmd')
 
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 if (-not (($userPath -split ';') -contains $Bin)) {
-  [Environment]::SetEnvironmentVariable('Path', (($userPath.TrimEnd(';')) + ";$Bin").TrimStart(';'), 'User')
+  [Environment]::SetEnvironmentVariable('Path', (("$userPath".TrimEnd(';')) + ";$Bin").TrimStart(';'), 'User')
   Note "added $Bin to PATH (new terminals)"
 }
 
