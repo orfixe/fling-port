@@ -365,11 +365,16 @@ final class Cast {
         t.start();
     }
 
-    private static byte[] readAll(InputStream in) throws IOException {
+    /** Whole stream as bytes (max 4 MB). InputStream.readAllBytes() exists only on
+     *  Android 13+, and this app runs from Android 8 — so every HTTP read uses this. */
+    static byte[] readAll(InputStream in) throws IOException {
         java.io.ByteArrayOutputStream b = new java.io.ByteArrayOutputStream();
         byte[] buf = new byte[8192];
         int n;
-        while ((n = in.read(buf)) > 0) b.write(buf, 0, n);
+        while ((n = in.read(buf)) > 0) {
+            if (b.size() + n > 4 << 20) throw new IOException("response too large");
+            b.write(buf, 0, n);
+        }
         in.close();
         return b.toByteArray();
     }
