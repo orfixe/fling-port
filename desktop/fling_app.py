@@ -368,6 +368,7 @@ class ATV(QObject):
         self.remote = None
         self.host = None
         self.connected = False
+        self._lock = asyncio.Lock()   # used only on self.loop (binds to it on first use)
         self._voice_stream = None
         self._rec = None
 
@@ -414,10 +415,12 @@ class ATV(QObject):
         async def run():
             self.pairing.emit("starting", "")
             try:
-                if self.remote:
-                    self.remote.disconnect()
-                self.remote = self._make(host)
-                self.host = host
+                async with self._lock:             # don't swap the remote under a running connect
+                    if self.remote:
+                        self.remote.disconnect()
+                    self.remote = self._make(host)
+                    self.host = host
+                    self.connected = False
                 await self.remote.async_generate_cert_if_missing()
                 await self.remote.async_start_pairing()
                 self.pairing.emit("pin", "")
@@ -442,39 +445,51 @@ class ATV(QObject):
 
     def cancel_pairing(self):
         async def run():
-            if self.remote:
-                self.remote.disconnect()
-            self.remote = None
-            self.connected = False
+            async with self._lock:
+                if self.remote:
+                    self.remote.disconnect()
+                self.remote = None
+                self.connected = False
             self.pairing.emit("idle", "")
         asyncio.run_coroutine_threadsafe(run(), self.loop)
 
     # session
     async def _connect(self, host):
-        if self.connected and self.host == host and self.remote:
-            return
-        if self.remote:
-            self.remote.disconnect()
-        self.remote = self._make(host)
-        self.host = host
-        self.remote.add_is_on_updated_callback(lambda on: self.power.emit(on))
-        self.remote.add_current_app_updated_callback(lambda a: self.app.emit(a))
-        # the TV pushes its own volume whenever it changes (remote, our keys, CEC) — no polling
-        self.remote.add_volume_info_updated_callback(lambda v: self.volume.emit(dict(v) if v else None))
-        def avail(ok):
-            self.connected = ok
-            if not ok:
-                self.power.emit(None)
-                self.app.emit(None)
-                self.volume.emit(None)
-        self.remote.add_is_available_updated_callback(avail)
-        await self.remote.async_connect()
-        self.connected = True
-        self.remote.keep_reconnecting()
-        self.power.emit(self.remote.is_on)
-        self.app.emit(self.remote.current_app)
-        if self.remote.volume_info:
-            self.volume.emit(dict(self.remote.volume_info))
+        # One connect at a time: several key presses right after the TV wakes up used to
+        # start parallel connects that tore down each other's half-open sessions.
+        async with self._lock:
+            if self.connected and self.host == host and self.remote:
+                return
+            if self.remote:
+                self.remote.disconnect()
+            remote = self.remote = self._make(host)
+            self.host = host
+            # callbacks from a remote we have already replaced must not touch the live state
+            remote.add_is_on_updated_callback(lambda on: remote is self.remote and self.power.emit(on))
+            remote.add_current_app_updated_callback(lambda a: remote is self.remote and self.app.emit(a))
+            # the TV pushes its own volume whenever it changes (remote, our keys, CEC) — no polling
+            remote.add_volume_info_updated_callback(
+                lambda v: remote is self.remote and self.volume.emit(dict(v) if v else None))
+            def avail(ok):
+                if remote is not self.remote:
+                    return
+                self.connected = ok
+                if not ok:
+                    self.power.emit(None)
+                    self.app.emit(None)
+                    self.volume.emit(None)
+            remote.add_is_available_updated_callback(avail)
+            try:
+                await remote.async_connect()
+            except BaseException:
+                self.connected = False
+                raise
+            self.connected = True
+            remote.keep_reconnecting()
+            self.power.emit(remote.is_on)
+            self.app.emit(remote.current_app)
+            if remote.volume_info:
+                self.volume.emit(dict(remote.volume_info))
 
     def connect(self, host):
         if self.paired(host):
