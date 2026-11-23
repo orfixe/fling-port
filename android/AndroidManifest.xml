@@ -18,7 +18,7 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:theme="@style/FlingTheme"
         android:usesCleartextTraffic="true"
-        android:allowBackup="true">
+        android:allowBackup="false">
 
         <activity
             android:name=".MainActivity"
