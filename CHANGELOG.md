@@ -10,6 +10,8 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-22
+
 ### Added
 
 - Desktop: install an APK on the TV over ADB — Android badge → *Install APK…*, the same button in
@@ -190,7 +192,8 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.3.0...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/orfixe/fling-port/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/orfixe/fling-port/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/orfixe/fling-port/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/orfixe/fling-port/releases/tag/v0.1.0

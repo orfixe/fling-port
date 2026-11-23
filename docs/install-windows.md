@@ -29,13 +29,14 @@ Two parts:
 
 ### Option A — ready-made build (easiest)
 
-1. Download **`Fling-Windows-…zip`** from [Releases](https://github.com/orfixe/fling-port/releases).
-2. Unzip it somewhere permanent, e.g. `Documents\Fling`.
-3. Double-click **`Install shortcuts.cmd`** in that folder: Start menu entry, the `fling`
-   command, and Fling starts. (Double-clicking `Fling.exe` also works.)
-4. **SmartScreen** may say "Windows protected your PC" — the build isn't signed with a paid
-   certificate. Click **More info → Run anyway**. Some antivirus products are also wary of
-   unsigned apps; if Fling.exe lands in quarantine, add the Fling folder to the exclusions.
+1. Download **`Fling-Setup-….exe`** from [Releases](https://github.com/orfixe/fling-port/releases).
+2. Run it. **SmartScreen** may say "Windows protected your PC" — the setup isn't signed with a
+   paid certificate. Click **More info → Run anyway**.
+3. Pick the extras (desktop icon, start with Windows, *Install on TV* for `.apk` files, the `fling`
+   command) and finish — Fling starts. It installs for your user only, no admin rights needed.
+4. To remove it: *Settings → Apps → Fling → Uninstall*. Your settings stay in `%APPDATA%\Fling`.
+   Some antivirus products are wary of unsigned apps; if Fling.exe lands in quarantine, add
+   `%LOCALAPPDATA%\Programs\Fling` to the exclusions.
 
 No Python needed — everything is bundled.
 
@@ -132,10 +133,9 @@ Log: `%LOCALAPPDATA%\Fling\logs\app.log` — attach the last lines when you repo
 
 ## Updating and removing
 
-- **Ready-made build:** download the new zip, quit Fling (tray menu → Quit), replace the folder's
-  contents. Pairing and settings are kept. To remove: run
-  `powershell -ExecutionPolicy Bypass -File setup-shortcuts.ps1 -Remove` in the Fling folder, then
-  delete the folder, `%LOCALAPPDATA%\Fling` and `%APPDATA%\Fling` (pairing and settings).
+- **Setup:** run the new `Fling-Setup-….exe` over the old one; it closes Fling, updates it and
+  keeps pairing and settings. To remove: *Settings → Apps → Fling → Uninstall*; to also forget
+  pairing and settings, delete `%APPDATA%\Fling`.
 - **From source:** update with `git pull` and `windows\install.cmd`; remove with `windows\uninstall.cmd`.
 - Remove the extension on the browser's extensions page.
 - The TV keeps "Fling (Windows)" in its list of remotes; you can remove it in the TV's settings.

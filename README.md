@@ -45,7 +45,7 @@ power, apps, d-pad, volume, typing, voice search.
 
 | I have… | Do this |
 |---|---|
-| **Windows 10 / 11** | Download `Fling-Windows-….zip` from [Releases](../../releases), unzip, double-click **Install shortcuts.cmd**. Step by step: **[Windows guide](docs/install-windows.md)** |
+| **Windows 10 / 11** | Download `Fling-Setup-….exe` from [Releases](../../releases) and run it. Step by step: **[Windows guide](docs/install-windows.md)** |
 | **Chrome / Edge / Firefox / Safari** | Install the app first, then the [browser extension](#browser-extension) |
 | **Linux (KDE)** | `git clone` and `linux/install.sh` — [details](#install--linux) |
 | **Android phone** | Install `Fling.apk` from [Releases](../../releases) — [details](#install--android) |
@@ -111,9 +111,9 @@ real title, artwork and position.
 
 Windows 10 (1809+) or 11, 64-bit (ARM laptops via emulation). No administrator rights needed.
 
-- **Ready-made build:** download `Fling-Windows-….zip` from [Releases](../../releases), unzip to a
-  permanent folder, double-click **`Install shortcuts.cmd`** (Start menu entry + `fling` command).
-  Python, Qt, catt and yt-dlp are bundled. SmartScreen may warn about an unsigned app:
+- **Setup:** download **`Fling-Setup-….exe`** from [Releases](../../releases) and run it. It installs
+  for your user only (no admin rights) with a Start menu entry, the `fling` command and, if you
+  like, autostart; uninstall from *Settings → Apps*. Python, Qt, catt and yt-dlp are bundled. SmartScreen may warn about an unsigned app:
   *More info → Run anyway*.
 - **From source:** double-click **`windows\install.cmd`** — installs [uv](https://docs.astral.sh/uv/),
   a private Python 3.12, PyQt6, catt and ADB into `%LOCALAPPDATA%\Fling`, adds Fling to the Start

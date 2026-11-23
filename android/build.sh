@@ -19,7 +19,7 @@ echo "==> resources"
 "$AAPT2" compile --dir res -o "$OUT/res/res.zip"
 "$AAPT2" link -I "$JAR" --manifest AndroidManifest.xml \
     --min-sdk-version 26 --target-sdk-version 36 \
-    --version-code "${VERSION_CODE:-3}" --version-name "${VERSION_NAME:-0.3.0}" \
+    --version-code "${VERSION_CODE:-4}" --version-name "${VERSION_NAME:-0.3.1}" \
     --java "$OUT/gen" -o "$OUT/base.apk" "$OUT/res/res.zip"
 
 echo "==> javac"
