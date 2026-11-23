@@ -1715,6 +1715,8 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Свяжите один раз с ТВ, чтобы открыть приложения, стрелки и ввод текста.",
      "Pair once with the TV to unlock apps, the d-pad, and typing."),
     ("Связать с YouTube на ТВ — видеть, что играет", "Link YouTube on the TV — see what's playing"),
+    ("Связать с YouTube — видеть, что играет", "Link YouTube — see what's playing"),
+    ("Включить", "Turn on"),
     ("Связать", "Pair"), ("Скопировать команду установки", "Copy install command"),
     ("Слушаю — нажмите микрофон ещё раз, когда закончите.", "Listening — click the mic again when done."),
     ("Сменить", "Switch"), ("ТВ выключен", "TV is off"),
@@ -2382,14 +2384,46 @@ class SlimSlider(QSlider):
         p.setBrush(QColor(0, 0, 0, 90)); p.drawEllipse(QRectF(x, y - k/2 + 0.6, k, k))
         p.setBrush(QColor("white")); p.drawEllipse(QRectF(x, y - k/2, k, k))
 
+    # while pressed, a bubble above the knob shows the level; `fmt(value)` makes its text
+    fmt = staticmethod(lambda v: f"{v}%")
+    _bubble = None
+
     def _set_from(self, x):
-        self.setValue(round(max(0, min(1, x / max(1, self.width()))) * 100))
+        lo, hi = self.minimum(), self.maximum()           # the TV's own scale, not always 0–100
+        self.setValue(lo + round(max(0, min(1, x / max(1, self.width()))) * (hi - lo)))
+        self._show_bubble()
+
+    def _show_bubble(self):
+        if SlimSlider._bubble is None:
+            b = QLabel(None, Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
+            b.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+            b.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            SlimSlider._bubble = b
+        b = SlimSlider._bubble
+        b.setStyleSheet(f"background:{Theme.css(T.accent)};color:white;border-radius:5px;"
+                        "padding:2px 7px;font-weight:600")
+        b.setText(self.fmt(self.value()))
+        b.adjustSize()
+        f = (self.value() - self.minimum()) / max(1, self.maximum() - self.minimum())
+        knob = self.mapToGlobal(QPoint(round(min(max(5.5, self.width() * f), self.width() - 5.5)), 0))
+        b.move(knob.x() - b.width() // 2, knob.y() - b.height() - 6)
+        b.show(); b.raise_()
 
     def mousePressEvent(self, e):
         self._set_from(e.position().x())
 
     def mouseMoveEvent(self, e):
         self._set_from(e.position().x())
+
+    def mouseReleaseEvent(self, e):
+        if SlimSlider._bubble is not None:
+            SlimSlider._bubble.hide()
+        super().mouseReleaseEvent(e)
+
+    def hideEvent(self, e):
+        if SlimSlider._bubble is not None:
+            SlimSlider._bubble.hide()
+        super().hideEvent(e)
 
     def wheelEvent(self, e):
         e.ignore()  # the panel's wheel is the TV d-pad
@@ -2773,19 +2807,28 @@ class VolumeRow(QWidget):
         self.ic.setStyleSheet("QPushButton{border:none;background:transparent}")
         self.ic.clicked.connect(self._mute)
         self.slider = SlimSlider()
+        self.slider.fmt = self._pct_text                 # the bubble while dragging
         self.slider.valueChanged.connect(self._moved)
-        self.num = label("50", 10.5, T.fg_a(0.3))
-        self.num.setFont(font(10.5, mono=True))
-        self.num.setFixedWidth(22)
+        self.num = label("50%", 11, T.fg_a(0.75), QFont.Weight.DemiBold)
+        self.num.setFont(font(11, QFont.Weight.DemiBold, mono=True))
+        self.num.setFixedWidth(40)
         self.num.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         lay.addWidget(self.ic); lay.addWidget(self.slider, 1); lay.addWidget(self.num)
         self._updating = False
+
+    def _pct(self, v) -> int:
+        """Level → percent of the TV's own scale (some TVs go to 15 or 60, not 100)."""
+        top = self.slider.maximum() or 100
+        return round(100 * v / top)
+
+    def _pct_text(self, v) -> str:
+        return f"{self._pct(v)}%"
 
     def _moved(self, v):
         if self._updating:
             return
         if tv_volume_known(self.state):
-            self.num.setText(str(v))
+            self.num.setText(self._pct_text(v))
             self.state.set_tv_volume(v)
         else:
             self.state.set_volume(v)
@@ -2810,7 +2853,7 @@ class VolumeRow(QWidget):
         if self.slider.value() != v:
             self.slider.setValue(v)
         self._updating = False
-        self.num.setText(str(v))
+        self.num.setText(self._pct_text(v))
         self.ic.setIcon(glyph("spk_slash" if muted else "spk_wave", 13, T.fg_a(0.55)))
         self.ic.setCursor(Qt.CursorShape.PointingHandCursor if tv else Qt.CursorShape.ArrowCursor)
         self.ic.setToolTip("Звук ТВ: щёлкните, чтобы выключить / включить" if tv else "")
@@ -2912,7 +2955,7 @@ class Panel(QWidget):
         bl.addWidget(self.c_title); bl.addWidget(self.c_host)
         cl.addWidget(box)
         # YouTube-on-TV link: the only source of what native YouTube really plays
-        self.yt_row = MenuRow("Связать с YouTube на ТВ — видеть, что играет", icon="tv", accented=True,
+        self.yt_row = MenuRow("Связать с YouTube — видеть, что играет", icon="tv", accented=True,
                               on=self._yt_entry)
         cl.addWidget(padded(self.yt_row, 0, 6, 0, 0))
         self.yt_box = QWidget()
@@ -3038,7 +3081,7 @@ class Panel(QWidget):
         sl = QVBoxLayout(self.r_setup); sl.setContentsMargins(0, 0, 0, 4); sl.setSpacing(0)
         sl.addWidget(padded(label("Свяжите один раз с ТВ, чтобы открыть приложения, стрелки и ввод текста.",
                                   11, T.fg_a(0.55), wrap=True), 14, 10, 14, 6))
-        sl.addWidget(MenuRow("Включить ТВ", icon="power", on=state.wake))
+        sl.addWidget(MenuRow("Включить", icon="power", on=state.wake))
         pair = MenuRow("Связать с ТВ", icon="tv_plus", accented=True, on=state.start_pairing)
         pair.set_icon_color(T.green)
         sl.addWidget(pair)
@@ -3085,11 +3128,7 @@ class Panel(QWidget):
         # Round pad like a physical remote; Back · Home below its sides
         # (self._dpad: lit up for a moment when the same key comes from the laptop keyboard)
         pad, self._dpad = build_dpad(k)
-        rl.addWidget(pad)
-        hint = label("Клавиатура: стрелки/WASD · Enter=OK · Backspace=Назад · Home · "
-                     "+/− громкость · Пробел пауза · колёсико", 9.5, T.fg_a(0.4), wrap=True)
-        hint.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-        rl.addWidget(padded(hint, 10, 0, 10, 6))
+        rl.addWidget(pad)                     # keyboard keys: in each button's tooltip
         # TV volume: the level the TV reports, as a slider; TVs that don't report one keep the keys
         self.r_vol = VolumeRow(state)
         self.r_vol.layout().setContentsMargins(14, 8, 14, 4)
@@ -3511,11 +3550,11 @@ class Panel(QWidget):
                 ("Усыпить", "sleep"),
                 ("Домой", "home"),
                 ("Снимок экрана", "screenshot"),
-                ("Настройки ТВ", "settings"),
+                ("Настройки", "settings"),
                 ("Приложения", "apps"),
                 ("Закрыть приложение", "force_stop"),
                 ("Установить APK…", "apk"),
-                ("Перезагрузить ТВ", "reboot"),
+                ("Перезагрузить", "reboot"),
                 ("Отключить ADB", "disconnect"),
                 (None, None),
                 ("Подключение ТВ…", "setup"),
