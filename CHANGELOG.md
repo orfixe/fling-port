@@ -10,6 +10,33 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-23
+
+Includes the macOS update below (Russian / English, WASD, TV volume slider, no keychain prompts).
+
+### Fixed
+
+- Android: the app crashed on Android 8–12 when adding a TV by IP, sharing a YouTube link or
+  looking up what's playing over ADB.
+- Android: no crash when Back or a dark-mode switch lands during a TV status update.
+- Desktop: key presses right after the TV wakes no longer fail with "TV closed the connection" —
+  one TV-remote connection at a time.
+- Desktop: a locked `fling.json` or an error in a button handler no longer closes Fling; Add TV
+  by IP rejects digits such as "²" instead of crashing.
+- Desktop (Windows): Cyrillic titles and TV names from catt are no longer garbled.
+- Windows: the `fling` command works for user folders with spaces and when run with no arguments.
+
+### Security
+
+- Desktop: the browser bridge only casts web (http/https) links, not local or network files;
+  artwork is fetched over http/https only; seek requests are bounded.
+- Android: TV keys and the paired-remote certificate are kept out of backups; oversized
+  remote-protocol frames are rejected.
+
+### Changed
+
+- Credit line names orfixe as the porter in the apps, the extension, the installer and macOS.
+
 ## macOS update - 2026-11-23
 
 The macOS files in the [0.3.1] release were replaced; Windows, Android and the extensions are
@@ -228,7 +255,8 @@ unchanged.
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.3.1...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/orfixe/fling-port/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/orfixe/fling-port/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/orfixe/fling-port/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/orfixe/fling-port/compare/v0.1.0...v0.2.0

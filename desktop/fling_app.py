@@ -46,7 +46,7 @@ SOCKET = "fling-panel"
 SEEK = 30
 GLOBAL_SHORTCUT = P.GLOBAL_SHORTCUT
 SHORTCUT_LABEL = P.SHORTCUT_LABEL
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 
 # ---------------------------------------------------------------- config
 
