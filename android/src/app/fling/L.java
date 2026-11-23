@@ -134,6 +134,30 @@ final class L {
         e("Свяжите один раз с ТВ, чтобы открыть приложения, стрелки, ввод текста, голосовой поиск и отправку YouTube-ссылок.",
           "Pair once with the TV to unlock apps, the d-pad, typing, voice search and sending YouTube links.");
         e("Связать с ТВ", "Pair with TV");
+        // Updater
+        e("Версия %s · Проверить обновления", "Version %s · Check for updates");
+        e("У вас последняя версия (%s).", "You have the latest version (%s).");
+        e("Не удалось проверить обновления: ", "Couldn't check for updates: ");
+        e("В версии %s нет файла Fling.apk.", "Version %s has no Fling.apk file.");
+        e("Доступна версия %s", "Version %s is available");
+        e("У вас %s. Скачать и установить обновление? Связь с ТВ и настройки сохранятся.", "You have %s. Download and install the update? TV pairing and settings stay.");
+        e("Позже", "Later");
+        e("Токен не подошёл", "The token didn't work");
+        e("Нужен токен GitHub", "A GitHub token is needed");
+        e("Репозиторий Fling приватный, поэтому GitHub отдаёт обновления только по токену. github.com → Settings → Developer settings → Fine-grained tokens → Generate: Repository access — только fling-port, Permissions → Contents — Read-only. Токен хранится только на этом телефоне.", "The Fling repository is private, so GitHub hands out updates only with a token. github.com → Settings → Developer settings → Fine-grained tokens → Generate: Repository access — only fling-port, Permissions → Contents — Read-only. The token is kept on this phone only.");
+        e("Сохранить и проверить", "Save and check");
+        e("Открыть GitHub", "Open GitHub");
+        e("Разрешите установку", "Allow installing");
+        e("Чтобы Fling мог поставить своё обновление, разрешите ему «Установку неизвестных приложений» и нажмите «Обновить» ещё раз.", "To let Fling install its update, allow it to “Install unknown apps”, then tap “Update” again.");
+        e("Открыть настройки", "Open settings");
+        e("Обновление до %s", "Updating to %s");
+        e("Скачиваю…", "Downloading…");
+        e("Скачиваю… %d%%", "Downloading… %d%%");
+        e("Открываю установку…", "Opening the installer…");
+        e("Обновление не скачалось: ", "The update didn't download: ");
+        e("файл скачался не полностью", "the file didn't download completely");
+        e("подпись нового APK не совпадает с установленным — удалите старый Fling и поставьте новый вручную.", "the new APK's signature doesn't match the installed one — uninstall the old Fling and install the new one by hand.");
+        e("Обновление не установилось: ", "The update didn't install: ");
         e("Телевизор ещё не найден.", "No TV found yet.");
         e("На телевизоре", "On the TV");
         e("Кнопки", "Buttons");

@@ -74,6 +74,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService net = Executors.newFixedThreadPool(3);
     private SharedPreferences prefs;
+    private Updater updater;
     private Cast cast;
     private Atv atv;
     private Discovery discovery;
@@ -149,6 +150,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         adb = new Adb(this);
         atv = new Atv(this, this);
         discovery = new Discovery(this, this);
+        updater = new Updater(this, ui, prefs);
         buildUi();
         handleIntent(getIntent());
         sync();
@@ -170,6 +172,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         }
         discovery.start();
         connectDevice();
+        updater.checkDaily();                                          // quiet; speaks only if newer
         main.post(poll);
         main.post(tick);
     }
@@ -1237,6 +1240,12 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         });
         langRow.addView(seg, Ui.lp(ui.dp(120), -2));
         root.addView(langRow, ui.margins(Ui.lp(-1, -2), 0, 10, 0, 0));
+        // version + "check for updates" (Updater: newest GitHub release)
+        TextView upd = ui.text(L.f("Версия %s · Проверить обновления", Updater.installedVersion(this)), 12, ui.accent, false);
+        upd.setGravity(Gravity.CENTER);
+        upd.setPadding(0, ui.dp(10), 0, ui.dp(10));
+        upd.setOnClickListener(v -> updater.check(true));
+        root.addView(upd, ui.margins(Ui.lp(-1, -2), 0, 4, 0, 0));
         langRowView = seg;
     }
 
