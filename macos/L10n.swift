@@ -116,15 +116,10 @@ private enum RU {
         "Back": "Назад",
         "Home": "Домой",
         "or scroll anywhere to move around the TV": "или крутите колёсико / тачпад в любом месте панели",
-        "W A S D — move · E or Return — OK · Q or Delete — Back":
-            "W A S D — движение · E или Return — OK · Q или Delete — Назад",
-        "↑ ↓ ← → — move · Return — OK · Delete — Back": "↑ ↓ ← → — движение · Return — OK · Delete — Назад",
-        "Home — home screen · + / − — volume · Space — OK / pause":
-            "Home — главный экран · + / − — громкость · Пробел — OK / пауза",
-        "Shift + A / D — seek · ⌘V — paste text · Esc — release keyboard":
-            "Shift + A / D — перемотка · ⌘V — вставить текст · Esc — отпустить клавиатуру",
-        "Shift + ← / → — seek · ⌘V — paste text · Esc — release keyboard":
-            "Shift + ← / → — перемотка · ⌘V — вставить текст · Esc — отпустить клавиатуру",
+        "WASD move · E ⏎ OK · Q ⌫ back · ± vol": "WASD ход · E ⏎ OK · Q ⌫ назад · ± громк.",
+        "↑↓←→ move · ⏎ OK · ⌫ back · ± vol": "↑↓←→ ход · ⏎ OK · ⌫ назад · ± громк.",
+        "space pause · ⇧A D seek · ⌘V paste · esc exit": "пробел пауза · ⇧A D перемотка · ⌘V вставить · esc выйти",
+        "space pause · ⇧← → seek · ⌘V paste · esc exit": "пробел пауза · ⇧← → перемотка · ⌘V вставить · esc выйти",
         "Move with the arrow keys": "Управлять стрелками",
         "Move with W A S D (E = OK, Q = Back)": "Управлять W A S D (E = OK, Q = Назад)",
         "Arrow keys": "Стрелки",
@@ -152,6 +147,8 @@ private enum RU {
         "Type, Return sends": "Напишите и нажмите Enter",
         "Live typing is on — click to send on Return instead": "Печать сразу включена — нажмите, чтобы отправлять по Enter",
         "Live typing is off — click to turn on": "Печать сразу выключена — нажмите, чтобы включить",
+        "TV volume": "Громкость телевизора",
+        "TV sound: click to mute / unmute": "Звук ТВ: щёлкните, чтобы выключить / включить",
         // errors (FlingKit)
         "Clipboard is empty": "Буфер обмена пуст",
         "No device selected": "Устройство не выбрано",

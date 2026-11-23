@@ -10,6 +10,11 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## macOS update - 2026-11-23
+
+The macOS files in the [0.3.1] release were replaced; Windows, Android and the extensions are
+unchanged.
+
 ### Added
 
 - macOS: Russian / English like the Windows build — follows the system language; *Language* row in
@@ -17,17 +22,29 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 - macOS: the keyboard button types on the TV live (letters appear as you type, Return runs the
   search) or sends on Return (right-click to choose); paste the clipboard on the TV with the
   clipboard button or ⌘V.
-- macOS: the small ⌨ badge beside the TV power key turns keyboard capture on / off (on by default).
 - macOS: W A S D as an alternative to the arrow keys (E = OK, Q = Back), picked with a small
-  arrows / WASD switch under the d-pad; the key guide below it follows the switch.
+  arrows / WASD switch under the d-pad; a compact key guide below it follows the switch.
+- macOS: TV volume slider from the level the TV reports (from the Windows build) — percent of the
+  TV's own scale, a bubble while dragging, the speaker mutes; TVs that don't report volume keep the
+  − / mute / + keys.
+- macOS: the small ⌨ badge beside the TV power key turns keyboard capture on / off (on by default).
 
 ### Changed
 
-- macOS: built on the author's current Fling with the author's d-pad layout; the keyboard-captured
-  strip is now a quiet badge.
-- macOS: the pairing code field takes the Russian keyboard layout (ф и с в у а → A–F).
-- macOS: signed with a local "Fling Port Local" identity when the Mac has one, so the keychain's
-  *Always Allow* survives updates; builds with Command Line Tools on macOS 27.
+- macOS: built on the author's current Fling with the author's d-pad layout (the round pad is gone);
+  the bright "keyboard captured" strip is now a quiet badge.
+
+### Fixed
+
+- macOS: Fling kept asking for access to a key in the keychain ("Always Allow" didn't stick). The
+  TV remote's identity now stays in memory, loaded from Fling's own file — no keychain, no prompts.
+  Pairing is kept.
+- macOS: the pairing code field only took the English layout; the Russian one works now
+  (ф и с в у а → A–F), as on Windows.
+- macOS: the build failed with Command Line Tools on macOS 27 (SwiftUI macro plugin missing); it
+  now falls back to the macOS 26 SDK and finds the binary in either build folder.
+- macOS: signed with a local "Fling Port Local" identity when the Mac has one, so the signature no
+  longer changes with every build.
 
 ## [0.3.1] - 2026-11-22
 

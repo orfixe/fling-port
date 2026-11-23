@@ -50,19 +50,16 @@ struct RemoteView: View {
     /// How to drive the TV from the Mac keyboard; follows the arrows / WASD switch.
     private var keyLegend: some View {
         let lines: [String] = capture.scheme == .wasd ? [
-            "W A S D — move · E or Return — OK · Q or Delete — Back",
-            "Home — home screen · + / − — volume · Space — OK / pause",
-            "Shift + A / D — seek · ⌘V — paste text · Esc — release keyboard",
+            "WASD move · E ⏎ OK · Q ⌫ back · ± vol",
+            "space pause · ⇧A D seek · ⌘V paste · esc exit",
         ] : [
-            "↑ ↓ ← → — move · Return — OK · Delete — Back",
-            "Home — home screen · + / − — volume · Space — OK / pause",
-            "Shift + ← / → — seek · ⌘V — paste text · Esc — release keyboard",
+            "↑↓←→ move · ⏎ OK · ⌫ back · ± vol",
+            "space pause · ⇧← → seek · ⌘V paste · esc exit",
         ]
-        return VStack(spacing: 1) {
+        return VStack(spacing: 0) {
             ForEach(lines, id: \.self) { Text($0) }
-            Text("or scroll anywhere to move around the TV")
         }
-        .font(.system(size: 9.5)).foregroundStyle(.tertiary)
+        .font(.system(size: 9)).foregroundStyle(.tertiary)
         .multilineTextAlignment(.center)
         .id(capture.scheme)
         .transition(.opacity)
@@ -149,7 +146,11 @@ struct RemoteView: View {
             header
             appGrid
             dpad
-            volumeKeys
+            if let vol = state.tvVolume {
+                TVVolumeRow(state: state, volume: vol)   // the TV reports its volume: a slider
+            } else {
+                volumeKeys
+            }
             typeRow
         }
     }
@@ -391,6 +392,109 @@ struct RemoteView: View {
 }
 
 // MARK: - controls
+
+/// Port (from the Windows build): the TV's own volume as a slider, on the
+/// TV's scale (some go to 15 or 60, not 100) shown in percent. Dragging walks
+/// the TV there with volume keys; a bubble over the knob shows the level.
+/// The speaker toggles mute. Shown only when the TV reports its volume.
+struct TVVolumeRow: View {
+    @ObservedObject var state: AppState
+    let volume: TVVolume
+    @State private var dragValue: Double?
+
+    private var shown: Double { dragValue ?? Double(state.tvVolumeTarget ?? volume.level) }
+    private func pct(_ v: Double) -> Int { Int((100 * v / Double(max(volume.max, 1))).rounded()) }
+
+    var body: some View {
+        HStack(spacing: 9) {
+            Button {
+                Task { await state.pressTVKey(ATVKeyCode.volumeMute) }
+            } label: {
+                Image(systemName: volume.muted || shown == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(volume.muted ? Color.orange : Color.secondary)
+                    .frame(width: 15, height: 15)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("TV sound: click to mute / unmute")
+
+            BubbleSlider(value: shown, range: 0...Double(volume.max), label: { "\(pct($0))%" },
+                         onChange: { v in
+                             dragValue = v
+                             state.setTVVolume(Int(v.rounded()))
+                         },
+                         onEnd: { dragValue = nil })
+                .opacity(volume.muted ? 0.45 : 1)
+
+            Text("\(pct(shown))%")
+                .font(.system(size: 10.5).monospacedDigit())
+                .foregroundStyle(.tertiary)
+                .frame(width: 32, alignment: .trailing)
+        }
+        .help("TV volume")
+        .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 4)
+    }
+}
+
+/// The author's SlimSlider look (thin track, white knob) plus a small bubble
+/// above the knob with the level while it is dragged.
+struct BubbleSlider: View {
+    let value: Double
+    let range: ClosedRange<Double>
+    let label: (Double) -> String
+    let onChange: (Double) -> Void
+    let onEnd: () -> Void
+    @State private var dragging = false
+    private let knob: CGFloat = 11
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let span = max(range.upperBound - range.lowerBound, 1)
+            let frac = CGFloat(min(1, max(0, (value - range.lowerBound) / span)))
+            let x = min(max(0, w * frac - knob / 2), w - knob)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.primary.opacity(0.18)).frame(height: 3)
+                Capsule().fill(Color.primary.opacity(0.85))
+                    .frame(width: max(0, w * frac), height: 3)
+                Circle().fill(.white)
+                    .frame(width: knob, height: knob)
+                    .shadow(color: .black.opacity(0.4), radius: 1, y: 0.5)
+                    .scaleEffect(dragging ? 1.15 : 1)
+                    .offset(x: x)
+                if dragging {
+                    Text(label(value))
+                        .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                        .padding(.horizontal, 5).padding(.vertical, 1.5)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 4))
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.primary.opacity(0.12), lineWidth: 0.5))
+                        .fixedSize()
+                        .frame(width: 40)
+                        .offset(x: x + knob / 2 - 20, y: -17)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
+            }
+            .frame(height: knob)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { g in
+                        if !dragging { withAnimation(.easeOut(duration: 0.1)) { dragging = true } }
+                        let f = min(1, max(0, g.location.x / max(w, 1)))
+                        let v = (range.lowerBound + Double(f) * span).rounded()
+                        if v != value { onChange(v) }
+                    }
+                    .onEnded { _ in
+                        withAnimation(.easeOut(duration: 0.15)) { dragging = false }
+                        onEnd()
+                    }
+            )
+        }
+        .frame(height: knob)
+    }
+}
 
 /// Round icon key for the d-pad cluster and power.
 struct KeyButton: View {

@@ -31,6 +31,8 @@ cp "$ROOT/macos/RemoteView.swift" "$WORK/fling/Sources/Fling/RemoteView.swift"
 cp "$ROOT/macos/KeyRemote.swift" "$WORK/fling/Sources/Fling/KeyRemote.swift"
 # Mac keyboard → TV while the panel is open: StatusItemController creates KeyRemote
 git -C "$WORK/fling" apply "$ROOT/macos/patches/StatusItemController-keyboard.patch"
+# FlingKit: TV volume as the TV reports it (+ walking it with keys, like Windows); pairing identity kept in memory, not the keychain
+git -C "$WORK/fling" apply "$ROOT/macos/patches/FlingKit.patch"
 # Russian / English like the Windows build: L10n.swift + route UI strings through tr()
 cp "$ROOT/macos/L10n.swift" "$WORK/fling/Sources/Fling/L10n.swift"
 python3 "$ROOT/macos/localize.py" "$WORK/fling/Sources/Fling"

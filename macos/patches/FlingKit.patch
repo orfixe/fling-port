@@ -1,0 +1,148 @@
+diff --git a/Sources/FlingKit/AndroidTVRemote/ATVCertificate.swift b/Sources/FlingKit/AndroidTVRemote/ATVCertificate.swift
+index dd774de..e676813 100644
+--- a/Sources/FlingKit/AndroidTVRemote/ATVCertificate.swift
++++ b/Sources/FlingKit/AndroidTVRemote/ATVCertificate.swift
+@@ -247,7 +247,12 @@ public final class ATVCertificateStore: @unchecked Sendable {
+     // MARK: - keychain import
+ 
+     private func importIdentity(from p12: Data) throws -> SecIdentity {
+-        let options = [kSecImportExportPassphrase as String: Self.passphrase] as CFDictionary
++        var opts: [String: Any] = [kSecImportExportPassphrase as String: Self.passphrase]
++        // Port: keep the identity in memory, out of the login keychain. In the
++        // keychain macOS asks "allow access?" again after every rebuild of an
++        // app without an Apple team ID; the .p12 on disk is the source anyway.
++        if #available(macOS 15.0, *) { opts[kSecImportToMemoryOnly as String] = true }
++        let options = opts as CFDictionary
+         var items: CFArray?
+         let status = SecPKCS12Import(p12 as CFData, options, &items)
+         switch status {
+diff --git a/Sources/FlingKit/AndroidTVRemote/ATVMessages.swift b/Sources/FlingKit/AndroidTVRemote/ATVMessages.swift
+index 0071d8f..815237f 100644
+--- a/Sources/FlingKit/AndroidTVRemote/ATVMessages.swift
++++ b/Sources/FlingKit/AndroidTVRemote/ATVMessages.swift
+@@ -166,6 +166,7 @@ enum ATVRemoteMessage {
+         static let remoteVoicePayload = 31
+         static let remoteVoiceEnd = 32
+         static let remoteStart = 40
++        static let remoteSetVolumeLevel = 50
+         static let remoteAppLinkLaunch = 90
+     }
+ 
+@@ -295,6 +296,9 @@ enum ATVRemoteMessage {
+         /// RemoteVoiceBegin.session_id — the TV's answer to KEYCODE_SEARCH,
+         /// authorizing an audio stream.
+         var voiceBeginSessionId: UInt64?
++        /// RemoteSetVolumeLevel.{volume_level, volume_max, volume_muted} — the
++        /// TV's own volume, pushed on connect and on every change (port).
++        var volume: (level: Int, max: Int, muted: Bool)?
+     }
+ 
+     static func parse(_ data: Data) throws -> Inbound {
+@@ -323,6 +327,9 @@ enum ATVRemoteMessage {
+         if let voice = try reader.message(Field.remoteVoiceBegin) {
+             msg.voiceBeginSessionId = voice.varint(1) ?? 0
+         }
++        if let vol = try reader.message(Field.remoteSetVolumeLevel) {
++            msg.volume = (Int(vol.varint(7) ?? 0), Int(vol.varint(6) ?? 0), (vol.varint(8) ?? 0) != 0)
++        }
+         msg.hasError = reader.has(Field.remoteError)
+         return msg
+     }
+diff --git a/Sources/FlingKit/AndroidTVRemote/ATVRemoteClient.swift b/Sources/FlingKit/AndroidTVRemote/ATVRemoteClient.swift
+index eb7001d..384a653 100644
+--- a/Sources/FlingKit/AndroidTVRemote/ATVRemoteClient.swift
++++ b/Sources/FlingKit/AndroidTVRemote/ATVRemoteClient.swift
+@@ -11,6 +11,8 @@ public actor ATVRemoteClient {
+         /// Foreground app package, or nil when it goes away. Requires the IME
+         /// feature (negotiated by default).
+         case appChanged(String?)
++        /// The TV's own volume on its own scale (port: RemoteSetVolumeLevel).
++        case volumeChanged(level: Int, max: Int, muted: Bool)
+         case disconnected
+     }
+ 
+@@ -328,6 +330,7 @@ public actor ATVRemoteClient {
+             }
+         }
+         if let counter = message.imeCounter { imeCounter = counter }
++        if let v = message.volume { emit(.volumeChanged(level: v.level, max: v.max, muted: v.muted)) }
+         if let fieldCounter = message.imeFieldCounter { imeFieldCounter = fieldCounter }
+         if let sessionId = message.voiceBeginSessionId, let cont = voiceBeginContinuation {
+             voiceBeginContinuation = nil
+diff --git a/Sources/FlingKit/AppState.swift b/Sources/FlingKit/AppState.swift
+index cee0eed..f002621 100644
+--- a/Sources/FlingKit/AppState.swift
++++ b/Sources/FlingKit/AppState.swift
+@@ -34,6 +34,12 @@ public final class AppState: ObservableObject {
+     @Published public private(set) var tvIsOn: Bool?
+     /// Foreground app package the TV last reported, nil when unknown.
+     @Published public private(set) var tvCurrentApp: String?
++    /// Port: the TV's own volume as it reports it; nil when it doesn't
++    /// (sound through a soundbar / receiver, some makers).
++    @Published public private(set) var tvVolume: TVVolume?
++    /// Port: where the slider asked the TV volume to go while the walk runs.
++    @Published public private(set) var tvVolumeTarget: Int?
++    private var tvVolumeTask: Task<Void, Never>?
+     /// True while the Mac microphone is streaming to the TV's voice search.
+     @Published public private(set) var tvVoiceActive = false
+     /// What the current tab's page is actually playing, from the in-page probe.
+@@ -357,6 +363,34 @@ public final class AppState: ObservableObject {
+         await sendATV { atv, host in try await atv.pressKey(code, host: host) }
+     }
+ 
++    /// Port (same as the Windows build): walk the TV volume to `level` with
++    /// VOLUME_UP / VOLUME_DOWN — the remote protocol has no "set level". One
++    /// step per answer from the TV so a slow TV doesn't overshoot; a newer
++    /// target replaces the walk; stops if the TV ignores three steps.
++    public func setTVVolume(_ level: Int) {
++        guard let v = tvVolume else { return }
++        let target = min(v.max, max(0, level))
++        tvVolumeTarget = target
++        tvVolumeTask?.cancel()
++        tvVolumeTask = Task { [weak self] in
++            try? await Task.sleep(for: .milliseconds(150))      // until the slider settles
++            var stuck = 0
++            for _ in 0..<200 {
++                guard !Task.isCancelled, let self, let now = self.tvVolume?.level else { return }
++                if now == target { self.tvVolumeTarget = nil; return }
++                await self.pressTVKey(target > now ? ATVKeyCode.volumeUp : ATVKeyCode.volumeDown)
++                var moved = false
++                for _ in 0..<20 {
++                    try? await Task.sleep(for: .milliseconds(20))
++                    if Task.isCancelled { return }
++                    if self.tvVolume?.level != now { moved = true; break }
++                }
++                stuck = moved ? 0 : stuck + 1
++                if stuck >= 3 { self.tvVolumeTarget = nil; return }   // limit / locked
++            }
++        }
++    }
++
+     public func sendTVText(_ text: String) async {
+         guard !text.isEmpty else { return }
+         await sendATV { atv, host in try await atv.sendText(text, host: host) }
+@@ -440,7 +474,12 @@ public final class AppState: ObservableObject {
+                 case .connected: break
+                 case .powerChanged(let on): self?.tvIsOn = on
+                 case .appChanged(let package): self?.tvCurrentApp = package
++                case .volumeChanged(let level, let max, let muted):
++                    self?.tvVolume = max > 0 ? TVVolume(level: level, max: max, muted: muted) : nil
++                    if self?.tvVolumeTarget == level { self?.tvVolumeTarget = nil }
+                 case .disconnected:
++                    self?.tvVolume = nil
++                    self?.tvVolumeTarget = nil
+                     self?.tvIsOn = nil
+                     self?.tvCurrentApp = nil
+                 }
+diff --git a/Sources/FlingKit/TVVolume.swift b/Sources/FlingKit/TVVolume.swift
+new file mode 100644
+index 0000000..1463d34
+--- /dev/null
++++ b/Sources/FlingKit/TVVolume.swift
+@@ -0,0 +1,6 @@
++/// Port: the TV's own volume, as RemoteSetVolumeLevel reports it.
++public struct TVVolume: Equatable, Sendable {
++    public let level: Int
++    public let max: Int
++    public let muted: Bool
++}
