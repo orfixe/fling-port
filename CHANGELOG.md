@@ -17,10 +17,6 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   (Windows). Several files at once install one split app. Clear messages for the usual failures
   (other signature, newer version installed, wrong processor, no space).
 
-### Changed
-
-- Russian interface: «стрелки» instead of «крестовина» for the d-pad (desktop, Android, extension).
-
 ## [0.3.0] - 2026-11-22
 
 ### Added
