@@ -82,6 +82,7 @@ reports are welcome.
 | Phone volume keys, Quick Settings tile | — | — | ✓ | — |
 | English / Russian UI | ✓ | ✓ | ✓ | ✓ |
 | TV screenshot over ADB (saved to Pictures/Fling) | ✓ | ✓ | ✓ | — |
+| Install an APK on the TV over ADB (pick a file, or right-click it in Explorer) | ✓ | ✓ | — | — |
 
 <sub>¹ when the extension casts the tab. ² Windows doesn't let apps act as a Bluetooth keyboard / remote.</sub>
 
@@ -167,6 +168,7 @@ fling tray        start only the tray icon
 fling setup       open the Connect TV window
 fling help        open the "How to use" guide
 fling screenshot  save a TV screenshot (needs ADB)
+fling install-apk app.apk   install an APK on the TV (needs ADB; no file = choose one)
 fling cast-tab    cast the current browser tab
 fling clip        cast the link from the clipboard
 fling quit        exit

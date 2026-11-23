@@ -10,6 +10,13 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+### Added
+
+- Desktop: install an APK on the TV over ADB — Android badge → *Install APK…*, the same button in
+  Connect TV, `fling install-apk app.apk`, or right-click an `.apk` in Explorer → *Install on TV (Fling)*
+  (Windows). Several files at once install one split app. Clear messages for the usual failures
+  (other signature, newer version installed, wrong processor, no space).
+
 ### Changed
 
 - Russian interface: «стрелки» instead of «крестовина» for the d-pad (desktop, Android, extension).

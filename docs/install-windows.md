@@ -107,12 +107,13 @@ Fling in Safari → Settings → Extensions.
 | Cast the tab | the extension's button, **Alt+Shift+C** in the browser, or **Win+Shift+C** anywhere (**Ctrl+Alt+Shift+C** if another app owns it — the panel shows which) |
 | Cast a link | copy it → "Cast copied link", or right-click the link → "Cast link to TV" |
 | Pause / seek | Space, ← / → in the panel or the extension popup |
+| Install an app on the TV | Android badge in the panel → *Install APK…*, or right-click an `.apk` in Explorer → *Install on TV (Fling)*. Needs ADB (*Connect TV…* → ADB) |
 | TV arrows | the arrow keys on the keyboard while the panel is open, the arrows in the panel, or scroll over the panel |
 | Next-video notifications | on by default (green bell); click "Notify when the video changes" to turn off (red bell) |
 | Guide, compact view | the **?** and ⤡ buttons in the panel's top-right corner. Compact view keeps the artwork and ⏪ ⏯ ⏩ ⏹ keys — labels show on hover |
 | Language | the small flag at the bottom right: click it to switch |
 | Start with Windows | "Start at login" |
-| Commands | `fling`, `fling setup`, `fling cast-tab`, `fling clip`, `fling screenshot`, `fling help`, `fling quit` |
+| Commands | `fling`, `fling setup`, `fling cast-tab`, `fling clip`, `fling screenshot`, `fling install-apk app.apk`, `fling help`, `fling quit` |
 
 ## Troubleshooting
 
