@@ -5,20 +5,25 @@ import FlingKit
 /// The TV section of the panel: power, app launcher, d-pad, volume keys, and
 /// typing, all over the Android TV Remote session.
 ///
-/// Proposed change vs main: the always-visible “Type on TV” field is replaced
-/// by a keyboard icon that reveals the field on click. Text still goes through
+/// Port change vs main: the always-visible “Type on TV” field is replaced by a
+/// keyboard button (live typing, send on Return, paste). Text still goes through
 /// `sendTVText` / Android TV Remote IME — same path as Damion’s Fling, not ADB.
 struct RemoteView: View {
     @ObservedObject var state: AppState
     @State private var typed = ""
     @State private var showTypeField = false
+    @AppStorage("typeLive") private var liveTyping = true
+    @State private var liveSent = ""                 // what the TV field holds now (live mode)
+    @State private var liveTask: Task<Void, Never>?
     @FocusState private var typeFocused: Bool
     @ObservedObject private var capture = KeyCapture.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if capture.on && !typeFocused && (state.tvPaired || state.panel == .casting) {
-                keyboardStrip
+            if showBadge && !state.tvPaired && state.panel == .casting {
+                keyboardBadge   // no TV header yet — sit quietly at the top
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.horizontal, 14).padding(.top, 8)
             }
             switch state.tvPairing {
             case .starting:
@@ -42,15 +47,34 @@ struct RemoteView: View {
     }
 
     /// Says so while the Mac keyboard goes to the TV instead of the app the user was in.
-    private var keyboardStrip: some View {
-        Text("⌨  Keyboard captured — Esc to exit")
-            .font(.system(size: 10.5, weight: .semibold))
-            .foregroundStyle(Color.accentColor)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 8).padding(.vertical, 5)
-            .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-            .padding(.horizontal, 10).padding(.top, 8)
+    private var keysCaptured: Bool { capture.on && !typeFocused }
+    /// Badge shows while the keyboard is captured, and always when capture is off
+    /// (so it can be turned back on).
+    private var showBadge: Bool { !typeFocused && (capture.on || !capture.enabled) }
+
+    /// Quiet switch for the Mac keyboard → TV capture: a small grey "⌨ esc"
+    /// beside the power key (click = off), "⌨ off" when it's off (click = on).
+    private var keyboardBadge: some View {
+        Button {
+            capture.enabled.toggle()
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: capture.enabled ? "keyboard" : "keyboard.badge.ellipsis")
+                    .font(.system(size: 9))
+                Text(capture.enabled ? "esc" : "off")
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .strikethrough(!capture.enabled)
+            }
+            .foregroundStyle(.tertiary)
+            .padding(.horizontal, 5).padding(.vertical, 2)
+            .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 0.5))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help(!capture.enabled ? "Keyboard capture is off — click to control the TV from the Mac keyboard"
+              : state.tvPaired ? "Keyboard captured — keys go to the TV. Esc releases it. Click to turn capture off"
+                               : "Keyboard captured — ← → seek, Space pauses. Esc releases it. Click to turn capture off")
+        .transition(.opacity)
     }
 
     // MARK: - unpaired
@@ -93,6 +117,7 @@ struct RemoteView: View {
                 }
             }
             Spacer()
+            if showBadge { keyboardBadge }
             KeyButton(symbol: "power", size: 26, state: state, code: ATVKeyCode.power)
                 .help(powerHelp)
         }
@@ -162,6 +187,14 @@ struct RemoteView: View {
 
     /// Keyboard icon reveals the type field; mic stays beside it.
     /// Transport unchanged: `AppState.sendTVText` → Android TV Remote IME.
+    /// Keyboard button, three ways to get text onto the TV:
+    ///  • Live (default): every letter shows up on the TV as you type; Return
+    ///    presses Enter on the TV (runs the search).
+    ///  • Send on Return: type the whole phrase, Return sends it at once.
+    ///  • Paste: the clipboard text goes to the TV (button, menu, or ⌘V).
+    /// Right-click the keyboard button to switch Live on / off.
+    /// Transport unchanged: `AppState.sendTVText` → Android TV Remote IME
+    /// (the IME edit carries the whole field value, so live sends the full text).
     private var typeRow: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
@@ -172,8 +205,7 @@ struct RemoteView: View {
                     if showTypeField {
                         DispatchQueue.main.async { typeFocused = true }
                     } else {
-                        typed = ""
-                        typeFocused = false
+                        resetTyping()
                     }
                 } label: {
                     Image(systemName: "keyboard")
@@ -185,17 +217,36 @@ struct RemoteView: View {
                 .background(showTypeField ? Color.accentColor.opacity(0.22)
                                           : Color.primary.opacity(0.07),
                             in: RoundedRectangle(cornerRadius: 5))
-                .help(showTypeField ? "Hide keyboard" : "Keyboard — type on the TV")
+                .help(showTypeField ? "Hide keyboard" : "Keyboard — type on the TV (right-click for options)")
                 .accessibilityLabel(showTypeField ? "Hide keyboard" : "Show keyboard")
+                .contextMenu {
+                    Button(liveTyping ? "✓ Live — letters appear as you type" : "Live — letters appear as you type") {
+                        liveTyping = true
+                    }
+                    Button(liveTyping ? "Send on Return" : "✓ Send on Return") { liveTyping = false }
+                    Divider()
+                    Button("Paste clipboard on the TV") { pasteClipboard() }
+                }
 
                 if showTypeField {
-                    TextField("Type on TV", text: $typed)
+                    TextField(liveTyping ? "Type — shows on the TV live" : "Type, Return sends", text: $typed)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 12))
                         .focused($typeFocused)
-                        .onSubmit { sendTyped() }
+                        .onSubmit { submitTyped() }
                         .help("Lands in whatever text field is focused on the TV")
                         .transition(.opacity.combined(with: .move(edge: .leading)))
+                        .onChange(of: typed) { _, text in if liveTyping { scheduleLive(text) } }
+
+                    smallIcon(liveTyping ? "bolt.fill" : "bolt.slash",
+                              tint: liveTyping ? Color.accentColor : Color.primary,
+                              help: liveTyping ? "Live typing is on — click to send on Return instead"
+                                               : "Live typing is off — click to turn on") {
+                        liveTyping.toggle()
+                    }
+                    smallIcon("doc.on.clipboard", help: "Paste clipboard on the TV  (⌘V)") {
+                        pasteClipboard()
+                    }
                 }
 
                 Button {
@@ -221,17 +272,73 @@ struct RemoteView: View {
         .onChange(of: state.tvPaired) { _, paired in
             if !paired {
                 showTypeField = false
-                typed = ""
-                typeFocused = false
+                resetTyping()
             }
         }
     }
 
-    private func sendTyped() {
+    private func smallIcon(_ symbol: String, tint: Color = .primary, help: String,
+                           action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 11)).foregroundStyle(tint)
+        }
+        .buttonStyle(.plain)
+        .frame(width: 22, height: 22)
+        .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 5))
+        .help(help)
+    }
+
+    /// Live: send the whole field shortly after the last keystroke (a fast typist
+    /// doesn't flood the TV). Emptying the field deletes what's left on the TV.
+    private func scheduleLive(_ text: String) {
+        liveTask?.cancel()
+        liveTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard !Task.isCancelled, text != liveSent else { return }
+            if text.isEmpty {
+                for _ in 0..<max(1, liveSent.count) { await state.pressTVKey(PortKey.del) }
+            } else {
+                await state.sendTVText(text)
+            }
+            liveSent = text
+        }
+    }
+
+    private func submitTyped() {
+        if liveTyping {
+            // text is already on the TV — Return runs it (search / OK), field starts fresh
+            liveTask?.cancel()
+            let pending = typed
+            Task { @MainActor in
+                if !pending.isEmpty, pending != liveSent { await state.sendTVText(pending) }
+                await state.pressTVKey(PortKey.enter)
+            }
+            typed = ""; liveSent = ""
+            return
+        }
         let text = typed
         typed = ""
         guard !text.isEmpty else { return }
         Task { await state.sendTVText(text) }
+    }
+
+    private func pasteClipboard() {
+        guard let clip = NSPasteboard.general.string(forType: .string)?
+                .trimmingCharacters(in: .whitespacesAndNewlines), !clip.isEmpty else {
+            state.lastError = "Clipboard is empty"
+            return
+        }
+        if showTypeField && liveTyping {
+            typed = clip                       // live path sends it
+        } else {
+            Task { await state.sendTVText(clip) }
+        }
+    }
+
+    private func resetTyping() {
+        liveTask?.cancel()
+        typed = ""; liveSent = ""
+        typeFocused = false
     }
 }
 

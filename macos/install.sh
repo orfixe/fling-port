@@ -49,8 +49,12 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 mv "$TMP/Fling" "$APP/Contents/MacOS/Fling"
 mv "$TMP/Info.plist" "$APP/Contents/Info.plist"
-# Fresh local ad-hoc signature — accepted by macOS; no foreign quarantine
-codesign --force --deep -s - "$APP"
+# Sign with the Mac's own "Fling Port Local" identity when it exists: the
+# keychain then remembers "Always Allow" across updates (an ad-hoc signature
+# changes with every build, so macOS asks for the TV key again each time).
+SIGN_ID="$(security find-identity -p codesigning 2>/dev/null | awk '/"Fling Port Local"/ {print $2; exit}')"
+SIGN_ID="${SIGN_ID:--}"
+codesign --force --deep -s "$SIGN_ID" "$APP"
 xattr -cr "$APP" 2>/dev/null || true
 
 if [ ! -x "$HOME/.local/bin/catt" ] && ! command -v catt >/dev/null 2>&1; then

@@ -1,10 +1,11 @@
 import AppKit
+import Combine
 import FlingKit
 
 /// While the panel is open, the Mac keyboard drives the TV — the same keys as the
 /// Windows / Linux port: arrows (hold to repeat), Return = OK, Delete = Back,
 /// Home, + / − volume, Space (play/pause while casting, OK otherwise),
-/// Shift+← / → seek. Not paired yet but casting: ← / → seek, Space pauses.
+/// Shift+← / → seek, ⌘V pastes the clipboard text on the TV. Not paired yet but casting: ← / → seek, Space pauses.
 ///
 /// Works like ScrollRemote: a local monitor, only for events in the panel's
 /// window, never while a text field ("Type on TV", pairing code) is being
@@ -21,6 +22,7 @@ final class KeyRemote {
     private var observers: [NSObjectProtocol] = []
     private var activatedByUs = false
     private weak var popover: NSPopover?
+    private var enabledSink: AnyCancellable?
 
     // Virtual key codes (layout-independent, so a Russian layout works the same)
     private enum K {
@@ -28,7 +30,7 @@ final class KeyRemote {
         static let ret: UInt16 = 36, enter: UInt16 = 76, delete: UInt16 = 51, fwdDelete: UInt16 = 117
         static let space: UInt16 = 49, home: UInt16 = 115
         static let equal: UInt16 = 24, minus: UInt16 = 27, padPlus: UInt16 = 69, padMinus: UInt16 = 78
-        static let escape: UInt16 = 53
+        static let escape: UInt16 = 53, v: UInt16 = 9
     }
     private static let repeatable: Set<UInt16> = [K.left, K.right, K.up, K.down,
                                                   K.equal, K.minus, K.padPlus, K.padMinus]
@@ -50,6 +52,17 @@ final class KeyRemote {
                                         queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.panelClosed() }
         })
+        // the ⌨ badge turns capture on / off; turning it on takes the keyboard right away
+        enabledSink = KeyCapture.shared.$enabled.dropFirst().sink { [weak self] enabled in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if enabled, let popover = self.popover, popover.isShown, !NSApp.isActive {
+                    self.activatedByUs = true
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                self.updateCapture()
+            }
+        }
         // the keyboard is ours only while Fling is the active app
         for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification] {
             observers.append(nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
@@ -59,7 +72,7 @@ final class KeyRemote {
     }
 
     private func updateCapture() {
-        let on = (popover?.isShown ?? false) && NSApp.isActive
+        let on = KeyCapture.shared.enabled && (popover?.isShown ?? false) && NSApp.isActive
         if KeyCapture.shared.on != on { KeyCapture.shared.on = on }
     }
 
@@ -71,7 +84,7 @@ final class KeyRemote {
     private func panelShown(_ shown: NSPopover?) {
         if let shown { popover = shown }
         defer { updateCapture() }
-        guard !NSApp.isActive else { return }
+        guard KeyCapture.shared.enabled, !NSApp.isActive else { return }   // off: leave the keyboard alone
         activatedByUs = true
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -89,8 +102,17 @@ final class KeyRemote {
     }
 
     private func handle(_ event: NSEvent) -> Bool {
-        if event.modifierFlags.intersection([.command, .control, .option]) != [] { return false }
         if event.window?.firstResponder is NSText { return false }   // typing in a field
+        guard KeyCapture.shared.enabled else { return false }
+        let mods = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        if mods == .command && event.keyCode == K.v && state.tvPaired {   // ⌘V: clipboard → TV
+            if !event.isARepeat, let clip = NSPasteboard.general.string(forType: .string)?
+                .trimmingCharacters(in: .whitespacesAndNewlines), !clip.isEmpty {
+                Task { await state.sendTVText(clip) }
+            }
+            return true
+        }
+        if event.modifierFlags.intersection([.command, .control, .option]) != [] { return false }
         let key = event.keyCode
         if key == K.escape, let popover, popover.isShown {          // Esc: close the panel, keys go back
             popover.performClose(nil)
@@ -150,6 +172,16 @@ final class KeyRemote {
 final class KeyCapture: ObservableObject {
     static let shared = KeyCapture()
     @Published var on = false
+    /// User switch (the ⌨ badge): capture the Mac keyboard at all. On by default.
+    @Published var enabled: Bool = UserDefaults.standard.object(forKey: "keyCapture") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(enabled, forKey: "keyCapture") }
+    }
+}
+
+/// Android key codes the upstream ATVKeyCode table doesn't list.
+enum PortKey {
+    static let enter: Int32 = 66   // KEYCODE_ENTER — runs a search typed on the TV
+    static let del: Int32 = 67     // KEYCODE_DEL — backspace in a TV text field
 }
 
 /// Lights up the matching on-screen key for a moment when it was pressed on the keyboard.

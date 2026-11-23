@@ -10,6 +10,23 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+### Added
+
+- macOS: Russian / English like the Windows build — follows the system language; *Language* row in
+  the panel and the right-click menu switches it and relaunches Fling.
+- macOS: the keyboard button types on the TV live (letters appear as you type, Return runs the
+  search) or sends on Return (right-click to choose); paste the clipboard on the TV with the
+  clipboard button or ⌘V.
+- macOS: the small ⌨ badge beside the TV power key turns keyboard capture on / off (on by default).
+
+### Changed
+
+- macOS: built on the author's current Fling with the author's d-pad layout; the keyboard-captured
+  strip is now a quiet badge.
+- macOS: the pairing code field takes the Russian keyboard layout (ф и с в у а → A–F).
+- macOS: signed with a local "Fling Port Local" identity when the Mac has one, so the keychain's
+  *Always Allow* survives updates; builds with Command Line Tools on macOS 27.
+
 ## [0.3.1] - 2026-11-22
 
 ### Added

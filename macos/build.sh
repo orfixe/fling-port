@@ -11,6 +11,12 @@ REF="${FLING_REF:-main}"
 command -v swift >/dev/null || { echo "swift not found — need macOS with Xcode/Swift"; exit 1; }
 uname | grep -q Darwin || { echo "this build only runs on macOS"; exit 1; }
 
+# Sign with the Mac's own "Fling Port Local" identity when it exists: the
+# keychain then remembers "Always Allow" across updates (an ad-hoc signature
+# changes with every build, so macOS asks for the TV key again each time).
+SIGN_ID="$(security find-identity -p codesigning 2>/dev/null | awk '/"Fling Port Local"/ {print $2; exit}')"
+SIGN_ID="${SIGN_ID:--}"
+
 rm -rf "$WORK" "$OUT"
 # Command Line Tools on macOS 27 ship SwiftUI's @State as a macro without its plugin
 # (only full Xcode has it). Fall back to the newest SDK < 27 when Xcode is absent.
@@ -25,6 +31,9 @@ cp "$ROOT/macos/RemoteView.swift" "$WORK/fling/Sources/Fling/RemoteView.swift"
 cp "$ROOT/macos/KeyRemote.swift" "$WORK/fling/Sources/Fling/KeyRemote.swift"
 # Mac keyboard → TV while the panel is open: StatusItemController creates KeyRemote
 git -C "$WORK/fling" apply "$ROOT/macos/patches/StatusItemController-keyboard.patch"
+# Russian / English like the Windows build: L10n.swift + route UI strings through tr()
+cp "$ROOT/macos/L10n.swift" "$WORK/fling/Sources/Fling/L10n.swift"
+python3 "$ROOT/macos/localize.py" "$WORK/fling/Sources/Fling"
 
 (
   cd "$WORK/fling"
@@ -39,7 +48,7 @@ git -C "$WORK/fling" apply "$ROOT/macos/patches/StatusItemController-keyboard.pa
   cp "$BIN" "$APP/Contents/MacOS/Fling"
   # Port-specific plist (own bundle id) — not upstream com.damionrashford.fling
   cp "$ROOT/macos/Info.plist" "$APP/Contents/Info.plist"
-  codesign --force --deep --sign - "$APP"
+  codesign --force --deep --sign "$SIGN_ID" "$APP"
   codesign --verify --verbose "$APP"
   echo "built: $APP"
 )
