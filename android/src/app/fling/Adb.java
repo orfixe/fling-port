@@ -281,7 +281,7 @@ final class Adb {
             c.setConnectTimeout(5000); c.setReadTimeout(6000);
             c.setRequestProperty("User-Agent", "Mozilla/5.0");
             c.setRequestProperty("Accept-Language", "en");
-            String html = new String(c.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            String html = new String(Cast.readAll(c.getInputStream()), StandardCharsets.UTF_8);
             Matcher m = VID.matcher(html);
             if (m.find()) {
                 String dur = null;

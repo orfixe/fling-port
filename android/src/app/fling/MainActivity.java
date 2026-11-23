@@ -621,7 +621,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 c.setConnectTimeout(3000); c.setReadTimeout(3000);
                 String xml;
                 try (java.io.InputStream in = c.getInputStream()) {          // stream closed automatically
-                    xml = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                    xml = new String(Cast.readAll(in), java.nio.charset.StandardCharsets.UTF_8);
                 } finally {
                     c.disconnect();                                          // release the HTTP connection
                 }
@@ -786,7 +786,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 c.setConnectTimeout(5000);
                 c.setReadTimeout(5000);
                 try (InputStream in = c.getInputStream()) {
-                    JSONObject o = new JSONObject(new String(in.readAllBytes(), "UTF-8"));
+                    JSONObject o = new JSONObject(new String(Cast.readAll(in), "UTF-8"));
                     String t = o.optString("title", null);
                     String a = o.optString("author_name", null);
                     main.post(() -> {
