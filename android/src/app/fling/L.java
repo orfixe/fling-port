@@ -131,7 +131,7 @@ final class L {
         e("Введите код с экрана телевизора", "Enter the code on the TV screen");
         e("Связать", "Pair");
         e("Телевизор", "TV");
-        e("Свяжите один раз с ТВ, чтобы открыть приложения, крестовину, ввод текста, голосовой поиск и отправку YouTube-ссылок.",
+        e("Свяжите один раз с ТВ, чтобы открыть приложения, стрелки, ввод текста, голосовой поиск и отправку YouTube-ссылок.",
           "Pair once with the TV to unlock apps, the d-pad, typing, voice search and sending YouTube links.");
         e("Связать с ТВ", "Pair with TV");
         e("Телевизор ещё не найден.", "No TV found yet.");

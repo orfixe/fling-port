@@ -1079,7 +1079,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         setupBox = ui.col();
         TextView lbl = ui.label(L.t("Телевизор"));
         setupBox.addView(lbl, ui.margins(Ui.lp(-1, -2), 10, 0, 10, 8));
-        TextView sx = ui.text(L.t("Свяжите один раз с ТВ, чтобы открыть приложения, крестовину, ввод текста, голосовой поиск и отправку YouTube-ссылок."), 14, ui.fgA(0.55f), false);
+        TextView sx = ui.text(L.t("Свяжите один раз с ТВ, чтобы открыть приложения, стрелки, ввод текста, голосовой поиск и отправку YouTube-ссылок."), 14, ui.fgA(0.55f), false);
         sx.setLineSpacing(0, 1.2f);
         setupBox.addView(sx, ui.margins(Ui.lp(-1, -2), 10, 0, 10, 6));
         Ui.Row pairRow = ui.row(L.t("Связать с ТВ"), "tv_plus", null, true, v -> {

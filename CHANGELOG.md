@@ -10,6 +10,10 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+### Changed
+
+- Russian interface: «стрелки» instead of «крестовина» for the d-pad (desktop, Android, extension).
+
 ## [0.3.0] - 2026-11-22
 
 ### Added
