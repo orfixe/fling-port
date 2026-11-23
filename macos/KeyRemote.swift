@@ -8,11 +8,11 @@ import FlingKit
 ///
 /// Works like ScrollRemote: a local monitor, only for events in the panel's
 /// window, never while a text field ("Type on TV", pairing code) is being
-/// edited, never with ⌘ / ⌃ / ⌥ held. Esc is left to the popover (it closes it).
+/// edited, never with ⌘ / ⌃ / ⌥ held.
 ///
 /// Fling is a menu-bar (accessory) app, so macOS keeps the keyboard on the
 /// frontmost app even with the panel open. The app is activated while the
-/// panel is shown and handed back when it closes.
+/// panel is shown and handed back when it closes; Esc closes the panel.
 @MainActor
 final class KeyRemote {
     private let state: AppState
@@ -20,6 +20,7 @@ final class KeyRemote {
     private var monitor: Any?
     private var observers: [NSObjectProtocol] = []
     private var activatedByUs = false
+    private weak var popover: NSPopover?
 
     // Virtual key codes (layout-independent, so a Russian layout works the same)
     private enum K {
@@ -27,6 +28,7 @@ final class KeyRemote {
         static let ret: UInt16 = 36, enter: UInt16 = 76, delete: UInt16 = 51, fwdDelete: UInt16 = 117
         static let space: UInt16 = 49, home: UInt16 = 115
         static let equal: UInt16 = 24, minus: UInt16 = 27, padPlus: UInt16 = 69, padMinus: UInt16 = 78
+        static let escape: UInt16 = 53
     }
     private static let repeatable: Set<UInt16> = [K.left, K.right, K.up, K.down,
                                                   K.equal, K.minus, K.padPlus, K.padMinus]
@@ -41,13 +43,24 @@ final class KeyRemote {
         }
         let nc = NotificationCenter.default
         observers.append(nc.addObserver(forName: NSPopover.didShowNotification, object: nil,
-                                        queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.panelShown() }
+                                        queue: .main) { [weak self] note in
+            MainActor.assumeIsolated { self?.panelShown(note.object as? NSPopover) }
         })
         observers.append(nc.addObserver(forName: NSPopover.didCloseNotification, object: nil,
                                         queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.panelClosed() }
         })
+        // the keyboard is ours only while Fling is the active app
+        for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification] {
+            observers.append(nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.updateCapture() }
+            })
+        }
+    }
+
+    private func updateCapture() {
+        let on = (popover?.isShown ?? false) && NSApp.isActive
+        if KeyCapture.shared.on != on { KeyCapture.shared.on = on }
     }
 
     deinit {
@@ -55,7 +68,9 @@ final class KeyRemote {
         for o in observers { NotificationCenter.default.removeObserver(o) }
     }
 
-    private func panelShown() {
+    private func panelShown(_ shown: NSPopover?) {
+        if let shown { popover = shown }
+        defer { updateCapture() }
         guard !NSApp.isActive else { return }
         activatedByUs = true
         NSApp.activate(ignoringOtherApps: true)
@@ -64,6 +79,7 @@ final class KeyRemote {
     /// Give the keyboard back to the app the user was in, unless a real Fling
     /// window (onboarding, …) is still open.
     private func panelClosed() {
+        KeyCapture.shared.on = false
         guard activatedByUs else { return }
         activatedByUs = false
         let otherWindows = NSApp.windows.contains {
@@ -76,6 +92,10 @@ final class KeyRemote {
         if event.modifierFlags.intersection([.command, .control, .option]) != [] { return false }
         if event.window?.firstResponder is NSText { return false }   // typing in a field
         let key = event.keyCode
+        if key == K.escape, let popover, popover.isShown {          // Esc: close the panel, keys go back
+            popover.performClose(nil)
+            return true
+        }
         if event.isARepeat && !Self.repeatable.contains(key) { return true }   // swallow, don't spam
         let casting = state.panel == .casting
         let shift = event.modifierFlags.contains(.shift)
@@ -122,6 +142,14 @@ final class KeyRemote {
         let s = forward ? Self.seekStep : -Self.seekStep
         Task { await state.seek(by: s) }
     }
+}
+
+/// Whether the Mac keyboard drives the TV right now (panel open and Fling active);
+/// RemoteView shows a "keyboard captured" strip while it is.
+@MainActor
+final class KeyCapture: ObservableObject {
+    static let shared = KeyCapture()
+    @Published var on = false
 }
 
 /// Lights up the matching on-screen key for a moment when it was pressed on the keyboard.
