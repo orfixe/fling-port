@@ -42,7 +42,7 @@
 
 | У меня… | Что сделать |
 |---|---|
-| **Windows 10 / 11** | Скачайте `Fling-Windows-….zip` со страницы [Releases](../../releases), распакуйте, дважды щёлкните **Install shortcuts.cmd**. Подробно: **[гайд для Windows](docs/install-windows.ru.md)** |
+| **Windows 10 / 11** | Скачайте `Fling-Setup-….exe` со страницы [Releases](../../releases) и запустите. Подробно: **[гайд для Windows](docs/install-windows.ru.md)** |
 | **Chrome / Edge / Firefox / Safari** | Сначала поставьте приложение, затем [расширение](#расширение-для-браузера) |
 | **Linux (KDE)** | `git clone` и `linux/install.sh` — [подробнее](#linux) |
 | **Телефон на Android** | Поставьте `Fling.apk` со страницы [Releases](../../releases) — [подробнее](#android) |
@@ -80,8 +80,9 @@
 
 **→ Подробный пошаговый гайд: [docs/install-windows.ru.md](docs/install-windows.ru.md).**
 
-- **Готовая сборка:** `Fling-Windows-….zip` со страницы [Releases](../../releases) → распаковать в
-  постоянную папку → **`Install shortcuts.cmd`**. Python ставить не нужно. SmartScreen может
+- **Установщик:** **`Fling-Setup-….exe`** со страницы [Releases](../../releases) → запустить.
+  Ставится только для вашего пользователя, без прав администратора: ярлык в «Пуске», команда `fling`,
+  по желанию автозапуск; удаление — «Параметры → Приложения». Python ставить не нужно. SmartScreen может
   предупредить о неподписанной программе: *Подробнее → Выполнить в любом случае*.
 - **Из исходников:** **`windows\install.cmd`** (удаление — `windows\uninstall.cmd`).
 
