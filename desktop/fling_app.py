@@ -190,7 +190,7 @@ class CattError(Exception):
 def catt_run(args: list[str], timeout: float = 25) -> str:
     try:
         r = P.run(P.catt_cmd(CATT, args), capture_output=True, text=True, timeout=timeout,
-                  encoding="utf-8", errors="replace")
+                  encoding="utf-8", errors="replace", env=P.CATT_ENV)
     except subprocess.TimeoutExpired:
         raise CattError("catt не ответил вовремя и был остановлен. Попробуйте ещё раз.")
     except FileNotFoundError:
