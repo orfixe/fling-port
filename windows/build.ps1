@@ -1,8 +1,9 @@
 <#
 .SYNOPSIS
-  Builds the standalone Fling for Windows: dist\Fling-Windows-<ver>.zip with Fling.exe
-  (Python, Qt, catt, yt-dlp and the TV libraries bundled — nothing else to install),
-  plus the browser extension zips.
+  Builds the standalone Fling for Windows: Fling.exe (Python, Qt, catt, yt-dlp and the TV
+  libraries bundled, nothing else to install) packed as dist\Fling-Setup-<ver>.exe with
+  Inno Setup (windows\fling.iss). Without Inno Setup: dist\Fling-Windows-<ver>.zip instead.
+  Plus the browser extension zips.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File windows\build.ps1
@@ -77,13 +78,25 @@ if (-not (Test-Path $Adb)) {
   Remove-Item $zipAdb -Force
 }
 
-Write-Host '==> zip' -ForegroundColor Cyan
-$Zip = Join-Path $Dist "Fling-Windows-$Ver.zip"
-Remove-Item $Zip -ErrorAction SilentlyContinue
+# the Chrome / Edge extension ships inside, for "Load unpacked"
 Copy-Item (Join-Path $Repo 'extension\dist\chrome') (Join-Path $Out 'extension\chrome') -Recurse -Force
 Copy-Item (Join-Path $Repo 'extension\dist\fling-firefox-*.zip') (Join-Path $Out 'extension') -Force
-Copy-Item (Join-Path $PSScriptRoot 'setup-shortcuts.ps1') $Out -Force
-Copy-Item (Join-Path $PSScriptRoot 'Install shortcuts.cmd') $Out -Force
-Compress-Archive -Path $Out -DestinationPath $Zip
 Copy-Item (Join-Path $Repo 'extension\dist\*.zip') $Dist -Force
-Write-Host "==> $Zip" -ForegroundColor Green
+
+$Iscc = @((Get-Command iscc -ErrorAction SilentlyContinue).Source,
+          "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+          "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe") |
+        Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+if ($Iscc) {
+  Write-Host '==> setup (Inno Setup)' -ForegroundColor Cyan
+  Exec $Iscc /Qp "/DAppVersion=$Ver" "/DSourceDir=$Out" "/DOutDir=$Dist" (Join-Path $PSScriptRoot 'fling.iss')
+  Write-Host "==> $(Join-Path $Dist "Fling-Setup-$Ver.exe")" -ForegroundColor Green
+} else {
+  Write-Host '==> zip (Inno Setup not found, so no setup.exe)' -ForegroundColor Yellow
+  $Zip = Join-Path $Dist "Fling-Windows-$Ver.zip"
+  Remove-Item $Zip -ErrorAction SilentlyContinue
+  Copy-Item (Join-Path $PSScriptRoot 'setup-shortcuts.ps1') $Out -Force
+  Copy-Item (Join-Path $PSScriptRoot 'Install shortcuts.cmd') $Out -Force
+  Compress-Archive -Path $Out -DestinationPath $Zip
+  Write-Host "==> $Zip" -ForegroundColor Green
+}
