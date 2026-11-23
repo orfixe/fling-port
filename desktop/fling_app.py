@@ -1764,8 +1764,8 @@ EN_PHRASES += [   # rows that had no English text yet
     ("Уведомления включены", "Notifications on"), ("Уведомления выключены", "Notifications off"),
     ("Запускать при входе", "Start at login"), ("Связать с ТВ", "Pair with TV"),
     ("Отправить скопированную ссылку", "Cast copied link"), ("Ищу ТВ…", "Looking for TVs…"), ("Телевизор", "TV"), ("ТВ…", "TV…"),
-    ("Fling создан Damion Rashford и Tatiana · неофициальный порт",
-     "Fling by Damion Rashford and Tatiana · unofficial port"),
+    ("Fling создан Damion Rashford и Tatiana · неофициальный порт от orfixe",
+     "Fling by Damion Rashford and Tatiana · unofficial port by orfixe"),
 ]
 EN_PHRASES += [   # Connect TV window, TV menu, screenshots
     ('Добавить ТВ по IP…', 'Add TV by IP…'),
@@ -3219,9 +3219,9 @@ class Panel(QWidget):
         ft.addWidget(self.switch)
         fw = QWidget(); fw.setLayout(ft)
         v.addWidget(fw)
-        # authorship: Fling is Damion Rashford's and Tatiana's app; this is an unofficial port
+        # authorship: Fling is Damion Rashford's and Tatiana's app; this is an unofficial port by orfixe
         credit = label(f'<a href="https://github.com/tatianathevisionary/fling" style="color:{Theme.css(T.fg_a(0.45))};text-decoration:none">'
-                       'Fling создан Damion Rashford и Tatiana · неофициальный порт</a>', 10, T.fg_a(0.4))
+                       'Fling создан Damion Rashford и Tatiana · неофициальный порт от orfixe</a>', 10, T.fg_a(0.4))
         credit.setOpenExternalLinks(True)
         credit.setToolTip("github.com/tatianathevisionary/fling")
         # bottom line: credit on the left, a small dimmed language flag on the right
@@ -4064,7 +4064,7 @@ class SetupWindow(QWidget):
             v.addWidget(self._row(key, title))
         v.addStretch(1)
         c2 = label(f'<a href="https://github.com/tatianathevisionary/fling" style="color:{Theme.css(T.fg_a(0.55))}">'
-                   'Fling создан Damion Rashford и Tatiana · неофициальный порт</a>', 10.5, T.fg_a(0.45))
+                   'Fling создан Damion Rashford и Tatiana · неофициальный порт от orfixe</a>', 10.5, T.fg_a(0.45))
         c2.setOpenExternalLinks(True)
         v.addWidget(c2)
         area.setWidget(body)
