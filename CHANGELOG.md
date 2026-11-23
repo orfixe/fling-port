@@ -22,6 +22,8 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 - Desktop: the d-pad is a round pad like on a TV remote — the four arrows sit at the same
   distance from OK, the whole quarter of the ring presses that arrow (hold to repeat), and
   Back / Home sit below its sides.
+- Desktop: a strip at the top of the panel says when the keyboard is captured for the TV
+  (Esc releases it); it hides while a text field is open.
 
 ## [0.3.0] - 2026-11-22
 

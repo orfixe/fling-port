@@ -1822,6 +1822,12 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
     ('Снимок чёрный: видео защищено от снимков (DRM у YouTube/Netflix). Меню и главный экран ТВ снимаются нормально.', 'The screenshot is black: the video is copy-protected (DRM on YouTube/Netflix). Menus and the home screen capture fine.'),
     ('ТВ', 'TV'),
 ]
+EN_PHRASES += [   # keyboard captured strip
+    ("⌨  Клавиатура захвачена — клавиши идут на ТВ. Esc — отпустить",
+     "⌨  Keyboard captured — keys go to the TV. Esc releases it"),
+    ("⌨  Клавиатура захвачена — ← → перемотка, Пробел пауза. Esc — отпустить",
+     "⌨  Keyboard captured — ← → seek, Space pauses. Esc releases it"),
+]
 EN_PHRASES += [   # installing an APK on the TV
     ("Установить APK на ТВ", "Install APK on the TV"),
     ("Установить APK…", "Install APK…"),
@@ -2783,6 +2789,14 @@ class Panel(QWidget):
 
         self.corner = CornerBar(self)
         v.addWidget(self.corner)
+        # shown while the laptop keyboard drives the TV (Windows keyboard hook is on)
+        self.kb_strip = label("", 10.5, T.accent, QFont.Weight.DemiBold, wrap=True)
+        self.kb_strip.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        self.kb_strip.setStyleSheet(f"color:{Theme.css(T.accent)};background:{Theme.css(T.acc_a(0.12))};"
+                                    "border-radius:6px;padding:5px 8px")
+        self.kb_box = padded(self.kb_strip, 10, 2, 10, 4)
+        self.kb_box.hide()
+        v.addWidget(self.kb_box)
 
         # setup (catt missing)
         self.setup = QWidget()
@@ -3137,6 +3151,22 @@ class Panel(QWidget):
         else:
             h.keys = {0x1B}
         h.active = self.isVisible() and not editing
+        # say so while the keys go to the TV instead of the app the user was in
+        self._show_kb_strip(h.active and (s.remote_ready or s.panel == "casting"),
+                            s.remote_ready)
+
+    def _show_kb_strip(self, on: bool, remote: bool):
+        strip, box = getattr(self, "kb_strip", None), getattr(self, "kb_box", None)
+        if strip is None or box is None:
+            return
+        text = ("⌨  Клавиатура захвачена — клавиши идут на ТВ. Esc — отпустить"
+                if remote else
+                "⌨  Клавиатура захвачена — ← → перемотка, Пробел пауза. Esc — отпустить")
+        if strip.text() != tr(text):
+            strip.setText(text)
+        if box.isVisibleTo(self) != on:
+            box.setVisible(on)
+            QTimer.singleShot(0, self.place)  # the panel grows / shrinks by one line
 
     def _hook_key(self, vk, shift, repeat):
         if not self.isVisible():
