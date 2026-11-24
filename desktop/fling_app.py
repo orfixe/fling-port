@@ -264,6 +264,97 @@ def catt_info(ip: str) -> dict:
         "app": kv.get("display_name"),
     }
 
+class CastLink:
+    """One lasting Cast connection to the selected TV, inside this process (pychromecast —
+    what catt uses). The TV pushes its status, so the 2-second refresh only reads it:
+    no `catt info` process (in the setup build a whole second Fling.exe) every poll.
+    Without pychromecast (install.ps1 keeps catt in its own env) `available` is False
+    and Fling asks catt as before."""
+    BACKDROP = "E8C28D3C"
+
+    def __init__(self):
+        try:
+            import pychromecast  # noqa: F401
+            self.available = True
+        except Exception:
+            self.available = False
+        self.lock = threading.Lock()
+        self.ip, self.cc, self.next_try = None, None, 0.0
+
+    def close(self):
+        with self.lock:
+            cc, self.cc, self.ip = self.cc, None, None
+        if cc:
+            try:
+                cc.disconnect(timeout=1)
+            except Exception:
+                pass
+
+    def _connect(self, ip):
+        import pychromecast
+        from pychromecast.discovery import get_device_info
+        dev = get_device_info(ip)
+        if not dev:
+            raise CattError("Телевизор не ответил. Убедитесь, что он включён, и попробуйте снова.")
+        # tries=None: pychromecast keeps reconnecting by itself when the TV sleeps / wakes
+        cc = pychromecast.get_chromecast_from_host((ip, 8009, dev.uuid, dev.model_name, dev.friendly_name),
+                                                   tries=None, retry_wait=5, timeout=6)
+        cc.wait(timeout=8)
+        if cc.status is None:
+            try:
+                cc.disconnect(timeout=1)
+            except Exception:
+                pass
+            raise CattError("Телевизор не ответил. Убедитесь, что он включён, и попробуйте снова.")
+        print("cast link:", ip, dev.friendly_name, flush=True)
+        return cc
+
+    def info(self, ip: str) -> dict:
+        """The same dict as catt_info(), from the lasting connection."""
+        old = None
+        with self.lock:
+            if ip != self.ip:
+                old, self.cc, self.ip, self.next_try = self.cc, None, ip, 0.0
+            if self.cc is None:
+                if time.monotonic() < self.next_try:
+                    raise CattError("Телевизор не ответил.")
+                try:
+                    self.cc = self._connect(ip)
+                except Exception:
+                    self.next_try = time.monotonic() + 20      # a sleeping TV: try again later
+                    raise
+            cc = self.cc
+        if old:
+            threading.Thread(target=lambda: old.disconnect(timeout=1), daemon=True).start()
+        if not cc.socket_client.is_connected:
+            raise CattError("Телевизор не ответил.")
+        cs, mc = cc.status, cc.media_controller
+        try:
+            mc.update_status()                    # ask for a fresh one; it arrives for the next poll
+        except Exception:
+            pass
+        ms = mc.status
+        vol = int(round(cs.volume_level * 100)) if cs and cs.volume_level is not None else None
+        app = getattr(cs, "app_id", None)
+        if not app or app == self.BACKDROP or (ms.player_state in ("UNKNOWN", "IDLE") and not ms.content_id):
+            return {"state": "IDLE", "volume": vol}
+        meta = ms.media_metadata or {}
+        return {
+            "state": (ms.player_state or "UNKNOWN").upper(),
+            "elapsed": ms.adjusted_current_time,
+            "duration": ms.duration,
+            "volume": vol,
+            "muted": bool(cs and cs.volume_muted),
+            "title": meta.get("title") or None,
+            "subtitle": meta.get("subtitle") or meta.get("artist") or cs.display_name,
+            "image": ms.images[0].url if ms.images else None,
+            "content_id": ms.content_id,
+            "app": cs.display_name,
+        }
+
+
+CAST = CastLink()
+
 _OEMBED: dict = {}
 
 def youtube_meta(vid: str) -> dict:
@@ -1286,7 +1377,7 @@ class State(QObject):
             st = None
             if ip:
                 try:
-                    st = catt_info(ip)
+                    st = CAST.info(ip) if CAST.available else catt_info(ip)
                 except Exception:
                     st = {}
                 cid = st.get("content_id") or ""
@@ -1747,7 +1838,15 @@ EN_PHRASES = [  # longest first is applied automatically
     ("ADB-консоль…", "ADB console…"), ("Журнал Fling", "Fling log"),
     ("Fling — экран ТВ", "Fling — TV screen"), ("Fling — мышь для ТВ", "Fling — mouse for the TV"),
     ("Fling — ADB-консоль", "Fling — ADB console"),
-    ("Открыть экран ТВ — управление мышью", "Open the TV screen — control it with the mouse"),
+    ("LIVE — экран ТВ вживую, управление мышью", "LIVE — the TV screen live, control it with the mouse"),
+    ("Щёлкните по картинке — мышь станет курсором на ТВ. Alt — вернуть мышь. Клавиатура в окне печатает на ТВ.",
+     "Click the picture — the mouse becomes a pointer on the TV. Alt gives it back. The keyboard types on the TV."),
+    ("Перезапустить картинку", "Restart the picture"), ("Подключаюсь к экрану ТВ…", "Connecting to the TV screen…"),
+    ("Экран ТВ не появился. Нажмите «Перезапустить картинку».",
+     "The TV screen didn't appear. Click “Restart the picture”."),
+    ("Экран ТВ закрыт.", "The TV screen is closed."),
+    ("Нажмите «Перезапустить картинку».", "Click “Restart the picture”."),
+    ("Питание ТВ", "TV power"), ("Тише", "Volume down"), ("Громче", "Volume up"),
     ("Скачиваю scrcpy (~12 МБ) — один раз…", "Downloading scrcpy (~12 MB) — just once…"),
     ("Щёлкните в окне — мышь станет курсором на ТВ. Alt — вернуть мышь компьютеру.",
      "Click in the window — the mouse becomes a pointer on the TV. Alt gives the mouse back."),
@@ -1986,6 +2085,16 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
 ]
 EN_PHRASES += [   # keyboard captured strip
     ("⌨  Клавиатура захвачена, Esc — выход", "⌨  Keyboard captured, Esc to exit"),
+    ("⌨  Клавиатура свободна", "⌨  Keyboard is free"),
+    ("Отключить", "Release"), ("Захватить", "Capture"),
+    ("Пока панель открыта, стрелки, Enter, Пробел, Backspace, Home и +/− управляют ТВ, "
+     "а не программой, в которой вы были.\nEsc закрывает панель.\n"
+     "Нужна клавиатура в другой программе — нажмите «Отключить»: пульт останется "
+     "на кнопках панели. Fling запомнит выбор.",
+     "While the panel is open, the arrows, Enter, Space, Backspace, Home and +/− drive the TV, "
+     "not the app you were in.\nEsc closes the panel.\n"
+     "Need the keyboard in another app? Click “Release”: the remote stays on the panel's buttons. "
+     "Fling remembers it."),
 ]
 EN_PHRASES += [   # installing an APK on the TV
     ("Установить APK на ТВ", "Install APK on the TV"),
@@ -2552,8 +2661,9 @@ class Artwork(QWidget):
         self.pix = None
         self.url = None
         self.on_refresh = on_refresh
-        self.on_click = on_click      # () -> bool: True when a click on the picture did something
-        self.click_ok = lambda: False
+        self.on_click = on_click      # a click on the picture (not the refresh button)
+        self.click_ok = lambda: False  # () -> bool: is that click possible right now
+        self.hover_live = False
         self.hover = False
         self.pressed = False
         self.angle = 0.0
@@ -2590,8 +2700,11 @@ class Artwork(QWidget):
     def mouseMoveEvent(self, e):
         h = self.on_refresh is not None and self._btn_rect().contains(e.position())
         hand = h or (self.on_click is not None and self.click_ok())
+        if hand != self.hover_live and not h:
+            self.hover_live = hand
+            self.update()
         self.setCursor(Qt.CursorShape.PointingHandCursor if hand else Qt.CursorShape.ArrowCursor)
-        self.setToolTip("" if h or not hand else "Открыть экран ТВ — управление мышью")
+        self.setToolTip("" if h or not hand else "LIVE — экран ТВ вживую, управление мышью")
         if h != self.hover:
             self.hover = h
             self.update()
@@ -2692,8 +2805,27 @@ class Artwork(QWidget):
             tri.lineTo(c.x() + s, c.y()); tri.closeSubpath(); p.drawPath(tri)
         if getattr(self, "dim", False) and self.pix:
             p.fillRect(r, QColor(0, 0, 0, 110))
+        if self.on_click is not None and self.click_ok():
+            self._paint_live(p)
         if self.on_refresh:
             self._paint_button(p)
+
+    def _paint_live(self, p):
+        """● LIVE in the bottom-left corner: a click on the picture shows the TV's screen."""
+        p.setClipping(False)
+        f = font(10, QFont.Weight.Bold)
+        p.setFont(f)
+        from PyQt6.QtGui import QFontMetricsF
+        tw = QFontMetricsF(f).horizontalAdvance("LIVE")
+        box = QRectF(8, self.height() - 8 - 22, tw + 28, 22)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(0, 0, 0, 170 if self.hover_live else 125))
+        p.drawRoundedRect(box, 11, 11)
+        p.setBrush(QColor("#ff453a"))
+        p.drawEllipse(QPointF(box.left() + 11, box.center().y()), 3.6, 3.6)
+        p.setPen(QColor("white"))
+        p.drawText(QRectF(box.left() + 19, box.top(), tw + 4, box.height()),
+                   Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, "LIVE")
 
 
 class KeyButton(QPushButton):
@@ -3082,15 +3214,22 @@ class TvScreen(QObject):
         self.proc = None
         self.mode = None
         self.busy = False
+        self.live_geom = None        # (x, y, w, h) in physical pixels: where the live video goes
         self._quiet = set()          # processes we stopped ourselves: their exit is no error
 
     def running(self, mode=None) -> bool:
         from PyQt6.QtCore import QProcess
+        if mode == "screen" and P.IS_WIN:
+            mode = "live"
         on = self.proc is not None and self.proc.state() != QProcess.ProcessState.NotRunning
         return on and (mode is None or mode == self.mode)
 
     def toggle(self, mode="screen"):
-        """Open the window; the same menu item again closes it."""
+        """Open the window; the same menu item again closes it. On Windows the TV screen
+        opens inside a Fling window (LiveWindow) with the remote beside it."""
+        if mode == "screen" and P.IS_WIN:
+            open_live(self.state)
+            return
         if self.running(mode):
             self.stop()
             return
@@ -3103,7 +3242,9 @@ class TvScreen(QObject):
             p = self.proc
             QTimer.singleShot(3000, lambda: p.kill() if p.state() != p.ProcessState.NotRunning else None)
 
-    def open(self, mode="screen"):
+    def open(self, mode="screen", on_started=None):
+        """on_started(process, window title): for "live", to find and embed scrcpy's window."""
+        self._on_started = on_started
         s = self.state
         ip = s.ip
         if not ip:
@@ -3112,7 +3253,7 @@ class TvScreen(QObject):
         if self.busy:
             return
         self.busy = True
-        what = "Экран ТВ" if mode == "screen" else "Мышь для ТВ"
+        what = "Мышь для ТВ" if mode == "mouse" else "Экран ТВ"
 
         def work():
             err = _adb_ready_error(ip, what)
@@ -3141,11 +3282,19 @@ class TvScreen(QObject):
 
     def _start(self, exe, ip, mode, mouse):
         from PyQt6.QtCore import QProcess, QProcessEnvironment
-        title = tr("Fling — экран ТВ") if mode == "screen" else tr("Fling — мышь для ТВ")
+        title = tr("Fling — мышь для ТВ") if mode == "mouse" else tr("Fling — экран ТВ")
+        if mode == "live":                       # a unique title: LiveWindow finds the window by it
+            title = f"fling-live-{os.getpid()}-{int(time.monotonic() * 1000)}"
         args = ["-s", _adb_serial(ip), "--no-audio", f"--mouse={mouse}", f"--window-title={title}"]
-        if mode == "screen":
+        if mode in ("screen", "live"):
             args += ["--max-size=1280", "--max-fps=30", "--video-bit-rate=4M"]
-        else:
+        if mode == "live":                       # born off-screen and frameless, then moved into Fling
+            # born frameless right over LiveWindow's video area: resizing a window that SDL
+            # created off-screen crashes scrcpy (divide by zero), moving an on-screen one is fine
+            x, y, w, h = self.live_geom or (100, 100, 960, 540)
+            args += ["--window-borderless", f"--window-x={x}", f"--window-y={y}",
+                     f"--window-width={w}", f"--window-height={h}"]
+        elif mode == "mouse":
             args += ["--no-video", "--window-width=440", "--window-height=120"]
         p = QProcess(self)
         env = QProcessEnvironment.systemEnvironment()
@@ -3182,8 +3331,160 @@ class TvScreen(QObject):
         print("scrcpy:", exe, *args, flush=True)
         p.start()
         self.changed.emit()
+        if getattr(self, "_on_started", None):
+            self._on_started(p, title)
+        if mode == "live":
+            return
         notify_send("Щёлкните в окне — мышь станет курсором на ТВ. Alt — вернуть мышь компьютеру."
                     if mouse == "uhid" else "Щелчки в окне — нажатия на ТВ.")
+
+
+class LiveWindow(QWidget):
+    """Windows: the TV's live screen inside a Fling window, the remote beside it.
+
+    scrcpy draws the video (decoded on the GPU) into its own frameless window, started
+    off-screen; once it appears, Fling adopts it as a child window (QWindow.fromWinId)."""
+
+    def __init__(self, state: "State"):
+        super().__init__(None, Qt.WindowType.Window)
+        self.state = state
+        self.proc = None
+        self.title = None
+        self.container = None
+        self._tries = 0
+        self.setWindowTitle(tr("Fling — экран ТВ"))
+        self.setWindowIcon(tray_icon())
+        self.resize(1080, 560)
+        pal = self.palette(); pal.setColor(self.backgroundRole(), T.bg); self.setPalette(pal)
+        self.setAutoFillBackground(True)
+        h = QHBoxLayout(self); h.setContentsMargins(0, 0, 0, 0); h.setSpacing(0)
+        self.host = QWidget()
+        self.host.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.host.setStyleSheet("background:black")
+        self.host_l = QVBoxLayout(self.host); self.host_l.setContentsMargins(0, 0, 0, 0)
+        self.msg = label("", 12.5, QColor(255, 255, 255, 170), wrap=True)
+        self.msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.host_l.addWidget(self.msg)
+        h.addWidget(self.host, 1)
+
+        side = QWidget(); side.setFixedWidth(232)
+        sl = QVBoxLayout(side); sl.setContentsMargins(10, 12, 10, 12); sl.setSpacing(6)
+        sl.addWidget(label("Щёлкните по картинке — мышь станет курсором на ТВ. "
+                           "Alt — вернуть мышь. Клавиатура в окне печатает на ТВ.", 11, T.fg_a(0.6), wrap=True))
+        k = lambda n: (lambda: state.tv_key(KEY[n]))
+        pad, _ = build_dpad(k)
+        pad.layout().setContentsMargins(0, 8, 0, 4)
+        sl.addWidget(pad)
+        sl.addWidget(key_bar(
+            ("power", "Питание ТВ", k("power"), 30, False),
+            ("spk_minus", "Тише", k("vol_down"), 30, False),
+            ("spk_plus", "Громче", k("vol_up"), 30, False),
+            ("pause", "Пауза / Играть", k("play_pause"), 30, False)))
+        sl.addStretch(1)
+        sl.addWidget(small_button("Перезапустить картинку", self.restart))
+        h.addWidget(side)
+        state.screen.changed.connect(self._sync)
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if self.container is None and not self.state.screen.running("live") and not self.state.screen.busy:
+            self.start()
+
+    def start(self):
+        self._drop_container()
+        self.msg.setText(tr("Подключаюсь к экрану ТВ…"))
+        self.msg.show()
+        self.state.screen.live_geom = self._geom()
+        self.state.screen.open("live", on_started=self._started)
+
+    def restart(self):
+        self.state.screen.stop()
+        QTimer.singleShot(700, self.start)
+
+    def _started(self, proc, title):
+        self.proc, self.title = proc, title
+        self._tries = 0
+        self._find()
+
+    def _find(self):
+        """Wait for scrcpy's window (it opens once the video starts), then adopt it."""
+        if self.proc is None or self.proc.state() == self.proc.ProcessState.NotRunning:
+            return
+        import ctypes
+        hwnd = ctypes.windll.user32.FindWindowW(None, self.title)
+        if not hwnd:
+            self._tries += 1
+            if self._tries < 100:                 # ~20 s
+                QTimer.singleShot(200, self._find)
+            else:
+                self.msg.setText(tr("Экран ТВ не появился. Нажмите «Перезапустить картинку»."))
+            return
+        # SDL (scrcpy) crashes when its window is made a child window, so it stays a top-level
+        # window *owned* by this one: always above it, minimised with it, laid over the black area
+        GWLP_HWNDPARENT = -8
+        ctypes.windll.user32.SetWindowLongPtrW(ctypes.c_void_p(hwnd), GWLP_HWNDPARENT,
+                                               ctypes.c_void_p(int(self.winId())))
+        self.container = int(hwnd)
+        self.msg.hide()                           # it was born in place: no move needed now
+
+    def _geom(self):
+        """The video area in physical screen pixels."""
+        dpr = self.host.devicePixelRatioF()
+        tl = self.host.mapToGlobal(QPoint(0, 0))
+        scr = self.host.screen().geometry()
+        # Qt's global coordinates are logical; Windows wants physical pixels of that screen
+        x = int(scr.x() + (tl.x() - scr.x()) * dpr)
+        y = int(scr.y() + (tl.y() - scr.y()) * dpr)
+        return x, y, max(int(self.host.width() * dpr), 160), max(int(self.host.height() * dpr), 90)
+
+    def _place(self):
+        """Keep scrcpy's window exactly over the video area."""
+        if not self.container:
+            return
+        import ctypes
+        x, y, w, h = self._geom()
+        SWP_NOACTIVATE, SWP_SHOWWINDOW, HWND_TOP = 0x10, 0x40, 0
+        ctypes.windll.user32.SetWindowPos(ctypes.c_void_p(self.container), HWND_TOP, x, y, w, h,
+                                          SWP_NOACTIVATE | SWP_SHOWWINDOW)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        QTimer.singleShot(0, self._place)
+
+    def moveEvent(self, e):
+        super().moveEvent(e)
+        self._place()
+
+    def _drop_container(self):
+        """Let go of scrcpy's window first: SDL crashes when its owner disappears under it."""
+        if self.container:
+            import ctypes
+            ctypes.windll.user32.SetWindowLongPtrW(ctypes.c_void_p(self.container), -8, ctypes.c_void_p(0))
+        self.container = None
+
+    def _sync(self):
+        sc = self.state.screen
+        if self.isVisible() and not sc.running("live") and not sc.busy and self.proc is not None:
+            self.proc = None
+            self._drop_container()
+            err = self.state.last_error or ""
+            self.msg.setText(tr("Экран ТВ закрыт.") + ("\n" + tr(err) if err else "") +
+                             "\n" + tr("Нажмите «Перезапустить картинку»."))
+            self.msg.show()
+
+    def closeEvent(self, e):
+        self.proc = None
+        self._drop_container()
+        self.state.screen.stop()
+        super().closeEvent(e)
+
+
+def open_live(state: "State"):
+    w = getattr(state, "_live", None)
+    if w is None:
+        w = state._live = LiveWindow(state)
+    w.showNormal(); w.raise_(); w.activateWindow()
+    P.force_foreground(int(w.winId()))          # a tray app's window would open behind others
 
 
 # ---------------------------------------------------------------- ADB console
@@ -3536,12 +3837,28 @@ class Panel(QWidget):
 
         self.corner = CornerBar(self)
         v.addWidget(self.corner)
-        # shown while the laptop keyboard drives the TV (Windows keyboard hook is on)
+        # shown while the laptop keyboard drives the TV (Windows keyboard hook is on),
+        # with a button to free the keyboard (remembered) and back
+        self.kb_row = QWidget()
+        self.kb_row.setObjectName("kbrow")
+        self.kb_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        kr = QHBoxLayout(self.kb_row); kr.setContentsMargins(8, 3, 4, 3); kr.setSpacing(6)
         self.kb_strip = label("", 10.5, T.accent, QFont.Weight.DemiBold, wrap=True)
-        self.kb_strip.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-        self.kb_strip.setStyleSheet(f"color:{Theme.css(T.accent)};background:{Theme.css(T.acc_a(0.12))};"
-                                    "border-radius:6px;padding:5px 8px")
-        self.kb_box = padded(self.kb_strip, 10, 2, 10, 4)
+        kr.addWidget(self.kb_strip, 1)
+        self.kb_toggle = QPushButton()
+        self.kb_toggle.setFont(font(10.5, QFont.Weight.DemiBold))
+        self.kb_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.kb_toggle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.kb_toggle.setFixedHeight(22)
+        self.kb_toggle.clicked.connect(self._toggle_kb_capture)
+        kr.addWidget(self.kb_toggle)
+        self.kb_row.setToolTip(
+            "Пока панель открыта, стрелки, Enter, Пробел, Backspace, Home и +/− управляют ТВ, "
+            "а не программой, в которой вы были.\n"
+            "Esc закрывает панель.\n"
+            "Нужна клавиатура в другой программе — нажмите «Отключить»: пульт останется "
+            "на кнопках панели. Fling запомнит выбор.")
+        self.kb_box = padded(self.kb_row, 10, 2, 10, 4)
         self.kb_box.hide()
         v.addWidget(self.kb_box)
 
@@ -3907,7 +4224,10 @@ class Panel(QWidget):
             QTimer.singleShot(0, lambda: P.force_foreground(int(self.winId())))
         self._was_editing = editing
         s = self.state
-        if s.remote_ready:
+        capture = self._kb_capture()
+        if not capture:                      # the user freed the keyboard: only Esc closes the panel
+            h.keys = {0x1B}
+        elif s.remote_ready:
             h.keys = set(h.KEYS)
         elif s.panel == "casting":           # no remote yet: ← / → seek, Space pauses
             h.keys = {0x25, 0x27, 0x20, 0x1B}
@@ -3915,16 +4235,38 @@ class Panel(QWidget):
             h.keys = {0x1B}
         h.active = self.isVisible() and not editing
         # say so while the keys go to the TV instead of the app the user was in
-        self._show_kb_strip(h.active and (s.remote_ready or s.panel == "casting"),
-                            s.remote_ready)
+        self._show_kb_strip(h.active and (s.remote_ready or s.panel == "casting"), capture)
 
-    def _show_kb_strip(self, on: bool, remote: bool):
+    def _kb_capture(self) -> bool:
+        return self.state.conf.get("kb_capture", True)
+
+    def _toggle_kb_capture(self):
+        s = self.state
+        s.conf["kb_capture"] = not self._kb_capture()
+        save_conf(s.conf)
+        if s.conf["kb_capture"]:
+            self._grab_keys()
+        else:
+            self._ungrab_keys()
+        self._update_keyhook()
+
+    def _show_kb_strip(self, on: bool, capture: bool = True):
         strip, box = getattr(self, "kb_strip", None), getattr(self, "kb_box", None)
         if strip is None or box is None:
             return
-        text = "⌨  Клавиатура захвачена, Esc — выход"
+        text = "⌨  Клавиатура захвачена, Esc — выход" if capture else "⌨  Клавиатура свободна"
         if strip.text() != tr(text):
             strip.setText(text)
+            col = T.accent if capture else T.fg_a(0.55)
+            strip.setStyleSheet(f"color:{Theme.css(col)};background:transparent")
+            self.kb_row.setStyleSheet(
+                f"QWidget#kbrow{{background:{Theme.css(T.acc_a(0.12) if capture else T.fg_a(0.05))};"
+                "border-radius:6px}")
+            self.kb_toggle.setText("Отключить" if capture else "Захватить")
+            self.kb_toggle.setStyleSheet(
+                f"QPushButton{{border:none;border-radius:5px;padding:0 8px;color:{Theme.css(col)};"
+                f"background:{Theme.css(T.fg_a(0.07))}}}"
+                f"QPushButton:hover{{background:{Theme.css(T.acc_a(0.22))}}}")
         if box.isVisibleTo(self) != on:
             box.setVisible(on)
             QTimer.singleShot(0, self.place)  # the panel grows / shrinks by one line
@@ -3979,7 +4321,7 @@ class Panel(QWidget):
         return True
 
     def _grab_keys(self):
-        if self.isVisible() and not self._editing():
+        if self.isVisible() and not self._editing() and self._kb_capture():
             try:
                 self.grabKeyboard()
             except Exception:
@@ -4152,7 +4494,10 @@ class Panel(QWidget):
     def _open_screen(self):
         """Click on the cover: the TV's live screen in a window, the mouse drives the TV."""
         self.hide()
-        self.state.screen.open("screen")
+        if P.IS_WIN:
+            open_live(self.state)                 # opens or raises the Live window
+        elif not self.state.screen.running("screen"):
+            self.state.screen.open("screen")
 
     def _toggle_lang(self):
         c = load_conf()
@@ -5484,6 +5829,8 @@ def main():
         elif c == "quit":
             app.quit()
 
+    app.aboutToQuit.connect(CAST.close)
+    app.aboutToQuit.connect(state.screen.stop)
     QLocalServer.removeServer(SOCKET)
     server = QLocalServer()
     server.listen(SOCKET)
