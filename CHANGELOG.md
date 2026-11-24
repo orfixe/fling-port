@@ -18,6 +18,9 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 - Desktop: ADB console — run commands on the selected TV with live output, quick commands,
   history and Stop; commands that may delete data or restart the TV ask first.
 - Desktop: `fling screen`, `fling mouse`, `fling adb`, `fling log`, `fling install-extension`.
+- Desktop: send files to the TV — drag them onto the panel or the ADB console, `fling send`, or
+  Explorer's Send to → "Fling — to the TV": APKs install, a video / song / picture plays (copied
+  over ADB when the TV can't fetch it), anything else lands in the TV's Download folder.
 - Windows: "Install the extension…" adds the extension to Chrome or Edge by itself, with the
   manual steps as a fallback.
 

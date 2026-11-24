@@ -116,6 +116,8 @@ HELP = {
    "  - `fling screenshot` — сделать снимок\n"
    "  - `fling screen` / `fling mouse` — экран ТВ с мышью / курсор без картинки\n"
    "  - `fling adb` — ADB-консоль, `fling log` — журнал\n"
+   "  - `fling send файл…` — на ТВ: APK ставится, видео и фото показываются, остальное копируется в Download. "
+   "Так же работает перетаскивание файла на панель или ADB-консоль\n"
    "  - `fling help` — эта подсказка\n"
    "  - `fling quit` — выход\n"
    "  - `fling tui` — пульт в терминале"
@@ -241,6 +243,8 @@ HELP = {
    "  - `fling screenshot` — take a screenshot\n"
    "  - `fling screen` / `fling mouse` — TV screen with mouse / cursor without the picture\n"
    "  - `fling adb` — ADB console, `fling log` — the log\n"
+   "  - `fling send file…` — to the TV: APKs install, videos and pictures play, the rest is copied to Download. "
+   "Dragging a file onto the panel or the ADB console does the same\n"
    "  - `fling help` — this guide\n"
    "  - `fling quit` — quit\n"
    "  - `fling tui` — remote in the terminal"
@@ -295,6 +299,8 @@ WINDOWS = {
    "  - `fling screenshot` — сделать снимок\n"
    "  - `fling screen` / `fling mouse` — экран ТВ с мышью / курсор без картинки\n"
    "  - `fling adb` — ADB-консоль, `fling log` — журнал\n"
+   "  - `fling send файл…` — на ТВ: APK ставится, видео и фото показываются, остальное копируется в Download. "
+   "Так же работает перетаскивание файла на панель или ADB-консоль\n"
    "  - `fling help` — эта подсказка\n"
    "  - `fling quit` — выход",
   "Если что-то не работает":
@@ -342,6 +348,8 @@ WINDOWS = {
    "  - `fling screenshot` — take a screenshot\n"
    "  - `fling screen` / `fling mouse` — TV screen with mouse / cursor without the picture\n"
    "  - `fling adb` — ADB console, `fling log` — the log\n"
+   "  - `fling send file…` — to the TV: APKs install, videos and pictures play, the rest is copied to Download. "
+   "Dragging a file onto the panel or the ADB console does the same\n"
    "  - `fling help` — this guide\n"
    "  - `fling quit` — quit",
   "If something doesn't work":

@@ -51,12 +51,14 @@ ru.ApkMenu=Пункт «Установить на ТВ (Fling)» в меню .ap
 ru.FlingCommand=Команда fling в терминале
 ru.InstallOnTv=Установить на ТВ (Fling)
 ru.LaunchFling=Запустить Fling
+ru.SendToTv=Fling — на ТВ
 en.DesktopIcon=Desktop icon
 en.Autostart=Start with Windows
 en.ApkMenu="Install on TV (Fling)" in the menu of .apk files
 en.FlingCommand=The fling command in the terminal
 en.InstallOnTv=Install on TV (Fling)
 en.LaunchFling=Start Fling
+en.SendToTv=Fling - to the TV
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; Flags: unchecked
@@ -75,6 +77,8 @@ Source: "fling.cmd"; DestDir: "{app}"; Tasks: flingcmd; Flags: ignoreversion
 [Icons]
 Name: "{userprograms}\Fling"; Filename: "{app}\Fling.exe"; Parameters: "show"; WorkingDir: "{app}"
 Name: "{userdesktop}\Fling"; Filename: "{app}\Fling.exe"; Parameters: "show"; WorkingDir: "{app}"; Tasks: desktopicon
+; Explorer: right-click any files -> Send to -> Fling (installs APKs, plays media, copies the rest)
+Name: "{usersendto}\{cm:SendToTv}"; Filename: "{app}\Fling.exe"; Parameters: "send"; WorkingDir: "{app}"
 
 [Registry]
 ; Start with Windows (Fling's own tray switch writes the same value)
