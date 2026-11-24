@@ -78,6 +78,34 @@ if (-not (Test-Path $Adb)) {
   Remove-Item $zipAdb -Force
 }
 
+# scrcpy (TV screen + mouse) ships inside, so the first "TV screen" needs no download.
+# Its own adb.exe is left out: Fling points scrcpy at the bundled platform-tools adb.
+Write-Host '==> scrcpy' -ForegroundColor Cyan
+$ScrDir = Join-Path $Out 'scrcpy'
+if (-not (Test-Path (Join-Path $ScrDir 'scrcpy.exe'))) {
+  $rel = Invoke-RestMethod 'https://api.github.com/repos/Genymobile/scrcpy/releases/latest' -Headers @{ 'User-Agent' = 'Fling-build' }
+  $asset = $rel.assets | Where-Object { $_.name -like 'scrcpy-win64-*.zip' } | Select-Object -First 1
+  $sums = $rel.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' } | Select-Object -First 1
+  if (-not $asset -or -not $sums) { throw 'scrcpy release has no win64 zip / SHA256SUMS.txt' }
+  $zipScr = Join-Path $Work $asset.name
+  Invoke-WebRequest $asset.browser_download_url -OutFile $zipScr
+  $sumsFile = Join-Path $Work 'scrcpy-SHA256SUMS.txt'
+  Invoke-WebRequest $sums.browser_download_url -OutFile $sumsFile      # served as binary: read it from disk
+  $want = ((Get-Content $sumsFile) | Where-Object { $_ -match [regex]::Escape($asset.name) } |
+           Select-Object -First 1).Split(' ')[0]
+  Remove-Item $sumsFile -Force
+  $got = (Get-FileHash $zipScr -Algorithm SHA256).Hash
+  if (-not $want -or $got -ne $want.ToUpper()) { throw "scrcpy checksum mismatch: $got vs $want" }
+  $tmpScr = Join-Path $Work 'scrcpy-x'
+  Remove-Item $tmpScr -Recurse -Force -ErrorAction SilentlyContinue
+  Expand-Archive $zipScr -DestinationPath $tmpScr -Force
+  $inner = Get-ChildItem $tmpScr -Directory | Select-Object -First 1
+  New-Item -ItemType Directory -Force -Path $ScrDir | Out-Null
+  Get-ChildItem $inner.FullName | Where-Object { $_.Name -notmatch '^(adb\.exe|AdbWinApi\.dll|AdbWinUsbApi\.dll|open_a_terminal_here\.bat|scrcpy-noconsole\.vbs)$' } |
+    Copy-Item -Destination $ScrDir -Recurse -Force
+  Remove-Item $zipScr, $tmpScr -Recurse -Force
+}
+
 # the Chrome / Edge extension ships inside, for "Load unpacked"
 Copy-Item (Join-Path $Repo 'extension\dist\chrome') (Join-Path $Out 'extension\chrome') -Recurse -Force
 Copy-Item (Join-Path $Repo 'extension\dist\fling-firefox-*.zip') (Join-Path $Out 'extension') -Force

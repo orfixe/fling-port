@@ -116,10 +116,15 @@ SCRCPY_RELEASES = "https://api.github.com/repos/Genymobile/scrcpy/releases/lates
 
 
 def find_scrcpy() -> str | None:
-    """scrcpy (TV screen + mouse): Fling's own download first, then PATH."""
+    """scrcpy (TV screen + mouse): Fling's own download first, then the copy the setup
+    ships next to Fling.exe, then PATH."""
     own = os.path.join(SCRCPY_DIR, _exe("scrcpy"))
     if os.path.isfile(own):
         return own
+    if FROZEN:
+        shipped = os.path.join(os.path.dirname(sys.executable), "scrcpy", _exe("scrcpy"))
+        if os.path.isfile(shipped):
+            return shipped
     return shutil.which("scrcpy")
 
 
