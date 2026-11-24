@@ -24,7 +24,7 @@ import fling_platform as P
 
 P.prepare_qt_env()
 
-from PyQt6.QtCore import (QObject, Qt, QTimer, QRectF, QPoint, QPointF, QSize, QUrl,
+from PyQt6.QtCore import (QObject, Qt, QTimer, QRect, QRectF, QPoint, QPointF, QSize, QUrl,
                           QEvent, QPropertyAnimation, QEasingCurve,
                           QSequentialAnimationGroup, QParallelAnimationGroup,
                           pyqtSignal, pyqtProperty)
@@ -2026,6 +2026,20 @@ EN_PHRASES = [  # longest first is applied automatically
      "Click in the window — the mouse becomes a pointer on the TV. Alt gives the mouse back."),
     ("Щелчки в окне — нажатия на ТВ.", "Clicks in the window tap the TV."),
     ("Экран ТВ закрылся: ", "The TV screen closed: "),
+    ("Касания", "Taps"), ("Только смотреть", "Just watch"),
+    ("Пульт и что играет", "The remote and what's playing"),
+    ("Экран ТВ вживую, управление мышью", "The TV screen live, control it with the mouse"),
+    ("Маленькое окно", "Small window"), ("Среднее окно", "Medium window"), ("Большое окно", "Large window"),
+    ("Во весь экран", "Full screen"), ("Без звука", "Mute"), ("Домой", "Home"),
+    ("Пульт: стрелки, OK, громкость", "Remote: arrows, OK, volume"),
+    ("Звук на ПК — звук ТВ пойдёт на этот компьютер; на самом ТВ он может пропасть, пока открыта картинка. "
+     "Переключение перезапускает картинку.",
+     "Sound on PC — the TV's sound comes to this computer; the TV itself may go quiet while the picture "
+     "is open. Switching restarts the picture."),
+    ("Клавиатура: на ТВ — нажмите, чтобы оставить её у компьютера",
+     "Keyboard: to the TV — click to keep it on the computer"),
+    ("Клавиатура: у компьютера — нажмите, чтобы передавать на ТВ",
+     "Keyboard: on the computer — click to send it to the TV"),
     ("Мышь: курсор на ТВ", "Mouse: pointer on the TV"), ("Мышь: касания", "Mouse: taps"),
     ("Мышь: только смотреть", "Mouse: just watch"),
     ("Клавиатура: на ТВ", "Keyboard: to the TV"), ("Клавиатура: у компьютера", "Keyboard: stays on the PC"),
@@ -2146,8 +2160,9 @@ EN_PHRASES += [   # rows that had no English text yet
     ("Уведомления включены", "Notifications on"), ("Уведомления выключены", "Notifications off"),
     ("Запускать при входе", "Start at login"), ("Связать с ТВ", "Pair with TV"),
     ("Отправить скопированную ссылку", "Cast copied link"), ("Ищу ТВ…", "Looking for TVs…"), ("Телевизор", "TV"), ("ТВ…", "TV…"),
-    ("Fling создан Damion Rashford и Tatiana · неофициальный порт от orfixe",
-     "Fling by Damion Rashford and Tatiana · unofficial port by orfixe"),
+    ("Fling создан Damion Rashford и Tatiana<br>неофициальный порт от orfixe",
+     "Fling by Damion Rashford and Tatiana<br>unofficial port by orfixe"),
+    ("Пульт", "Remote"),
 ]
 EN_PHRASES += [   # Connect TV window, TV menu, screenshots
     ('Добавить ТВ по IP…', 'Add TV by IP…'),
@@ -2718,7 +2733,8 @@ class CornerBar(QWidget):
     def __init__(self, panel):
         super().__init__()
         self.panel = panel
-        lay = QHBoxLayout(self); lay.setContentsMargins(14, 7, 10, 0); lay.setSpacing(4)
+        lay = QHBoxLayout(self); lay.setContentsMargins(12, 7, 10, 0); lay.setSpacing(4)
+        lay.addWidget(SectionSwitch("remote", lambda: None, panel.go_live))
         lay.addStretch(1)
         self.compact = QToolButton()
         self.compact.setIconSize(QSize(14, 14))
@@ -3635,16 +3651,227 @@ class TvScreen(QObject):
                     if mouse == "uhid" else "Щелчки в окне — нажатия на ТВ.")
 
 
+def live_icon(name: str, size: int = 18, color=None) -> QIcon:
+    """Line icons for the LIVE toolbar, all drawn the same way (2× for crisp HiDPI)."""
+    import math
+    dpr = QGuiApplication.primaryScreen().devicePixelRatio() if QGuiApplication.primaryScreen() else 1
+    pm = QPixmap(int(size * dpr * 2), int(size * dpr * 2))
+    pm.setDevicePixelRatio(dpr * 2)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    col = QColor(color or T.fg)
+    pen = QPen(col, size * 0.085)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap); pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    p.setPen(pen); p.setBrush(Qt.BrushStyle.NoBrush)
+    s = size
+    u = s / 24.0                                     # draw on a 24-unit grid
+
+    def P_(x, y):
+        return QPointF(x * u, y * u)
+
+    def path(*pts, close=False, fill=False):
+        pa = QPainterPath(P_(*pts[0]))
+        for q in pts[1:]:
+            pa.lineTo(P_(*q))
+        if close:
+            pa.closeSubpath()
+        if fill:
+            p.save(); p.setBrush(col); p.drawPath(pa); p.restore()
+        else:
+            p.drawPath(pa)
+
+    def speaker():
+        path((4, 9.5), (7.5, 9.5), (12, 5.5), (12, 18.5), (7.5, 14.5), (4, 14.5), close=True)
+
+    if name == "back":
+        pa = QPainterPath(P_(9, 6)); pa.lineTo(P_(4.5, 10.5)); pa.lineTo(P_(9, 15))
+        p.drawPath(pa)
+        pa = QPainterPath(P_(4.5, 10.5)); pa.lineTo(P_(14, 10.5))
+        pa.cubicTo(P_(18, 10.5), P_(20, 13), P_(20, 15.5)); pa.cubicTo(P_(20, 18), P_(18, 19.5), P_(15, 19.5))
+        pa.lineTo(P_(11, 19.5)); p.drawPath(pa)
+    elif name == "home":
+        path((3.5, 11.5), (12, 4.5), (20.5, 11.5))
+        path((6, 9.5), (6, 19.5), (18, 19.5), (18, 9.5))
+        path((10, 19.5), (10, 14.5), (14, 14.5), (14, 19.5))
+    elif name == "playpause":
+        path((4, 6), (4, 18), (11, 12), close=True, fill=True)
+        p.save(); pb = QPen(col, s * 0.11); pb.setCapStyle(Qt.PenCapStyle.RoundCap); p.setPen(pb)
+        p.drawLine(P_(15, 7), P_(15, 17)); p.drawLine(P_(19.5, 7), P_(19.5, 17)); p.restore()
+    elif name in ("vol_down", "vol_up", "mute"):
+        speaker()
+        if name == "vol_down":
+            p.drawLine(P_(15.5, 12), P_(20.5, 12))
+        elif name == "vol_up":
+            p.drawLine(P_(15.5, 12), P_(20.5, 12)); p.drawLine(P_(18, 9.5), P_(18, 14.5))
+        else:
+            p.drawLine(P_(15.5, 9.5), P_(20.5, 14.5)); p.drawLine(P_(20.5, 9.5), P_(15.5, 14.5))
+    elif name == "power":
+        p.drawArc(QRectF(P_(5, 5.5), P_(19, 19.5)), 120 * 16, 300 * 16)
+        p.drawLine(P_(12, 3.5), P_(12, 11))
+    elif name == "cursor":
+        path((6, 3.5), (6, 18.5), (10, 14.8), (12.8, 20.5), (15.2, 19.3), (12.5, 13.8), (17.8, 13.5), close=True)
+    elif name == "tap":
+        p.drawEllipse(P_(12, 12), 3.2 * u, 3.2 * u)
+        p.save(); pen2 = QPen(col, s * 0.07); pen2.setCapStyle(Qt.PenCapStyle.RoundCap); p.setPen(pen2)
+        p.drawArc(QRectF(P_(4.5, 4.5), P_(19.5, 19.5)), 30 * 16, 120 * 16)
+        p.drawArc(QRectF(P_(4.5, 4.5), P_(19.5, 19.5)), 210 * 16, 120 * 16); p.restore()
+    elif name == "eye":
+        pa = QPainterPath(P_(2.5, 12)); pa.cubicTo(P_(6, 5.5), P_(18, 5.5), P_(21.5, 12))
+        pa.cubicTo(P_(18, 18.5), P_(6, 18.5), P_(2.5, 12)); p.drawPath(pa)
+        p.drawEllipse(P_(12, 12), 3 * u, 3 * u)
+    elif name in ("keyboard", "keyboard_off"):
+        p.drawRoundedRect(QRectF(P_(2.5, 6), P_(21.5, 18.5)), 2.2 * u, 2.2 * u)
+        p.save(); p.setPen(Qt.PenStyle.NoPen); p.setBrush(col)
+        for row, y in ((0, 9.3), (1, 12.3)):
+            for i in range(6 - row):
+                x = 5.4 + i * 2.65 + row * 1.3
+                p.drawRoundedRect(QRectF(P_(x - 0.8, y - 0.8), P_(x + 0.8, y + 0.8)), 0.3 * u, 0.3 * u)
+        p.drawRoundedRect(QRectF(P_(7.5, 14.6), P_(16.5, 16.2)), 0.5 * u, 0.5 * u)
+        p.restore()
+        if name == "keyboard_off":
+            p.drawLine(P_(3.5, 3.5), P_(20.5, 20.5))
+    elif name in ("sound_pc", "sound_pc_off"):
+        p.drawRoundedRect(QRectF(P_(2.5, 4), P_(21.5, 16.5)), 1.8 * u, 1.8 * u)
+        p.drawLine(P_(9, 20), P_(15, 20)); p.drawLine(P_(12, 16.5), P_(12, 20))
+        path((7.5, 9), (9.5, 9), (12, 7), (12, 13.5), (9.5, 11.5), (7.5, 11.5), close=True)
+        if name == "sound_pc":
+            p.drawArc(QRectF(P_(12, 7.2), P_(16.5, 13.2)), -60 * 16, 120 * 16)
+        else:
+            p.drawLine(P_(14, 8.5), P_(17.5, 12)); p.drawLine(P_(17.5, 8.5), P_(14, 12))
+    elif name == "remote":
+        p.drawEllipse(P_(12, 12), 8.5 * u, 8.5 * u)
+        p.drawEllipse(P_(12, 12), 2.8 * u, 2.8 * u)
+        for a in (0, 90, 180, 270):
+            r = math.radians(a)
+            c = P_(12 + 6 * math.cos(r), 12 - 6 * math.sin(r))
+            p.drawPoint(c)
+    elif name == "restart":
+        p.drawArc(QRectF(P_(4.5, 4.5), P_(19.5, 19.5)), 60 * 16, 290 * 16)
+        path((16.2, 3.2), (16.5, 7.2), (12.6, 7.6))
+    elif name == "full":
+        for (x, y, dx, dy) in ((4, 9, 0, -5), (4, 4, 5, 0), (20, 9, 0, -5), (20, 4, -5, 0),
+                               (4, 15, 0, 5), (4, 20, 5, 0), (20, 15, 0, 5), (20, 20, -5, 0)):
+            p.drawLine(P_(x, y), P_(x + dx, y + dy))
+    elif name == "close":
+        p.drawLine(P_(6.5, 6.5), P_(17.5, 17.5)); p.drawLine(P_(17.5, 6.5), P_(6.5, 17.5))
+    p.end()
+    return QIcon(pm)
+
+
+class SectionSwitch(QWidget):
+    """"Пульт | ● LIVE" — the two sections of the Fling window, as one pill."""
+
+    def __init__(self, current: str, on_remote, on_live):
+        super().__init__()
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.setObjectName("secsw")
+        self.setStyleSheet(f"QWidget#secsw{{background:{Theme.css(T.fg_a(0.07))};border-radius:9px}}")
+        lay = QHBoxLayout(self); lay.setContentsMargins(2, 2, 2, 2); lay.setSpacing(0)
+        for key, text, fn, tip in (("remote", "Пульт", on_remote, "Пульт и что играет"),
+                                   ("live", "●  LIVE", on_live, "Экран ТВ вживую, управление мышью")):
+            b = QToolButton()
+            b.setText(text)
+            b.setToolTip(tip)
+            b.setFont(font(10.5, QFont.Weight.DemiBold))
+            b.setFixedHeight(22)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            on = key == current
+            red = "#ff453a"
+            col = (T.fg if on else T.fg_a(0.55)) if key == "remote" else (QColor(red) if on else T.fg_a(0.55))
+            b.setStyleSheet(
+                f"QToolButton{{border:none;border-radius:7px;padding:0 10px;color:{Theme.css(col)};"
+                f"background:{Theme.css(T.bg) if on else 'transparent'}}}"
+                f"QToolButton:hover{{color:{Theme.css(T.fg)};background:{Theme.css(T.bg) if on else Theme.css(T.fg_a(0.08))}}}")
+            if not on:
+                b.clicked.connect(fn)
+            lay.addWidget(b)
+
+
+class Morph(QWidget):
+    """The switch between the panel and LIVE: one window that grows (or shrinks) from one
+    to the other while their pictures cross-fade — so the two read as one window."""
+
+    def __init__(self, a: QPixmap, b: QPixmap, ra, rb, done, ms=300):
+        super().__init__(None, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint |
+                         Qt.WindowType.NoDropShadowWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.a, self.b, self.ra, self.rb, self.done = a, b, ra, rb, done
+        self.t = 0.0
+        self.setGeometry(ra)
+        from PyQt6.QtCore import QVariantAnimation
+        self.anim = QVariantAnimation(self)
+        self.anim.setStartValue(0.0); self.anim.setEndValue(1.0); self.anim.setDuration(ms)
+        self.anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.anim.valueChanged.connect(self._step)
+        self.anim.finished.connect(self._end)
+
+    def start(self):
+        self.show()
+        self.anim.start()
+
+    def _step(self, v):
+        self.t = float(v)
+        lerp = lambda x, y: int(round(x + (y - x) * self.t))
+        ra, rb = self.ra, self.rb
+        self.setGeometry(lerp(ra.x(), rb.x()), lerp(ra.y(), rb.y()),
+                         lerp(ra.width(), rb.width()), lerp(ra.height(), rb.height()))
+        self.update()
+
+    def _end(self):
+        self.done()
+        QTimer.singleShot(60, self.close)        # the real window is up: let go a frame later
+        QTimer.singleShot(80, self.deleteLater)
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        clip = QPainterPath(); clip.addRoundedRect(r, 10, 10)
+        bg = QColor(T.bg); bg.setAlphaF(1.0)
+        p.setPen(QPen(T.fg_a(0.16), 1)); p.setBrush(bg)
+        p.drawRoundedRect(r, 10, 10)
+        p.setClipPath(clip)
+        # each picture keeps its own scale, pinned to the corner by the tray (bottom-right)
+        for pm, op in ((self.a, 1.0 - self.t), (self.b, self.t)):
+            if pm is None or pm.isNull() or op <= 0.01:
+                continue
+            w = pm.width() / pm.devicePixelRatio(); h = pm.height() / pm.devicePixelRatio()
+            p.setOpacity(op)
+            p.drawPixmap(QRectF(self.width() - w, self.height() - h, w, h), pm, QRectF(pm.rect()))
+        p.setOpacity(1.0)
+
+
+def _screen_shot(widget) -> QPixmap:
+    """What is on screen where `widget` is — includes scrcpy's video over the LIVE window."""
+    g = widget.frameGeometry()
+    scr = widget.screen() or QGuiApplication.primaryScreen()
+    return scr.grabWindow(0, g.x() - scr.geometry().x(), g.y() - scr.geometry().y(), g.width(), g.height())
+
+
 class LiveWindow(QWidget):
-    """Windows: the tray panel's look with a second section — the TV's live screen.
+    """Windows: the TV's live screen next to the tray — video first.
 
-    Left: a compact remote (what's on, d-pad, volume, power / play). Right: LIVE video.
-    A tool window, not a popup: clicks on the video must not close it. scrcpy draws the
-    video (decoded on the GPU) into its own frameless window, born right over the video
-    area and *owned* by this window (SDL crashes when its window is reparented, or
-    resized after being created off-screen) — moved only on later moves / resizes."""
+    A slim header (● LIVE · TV · what's on, sizes, close), the video, and one row of icon
+    buttons under it: TV keys on the left, how the mouse / keyboard / sound work on the
+    right. The d-pad opens from the remote button. A tool window, not a popup: clicks on the
+    video must not close it.
 
-    SIZES = {"small": (640, 360), "large": (960, 540)}
+    scrcpy draws the video (decoded on the GPU) into its own frameless window, born right
+    over the video area and *owned* by this window — SDL crashes when its window is
+    reparented, or resized after being created off-screen; it is moved only on later
+    moves / resizes, and the owner is released before scrcpy stops."""
+
+    SIZES = {"S": (640, 360), "M": (854, 480), "L": (1280, 720)}
+    MOUSE = (("uhid", "cursor", "Курсор на ТВ",
+              "Щёлкните по картинке — мышь станет курсором на ТВ. Alt — вернуть мышь."),
+             ("sdk", "tap", "Касания",
+              "Мышь не захватывается: щелчок по картинке — нажатие в этом месте ТВ."),
+             ("view", "eye", "Только смотреть",
+              "Только картинка: мышь и клавиатура остаются у компьютера."))
 
     def __init__(self, state: "State"):
         super().__init__(None, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint |
@@ -3655,6 +3882,7 @@ class LiveWindow(QWidget):
         self.container = None
         self._tries = 0
         self._drag = None
+        self._full = False
         self.translucent = P.translucent_ok(state.conf)
         if self.translucent:
             self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -3663,153 +3891,196 @@ class LiveWindow(QWidget):
         root = QVBoxLayout(self); root.setContentsMargins(1, 1, 1, 1); root.setSpacing(0)
         root.setSizeConstraint(QVBoxLayout.SizeConstraint.SetFixedSize)
 
-        # header: ● LIVE · TV name, size toggle, close — drag the window by it
+        # ---- header: ● LIVE · TV · what's on        S M L ⛶ ✕   (drag the window by it)
         self.head = QWidget()
-        hl = QHBoxLayout(self.head); hl.setContentsMargins(14, 8, 8, 4); hl.setSpacing(6)
-        dot = label("●", 11, QColor("#ff453a"))
-        hl.addWidget(dot)
-        hl.addWidget(label("LIVE", 11.5, weight=QFont.Weight.Bold))
-        self.h_name = label("", 11, T.fg_a(0.55))
+        hl = QHBoxLayout(self.head); hl.setContentsMargins(12, 6, 6, 6); hl.setSpacing(6)
+        hl.addWidget(SectionSwitch("live", self.back_to_panel, lambda: None))
+        hl.addSpacing(4)
+        self.h_name = label("", 11, T.fg_a(0.6))
         hl.addWidget(self.h_name)
-        hl.addStretch(1)
-
-        def tool(tip, on):
-            b = QToolButton()
-            b.setToolTip(tip)
-            b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            b.setFixedSize(24, 22)
-            b.setFont(font(12))
-            b.setStyleSheet(f"QToolButton{{border:none;border-radius:5px;color:{Theme.css(T.fg_a(0.65))};"
-                            f"background:transparent}}"
-                            f"QToolButton:hover{{background:{Theme.css(T.acc_a(0.2))}}}")
-            b.clicked.connect(on)
+        self.h_now = label("", 11, T.fg_a(0.45))
+        self.h_now.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        hl.addWidget(self.h_now, 1)
+        self.size_btns = {}
+        for key in self.SIZES:
+            b = self._seg(key, lambda _=False, k=key: self.set_size(k), text=True)
+            b.setToolTip({"S": "Маленькое окно", "M": "Среднее окно", "L": "Большое окно"}[key])
             hl.addWidget(b)
-            return b
-        self.size_btn = tool("", self.toggle_size)
-        tool("Закрыть  (Esc)", self.close).setText("✕")
+            self.size_btns[key] = b
+        self.full_btn = self._seg("full", lambda: self.set_size("F"))
+        self.full_btn.setToolTip("Во весь экран")
+        hl.addWidget(self.full_btn)
+        hl.addSpacing(4)
+        x = self._tool("close", "Закрыть  (Esc)", self.close)
+        hl.addWidget(x)
         root.addWidget(self.head)
 
-        body = QHBoxLayout(); body.setContentsMargins(0, 0, 0, 0); body.setSpacing(0)
-        # section 1: compact remote, like the panel
-        side = QWidget(); side.setFixedWidth(250)
-        sl = QVBoxLayout(side); sl.setContentsMargins(0, 2, 0, 10); sl.setSpacing(4)
-        self.now = label("", 12.5, weight=QFont.Weight.DemiBold, wrap=True)
-        self.now_sub = label("", 11, T.fg_a(0.55), wrap=True)
-        nb = QWidget(); nl = QVBoxLayout(nb); nl.setContentsMargins(14, 4, 14, 2); nl.setSpacing(2)
-        nl.addWidget(self.now); nl.addWidget(self.now_sub)
-        sl.addWidget(nb)
-        k = lambda n: (lambda: state.tv_key(KEY[n]))
-        pad, _ = build_dpad(k)
-        sl.addWidget(pad)
-        self.vol = VolumeRow(state)
-        sl.addWidget(self.vol)
-        sl.addWidget(key_bar(
-            ("power", "Питание ТВ", k("power"), 30, False),
-            ("spk_minus", "Тише", k("vol_down"), 30, False),
-            ("spk_plus", "Громче", k("vol_up"), 30, False),
-            ("pause", "Пауза / Играть", k("play_pause"), 30, False)))
-        self.audio_btn = QPushButton("Звук на ПК")
-        self.audio_btn.setCheckable(True)
-        self.audio_btn.setChecked(bool(state.conf.get("live_audio")))
-        self.audio_btn.setFont(font(11))
-        self.audio_btn.setFixedHeight(24)
-        self.audio_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.audio_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.audio_btn.setToolTip("Звук ТВ пойдёт на этот компьютер; на самом ТВ он может пропасть, пока открыта картинка. Переключение перезапускает картинку.")
-        self.audio_btn.setStyleSheet(
-            f"QPushButton{{border:1px solid {Theme.css(T.fg_a(0.16))};border-radius:5px;padding:0 10px;"
-            f"background:{Theme.css(T.fg_a(0.05))};color:{Theme.css(T.fg_a(0.75))}}}"
-            f"QPushButton:checked{{background:{Theme.css(T.acc_a(0.25))};color:{Theme.css(T.accent)};"
-            f"border-color:{Theme.css(T.acc_a(0.6))}}}"
-            f"QPushButton:hover{{background:{Theme.css(T.acc_a(0.2))}}}")
-        self.audio_btn.toggled.connect(self._toggle_audio)
-        sl.addWidget(padded(self.audio_btn, 14, 6, 14, 0))
-        self.audio_note = label("", 10.5, T.fg_a(0.5), wrap=True)
-        self.audio_note.hide()
-        sl.addWidget(padded(self.audio_note, 14, 2, 14, 0))
-        # how the mouse and keyboard work on the picture (remembered; switching restarts it)
-        self.mouse_btn = small_button("", lambda: None)
-        self.kb_btn = small_button("", lambda: None)
-        for b, menu in ((self.mouse_btn, self._mouse_menu), (self.kb_btn, self._kb_menu)):
-            m = QMenu(b)
-            m.aboutToShow.connect(lambda m=m, f=menu: f(m))
-            b.setMenu(m)
-            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            sl.addWidget(padded(b, 14, 6, 14, 0))
-        sl.addStretch(1)
-        self.tip = label("", 10.5, T.fg_a(0.5), wrap=True)
-        sl.addWidget(padded(self.tip, 14, 4, 14, 4))
-        self._input_labels()
-        self.status = label("", 10.5, T.fg_a(0.5), wrap=True)
-        sl.addWidget(padded(self.status, 14, 0, 14, 4))
-        sl.addWidget(padded(small_button("Перезапустить картинку", self.restart), 14, 2, 14, 0))
-        body.addWidget(side)
-        # section 2: the live video
+        # ---- the video
         self.host = QWidget()
         self.host.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
-        self.host.setStyleSheet("background:black;border-radius:6px")
+        self.host.setStyleSheet("background:black")
         self.host_l = QVBoxLayout(self.host); self.host_l.setContentsMargins(0, 0, 0, 0)
         self.msg = label("", 12.5, QColor(255, 255, 255, 170), wrap=True)
         self.msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.host_l.addWidget(self.msg)
-        body.addWidget(padded(self.host, 0, 2, 10, 10))
-        root.addLayout(body)
+        root.addWidget(padded(self.host, 8, 0, 8, 0))
+
+        # ---- the toolbar: TV keys | how input works
+        bar = QWidget()
+        bl = QHBoxLayout(bar); bl.setContentsMargins(8, 6, 8, 2); bl.setSpacing(2)
+        k = lambda n: (lambda: state.tv_key(KEY[n]))
+        for icon, tip, fn in (("back", "Назад", k("back")), ("home", "Домой", k("home")),
+                              ("playpause", "Пауза / Играть", k("play_pause"))):
+            bl.addWidget(self._tool(icon, tip, fn))
+        bl.addWidget(self._sep())
+        for icon, tip, fn in (("vol_down", "Тише", k("vol_down")), ("mute", "Без звука", k("mute")),
+                              ("vol_up", "Громче", k("vol_up"))):
+            bl.addWidget(self._tool(icon, tip, fn, repeat=icon != "mute"))
+        bl.addWidget(self._sep())
+        bl.addWidget(self._tool("power", "Питание ТВ", k("power")))
+        self.remote_btn = self._tool("remote", "Пульт: стрелки, OK, громкость", self._show_remote)
+        bl.addWidget(self.remote_btn)
+        bl.addStretch(1)
+        self.mouse_btns = {}
+        for key, icon, title, tip in self.MOUSE:
+            b = self._seg(icon, lambda _=False, k=key: self._set_input("live_mouse", k))
+            b.setToolTip(title + " — " + tip)
+            bl.addWidget(b)
+            self.mouse_btns[key] = b
+        bl.addWidget(self._sep())
+        self.kb_btn = self._seg("keyboard", lambda: self._set_input(
+            "live_kb", "off" if self.state.conf.get("live_kb", "on") == "on" else "on"))
+        bl.addWidget(self.kb_btn)
+        self.audio_btn = self._seg("sound_pc", lambda: self._toggle_audio(not self.state.conf.get("live_audio")))
+        self.audio_btn.setToolTip("Звук на ПК — звук ТВ пойдёт на этот компьютер; на самом ТВ он может "
+                                  "пропасть, пока открыта картинка. Переключение перезапускает картинку.")
+        bl.addWidget(self.audio_btn)
+        bl.addWidget(self._sep())
+        bl.addWidget(self._tool("restart", "Перезапустить картинку", self.restart))
+        root.addWidget(bar)
+        # one quiet line: what a click on the picture does right now / what's going on
+        self.hint = label("", 10.5, T.fg_a(0.5))
+        self.hint.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        root.addWidget(padded(self.hint, 14, 0, 14, 8))
+        self.status_text = ""
+
+        self.remote = None                        # the d-pad flyout, made on first use
         self._apply_size()
+        self._input_labels()
 
         sc = QShortcut(QKeySequence("Escape"), self)
         sc.activated.connect(self.close)
         state.screen.changed.connect(self._sync)
         state.changed.connect(self._sync_now)
         self._sync_now()
-        install_file_drop(self, state)            # files dropped on the remote side go to the TV
+        install_file_drop(self, state)            # files dropped on the window go to the TV
 
-    MOUSE = (("uhid", "Мышь: курсор на ТВ", "Щёлкните по картинке — мышь станет курсором на ТВ. Alt — вернуть мышь."),
-             ("sdk", "Мышь: касания", "Мышь не захватывается: щелчок по картинке — нажатие в этом месте ТВ."),
-             ("view", "Мышь: только смотреть", "Только картинка: мышь и клавиатура остаются у компьютера."))
-    KB = (("on", "Клавиатура: на ТВ", "Клавиатура в окне печатает на ТВ."),
-          ("off", "Клавиатура: у компьютера", "Клавиатура не передаётся на ТВ."))
+    # --- small widgets
+    def _tool(self, icon, tip, on, repeat=False):
+        b = QToolButton()
+        b.setIcon(live_icon(icon, 18, T.fg_a(0.85)))
+        b.setIconSize(QSize(18, 18))
+        b.setFixedSize(32, 30)
+        b.setToolTip(tip)
+        b.setCursor(Qt.CursorShape.PointingHandCursor)
+        b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        b.setAutoRepeat(repeat)
+        if repeat:
+            b.setAutoRepeatDelay(350); b.setAutoRepeatInterval(140)
+        b.setStyleSheet("QToolButton{border:none;border-radius:7px;background:transparent}"
+                        f"QToolButton:hover{{background:{Theme.css(T.fg_a(0.09))}}}"
+                        f"QToolButton:pressed{{background:{Theme.css(T.acc_a(0.25))}}}")
+        b.clicked.connect(on)
+        return b
 
+    def _seg(self, icon, on, text=False):
+        """A toggle in a group: lit with the accent while it is the current choice."""
+        b = QToolButton()
+        b.setCheckable(True)
+        if text:
+            b.setText(icon); b.setFont(font(10.5, QFont.Weight.DemiBold)); b.setFixedSize(26, 24)
+        else:
+            b.setIcon(live_icon(icon, 18, T.fg_a(0.85))); b.setIconSize(QSize(18, 18)); b.setFixedSize(32, 30)
+        b.setCursor(Qt.CursorShape.PointingHandCursor)
+        b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        b.setStyleSheet(f"QToolButton{{border:none;border-radius:7px;background:transparent;color:{Theme.css(T.fg_a(0.6))}}}"
+                        f"QToolButton:hover{{background:{Theme.css(T.fg_a(0.09))}}}"
+                        f"QToolButton:checked{{background:{Theme.css(T.acc_a(0.24))};color:{Theme.css(T.accent)}}}")
+        b.clicked.connect(on)
+        return b
+
+    def _sep(self):
+        s = QFrame(); s.setFixedSize(9, 18)
+        s.setStyleSheet(f"border:none;border-left:1px solid {Theme.css(T.fg_a(0.14))};margin-left:4px")
+        return s
+
+    # --- the d-pad flyout
+    def _show_remote(self):
+        if self.remote is None:
+            f = QWidget(self, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint |
+                        Qt.WindowType.NoDropShadowWindowHint)
+            f.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+            f.setStyleSheet(f"QWidget#fly{{background:{Theme.css(T.bg)};border:1px solid "
+                            f"{Theme.css(T.fg_a(0.16))};border-radius:10px}}")
+            f.setObjectName("fly")
+            fl = QVBoxLayout(f); fl.setContentsMargins(6, 6, 6, 8); fl.setSpacing(4)
+            k = lambda n: (lambda: self.state.tv_key(KEY[n]))
+            pad, _ = build_dpad(k)
+            fl.addWidget(pad)
+            self.r_vol = VolumeRow(self.state)
+            fl.addWidget(self.r_vol)
+            self.remote = f
+        self.r_vol.setVisible(bool(tv_volume_known(self.state)))
+        if self.r_vol.isVisible():
+            self.r_vol.sync()
+        f = self.remote
+        f.adjustSize()
+        b = self.remote_btn
+        pt = b.mapToGlobal(QPoint(b.width() // 2 - f.width() // 2, -f.height() - 6))
+        f.move(pt)
+        f.show()
+
+    # --- input choices (remembered; scrcpy takes them only at start, so switching restarts it)
     def _input_labels(self):
         c = self.state.conf
         mouse = c.get("live_mouse", "uhid")
-        kb = c.get("live_kb", "on")
-        mt = next(x for x in self.MOUSE if x[0] == mouse) if mouse in dict((x[0], 1) for x in self.MOUSE) else self.MOUSE[0]
-        kt = next(x for x in self.KB if x[0] == kb) if kb in ("on", "off") else self.KB[0]
-        self.mouse_btn.setText(mt[1] + "  ▾")
-        self.kb_btn.setText(kt[1] + "  ▾")
-        self.kb_btn.setEnabled(mt[0] != "view")
-        self.tip.setText(tr(mt[2]) + ("" if mt[0] == "view" else " " + tr(kt[2])))
+        mouse = mouse if mouse in self.mouse_btns else "uhid"
+        for key, b in self.mouse_btns.items():
+            b.setChecked(key == mouse)
+        kb_on = c.get("live_kb", "on") != "off"
+        self.kb_btn.setChecked(kb_on and mouse != "view")
+        self.kb_btn.setEnabled(mouse != "view")
+        self.kb_btn.setIcon(live_icon("keyboard" if kb_on else "keyboard_off", 18, T.fg_a(0.85)))
+        self.kb_btn.setToolTip(tr("Клавиатура: на ТВ — нажмите, чтобы оставить её у компьютера")
+                               if kb_on else tr("Клавиатура: у компьютера — нажмите, чтобы передавать на ТВ"))
+        audio = bool(c.get("live_audio"))
+        self.audio_btn.setChecked(audio)
+        self.audio_btn.setIcon(live_icon("sound_pc" if audio else "sound_pc_off", 18, T.fg_a(0.85)))
+        tip = next(t for k, _, _, t in self.MOUSE if k == mouse)
+        if mouse != "view":
+            tip += " " + ("Клавиатура в окне печатает на ТВ." if kb_on else "Клавиатура не передаётся на ТВ.")
+        self.mode_text = tr(tip)
+        self._hint()
 
-    def _mouse_menu(self, m):
-        m.clear()
-        cur = self.state.conf.get("live_mouse", "uhid")
-        for key, title, tip in self.MOUSE:
-            a = m.addAction(title, lambda k=key: self._set_input("live_mouse", k))
-            a.setCheckable(True); a.setChecked(key == cur); a.setToolTip(tr(tip))
-
-    def _kb_menu(self, m):
-        m.clear()
-        cur = self.state.conf.get("live_kb", "on")
-        for key, title, tip in self.KB:
-            a = m.addAction(title, lambda k=key: self._set_input("live_kb", k))
-            a.setCheckable(True); a.setChecked(key == cur); a.setToolTip(tr(tip))
+    def _hint(self):
+        self.hint.setText(self.status_text or self.mode_text)
 
     def _set_input(self, name, value):
-        if self.state.conf.get(name) == value:
+        self._input_labels()                      # undo the button's own toggle until saved
+        if self.state.conf.get(name, {"live_mouse": "uhid", "live_kb": "on"}.get(name)) == value:
             return
         self.state.conf[name] = value
         save_conf(self.state.conf)
         self._input_labels()
         if self.isVisible():
-            self.restart()                        # scrcpy takes these only at start
+            self.restart()
 
     def _toggle_audio(self, on):
         self.state.conf["live_audio"] = bool(on)
         save_conf(self.state.conf)
-        self.audio_note.hide()
+        self._input_labels()
         if self.isVisible():
-            self.restart()                        # scrcpy takes audio on / off only at start
+            self.restart()
 
     def _check_audio(self):
         """scrcpy keeps the video when the TV can't send sound: say so, quietly."""
@@ -3817,10 +4088,11 @@ class LiveWindow(QWidget):
             return
         text = "".join(self.state.screen.output).lower()
         bad = [l for l in text.splitlines() if "audio" in l and
-               any(w in l for w in ("disabled", "fail", "error", "not supported", "could not", "cannot"))]
+               any(w in l for w in ("disabled", "fail", "error", "not supported", "could not", "cannot"))
+               and "retrying" not in l]
         if bad:
-            self.audio_note.setText(tr("Звук с этого ТВ не передаётся"))
-            self.audio_note.show()
+            self.status_text = tr("Звук с этого ТВ не передаётся")
+            self._hint()
 
     # --- look
     def paintEvent(self, e):
@@ -3836,30 +4108,46 @@ class LiveWindow(QWidget):
 
     def _size(self) -> str:
         s = self.state.conf.get("live_size")
-        return s if s in self.SIZES else "small"
+        return s if s in self.SIZES else "M"
+
+    def _video_size(self):
+        if self._full:                            # the largest 16:9 that fits the screen
+            scr = (self.screen() or QGuiApplication.primaryScreen()).availableGeometry()
+            w = scr.width() - 2 - 16
+            h = scr.height() - 2 - 44 - 40 - 26
+            w = min(w, int(h * 16 / 9)) // 2 * 2
+            return w, w * 9 // 16
+        return self.SIZES[self._size()]
 
     def _apply_size(self):
-        w, h = self.SIZES[self._size()]
+        w, h = self._video_size()
         self.host.setFixedSize(w, h)
-        big = self._size() == "large"
-        self.size_btn.setText("⤡" if big else "⤢")
-        self.size_btn.setToolTip("Меньше" if big else "Больше")
+        for key, b in self.size_btns.items():
+            b.setChecked(not self._full and key == self._size())
+        self.full_btn.setChecked(self._full)
 
-    def toggle_size(self):
-        self.state.conf["live_size"] = "small" if self._size() == "large" else "large"
-        save_conf(self.state.conf)
+    def set_size(self, key):
+        if key == "F":
+            self._full = not self._full
+        else:
+            self._full = False
+            self.state.conf["live_size"] = key
+            save_conf(self.state.conf)
         self._apply_size()
         self.layout().activate()                  # the new size now, so place() sees it
         self.adjustSize()
-        self.place()                              # keep it by the tray; moveEvent re-lays the video
+        self.place()
         QTimer.singleShot(0, self.place)
         QTimer.singleShot(30, self._place)
 
     def place(self):
-        """Next to the tray, like the panel."""
+        """Next to the tray, like the panel; centred when it fills the screen."""
         self.adjustSize()
         scr = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
         full, av = scr.geometry(), scr.availableGeometry()
+        if self._full:
+            self.move(av.left() + (av.width() - self.width()) // 2, av.top() + (av.height() - self.height()) // 2)
+            return
         m = 8
         x = av.right() - self.width() - m
         y = av.top() + m if av.top() > full.top() else av.bottom() - self.height() - m
@@ -3875,12 +4163,48 @@ class LiveWindow(QWidget):
         tvm = getattr(s, "tvm", {}) or {}
         title = st.get("title") or tvm.get("title") or ""
         sub = st.get("subtitle") or tvm.get("artist") or app_name(tvm.get("package")) or ""
-        self.now.setText(title or tr("Экран ТВ"))
-        self.now_sub.setText(sub)
-        self.now_sub.setVisible(bool(sub))
-        self.vol.setVisible(bool(tv_volume_known(s)))
-        if self.vol.isVisible():
-            self.vol.sync()
+        now = " — ".join(x for x in (title, sub) if x)
+        self.h_now.setText(("· " + now) if now else "")
+        self.h_now.setToolTip(now)
+        if self.remote is not None and self.remote.isVisible() and self.r_vol.isVisible():
+            self.r_vol.sync()
+
+    def show_from(self, panel):
+        """Grow out of the panel: the panel's picture turns into this window's."""
+        a, ra = panel.grab(), panel.frameGeometry()
+        self._full = False
+        self._apply_size()
+        self.layout().activate()
+        self.adjustSize()
+        self.place()
+        rb = QRect(self.pos(), self.size())
+        self.msg.setText(tr("Подключаюсь к экрану ТВ…"))
+        self.msg.show()
+        b = self.grab()
+        panel.hide()
+
+        def done():
+            self.move(rb.topLeft())
+            self.show(); self.raise_(); self.activateWindow()
+            P.force_foreground(int(self.winId()))
+        self._morph = Morph(a, b, ra, rb, done)
+        self._morph.start()
+
+    def back_to_panel(self):
+        """Shrink back into the panel (the video stops)."""
+        panel = getattr(self.state, "_panel_ref", None)
+        a, ra = _screen_shot(self), self.frameGeometry()
+        if self.remote is not None:
+            self.remote.hide()
+        self.close()
+        if panel is None:
+            return
+        panel.sync()
+        panel.place()
+        rb = QRect(panel.pos(), panel.size())
+        b = panel.grab()
+        self._morph = Morph(a, b, ra, rb, panel.show_panel, ms=260)
+        self._morph.start()
 
     # --- dragging by the header
     def mousePressEvent(self, e):
@@ -3894,22 +4218,31 @@ class LiveWindow(QWidget):
     def mouseReleaseEvent(self, e):
         self._drag = None
 
+    def mouseDoubleClickEvent(self, e):
+        if self.head.geometry().contains(e.position().toPoint()):
+            self.set_size("F")                    # double-click the header: full screen and back
+
     # --- scrcpy lifecycle
     def showEvent(self, e):
         super().showEvent(e)
         if self.container is None and not self.state.screen.running("live") and not self.state.screen.busy:
             QTimer.singleShot(50, self.start)     # after the layout settles: scrcpy is born in place
 
+    def _status(self, text):
+        self.status_text = text
+        self._hint()
+
     def start(self):
         self._drop_container()
         self.msg.setText(tr("Подключаюсь к экрану ТВ…"))
         self.msg.show()
-        self.status.setText(tr("Подключаюсь к экрану ТВ…"))
-        self.state.screen.live_geom = self._geom()
-        self.state.screen.live_audio = bool(self.state.conf.get("live_audio"))
-        self.state.screen.live_mouse = self.state.conf.get("live_mouse", "uhid")
-        self.state.screen.live_kb = self.state.conf.get("live_kb", "on")
-        self.state.screen.open("live", on_started=self._started)
+        self._status(tr("Подключаюсь к экрану ТВ…"))
+        sc = self.state.screen
+        sc.live_geom = self._geom()
+        sc.live_audio = bool(self.state.conf.get("live_audio"))
+        sc.live_mouse = self.state.conf.get("live_mouse", "uhid")
+        sc.live_kb = self.state.conf.get("live_kb", "on")
+        sc.open("live", on_started=self._started)
 
     def restart(self):
         self._drop_container()
@@ -3939,7 +4272,7 @@ class LiveWindow(QWidget):
                                                ctypes.c_void_p(int(self.winId())))
         self.container = int(hwnd)
         self.msg.hide()                           # it was born in place: no move needed now
-        self.status.setText(tr("ADB подключён · картинка идёт"))
+        self._status("")
         for ms in (1500, 5000):
             QTimer.singleShot(ms, self._check_audio)
 
@@ -3987,12 +4320,15 @@ class LiveWindow(QWidget):
             self.msg.setText(tr("Экран ТВ закрыт.") + ("\n" + tr(err) if err else "") +
                              "\n" + tr("Нажмите «Перезапустить картинку»."))
             self.msg.show()
-            self.status.setText(tr("Экран ТВ закрыт."))
+            self._status(tr("Экран ТВ закрыт."))
 
     def closeEvent(self, e):
         self.proc = None
+        if self.remote is not None:
+            self.remote.hide()
         self._drop_container()
         self.state.screen.stop()
+        self._full = False
         super().closeEvent(e)
 
 
@@ -4762,7 +5098,8 @@ class Panel(QWidget):
         v.addWidget(fw)
         # authorship: Fling is Damion Rashford's and Tatiana's app; this is an unofficial port by orfixe
         credit = label(f'<a href="https://github.com/tatianathevisionary/fling" style="color:{Theme.css(T.fg_a(0.45))};text-decoration:none">'
-                       'Fling создан Damion Rashford и Tatiana · неофициальный порт от orfixe</a>', 10, T.fg_a(0.4))
+                       'Fling создан Damion Rashford и Tatiana<br>неофициальный порт от orfixe</a>', 10, T.fg_a(0.4),
+                       wrap=True)
         credit.setOpenExternalLinks(True)
         credit.setToolTip("github.com/tatianathevisionary/fling")
         # bottom line: credit on the left, a small dimmed language flag on the right
@@ -5092,12 +5429,25 @@ class Panel(QWidget):
             a.busy = lambda: self.state._refreshing
 
     def _open_screen(self):
-        """Click on the cover: the TV's live screen in a window, the mouse drives the TV."""
-        self.hide()
-        if P.IS_WIN:
-            open_live(self.state)                 # opens or raises the Live window
-        elif not self.state.screen.running("screen"):
-            self.state.screen.open("screen")
+        """Click on the cover: the LIVE section."""
+        self.go_live()
+
+    def go_live(self):
+        """The LIVE section: on Windows the panel grows into the LIVE window; elsewhere
+        scrcpy's own window opens."""
+        s = self.state
+        if not P.IS_WIN:
+            self.hide()
+            if not s.screen.running("screen"):
+                s.screen.open("screen")
+            return
+        w = getattr(s, "_live", None)
+        if w is not None and w.isVisible():
+            self.hide(); w.raise_(); w.activateWindow()
+            return
+        if w is None:
+            w = s._live = LiveWindow(s)
+        w.show_from(self)
 
     def _toggle_lang(self):
         c = load_conf()

@@ -94,7 +94,8 @@ HELP = {
   ],
   [
    "Экран ТВ, мышь и ADB-консоль",
-   "• Всё это — в меню зелёного значка Android внизу панели (или в меню значка в трее → ADB). Нужен включённый ADB.\n"
+   "• LIVE — раздел вверху панели: «Пульт | ● LIVE». Нажмите LIVE — окно плавно вырастет в экран ТВ с панелью кнопок под ним; «Пульт» вернёт обратно.\n"
+   "• Всё это также — в меню зелёного значка Android внизу панели (или в меню значка в трее → ADB). Нужен включённый ADB.\n"
    "• «Экран ТВ с мышью» открывает окно с картинкой ТВ. Щёлкните в нём — мышь станет курсором на ТВ. Alt возвращает мышь компьютеру.\n"
    "• Щелчок по обложке в панели открывает то же окно.\n"
    "• «Курсор на ТВ (без картинки)» — только курсор, без видео: маленькое окно, щёлкните в нём, мышь и клавиатура управляют ТВ.\n"
@@ -222,7 +223,8 @@ HELP = {
   ],
   [
    "TV screen, mouse and ADB console",
-   "• All in the menu of the green Android icon at the bottom of the panel (or the tray icon menu → ADB). ADB has to be on.\n"
+   "• LIVE is a section at the top of the panel: “Remote | ● LIVE”. Click LIVE and the window grows into the TV screen with a row of buttons under it; “Remote” goes back.\n"
+   "• Also in the menu of the green Android icon at the bottom of the panel (or the tray icon menu → ADB). ADB has to be on.\n"
    "• “TV screen with mouse” opens a window with the TV picture. Click in it and the mouse becomes a pointer on the TV. Alt gives the mouse back.\n"
    "• A click on the artwork in the panel opens the same window.\n"
    "• “Cursor on the TV (no picture)” is just the pointer, no video: a small window, click in it, the mouse and keyboard drive the TV.\n"
