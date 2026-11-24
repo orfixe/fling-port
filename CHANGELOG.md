@@ -12,6 +12,9 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ### Added
 
+- Desktop: "Appearance" in the tray menu — dark, light or as the system (follows a system
+  switch once no Fling window is open), and the accent colour: system or a preset. A clearer
+  keyboard icon for typing on the TV.
 - Desktop: "TV screen with mouse" — the TV picture in a window, and the computer mouse becomes a
   real pointer on the TV (scrcpy, downloaded on first use and checked against its SHA256 sums).
   "Cursor on the TV (no picture)" does the same without the video. A click on the artwork opens the screen.
