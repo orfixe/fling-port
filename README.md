@@ -28,6 +28,11 @@ power, apps, d-pad, volume, typing, voice search.
 
 </div>
 
+> [!WARNING]
+> **Fling is in development.** Things change from release to release and some parts are still
+> rough (LIVE, the ADB console, sending files are new). Please report what breaks in
+> [Issues](https://github.com/orfixe/fling-port/issues).
+
 > **Authorship.** An **unofficial** port of **[Fling](https://github.com/tatianathevisionary/fling)** —
 > the macOS menu-bar caster and TV remote created by **[Damion Rashford](https://github.com/damionrashford)**
 > (author of the original code) and published by **[Tatiana](https://github.com/tatianathevisionary)**.

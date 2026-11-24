@@ -540,10 +540,13 @@ class MouseEdgeRelease:
 
     With --mouse=uhid scrcpy captures the mouse (relative mode): Windows' own cursor is
     hidden and clipped to one pixel in the middle of scrcpy's window, so it can never
-    "leave". This follows the real mouse movement from where the capture began (a
-    low-level mouse hook, only while LIVE is open), and once the mouse would have crossed
-    the edge of the picture it presses LAlt — scrcpy's release key — and puts the cursor
-    just outside that edge, so the mouse simply carries on.
+    "leave". This follows the real mouse movement from where the capture began and, once
+    the mouse would have crossed the edge of the picture, presses LAlt — scrcpy's release
+    key — and puts the cursor just outside that edge, so the mouse simply carries on.
+
+    The movement comes from Raw Input (WM_INPUT, RIDEV_INPUTSINK) on a message-only window
+    of its own thread: Windows posts it and never waits for Fling, so the system cursor
+    can't lag the way a low-level mouse hook in Python makes it lag.
 
     `rect` = (left, top, right, bottom) of the picture in physical pixels; Qt sets it."""
 
@@ -553,8 +556,8 @@ class MouseEdgeRelease:
         self._thread = None
         self._tid = None
         self._est = None            # where the mouse would be if it weren't captured
-        self._free = None           # its last position while free
         self._busy = False
+        self._scale = 1.0           # mickeys → pixels (the "pointer speed" setting)
 
     def start(self) -> None:
         if not IS_WIN or (self._thread and self._thread.is_alive()):
@@ -570,24 +573,21 @@ class MouseEdgeRelease:
             ctypes.windll.user32.PostThreadMessageW(self._tid, 0x0012, 0, 0)   # WM_QUIT
         self._tid = None
 
-    def _captured(self, user32, wt) -> bool:
-        import ctypes
-        clip, win = wt.RECT(), wt.RECT()
-        user32.GetClipCursor(ctypes.byref(clip))
-        if not user32.GetWindowRect(self.hwnd, ctypes.byref(win)):
-            return False
-        small = clip.right - clip.left <= 4 and clip.bottom - clip.top <= 4
-        return small and win.left <= clip.left <= win.right and win.top <= clip.top <= win.bottom
-
     def _release(self, x, y):
-        """LAlt (scrcpy's capture toggle), then the cursor just past the edge it crossed."""
+        """LAlt (scrcpy's capture toggle) — only into scrcpy's own window — then the cursor
+        just past the edge it crossed."""
         import ctypes, time as _t
         user32 = ctypes.windll.user32
-        user32.keybd_event(0xA4, 0, 0, 0)
-        user32.keybd_event(0xA4, 0, 2, 0)
-        _t.sleep(0.08)                     # let SDL leave relative mode first
-        user32.SetCursorPos(int(x), int(y))
-        self._busy = False
+        user32.GetForegroundWindow.restype = ctypes.c_void_p
+        try:
+            if (user32.GetForegroundWindow() or 0) != self.hwnd:
+                return                     # focus moved on: an Alt there would open some app's menu
+            user32.keybd_event(0xA4, 0, 0, 0)
+            user32.keybd_event(0xA4, 0, 2, 0)
+            _t.sleep(0.08)                 # let SDL leave relative mode first
+            user32.SetCursorPos(int(x), int(y))
+        finally:
+            self._busy = False
 
     def _loop(self, ready):
         import ctypes
@@ -595,63 +595,113 @@ class MouseEdgeRelease:
         user32 = ctypes.WinDLL("user32", use_last_error=True)
         kernel32 = ctypes.WinDLL("kernel32")
         LRESULT = ctypes.c_ssize_t
+        WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM)
 
-        class MSLL(ctypes.Structure):
-            _fields_ = [("pt", wt.POINT), ("mouseData", wt.DWORD), ("flags", wt.DWORD),
-                        ("time", wt.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+        class WNDCLASSW(ctypes.Structure):
+            _fields_ = [("style", wt.UINT), ("lpfnWndProc", WNDPROC), ("cbClsExtra", ctypes.c_int),
+                        ("cbWndExtra", ctypes.c_int), ("hInstance", wt.HINSTANCE), ("hIcon", wt.HICON),
+                        ("hCursor", ctypes.c_void_p), ("hbrBackground", wt.HBRUSH),
+                        ("lpszMenuName", wt.LPCWSTR), ("lpszClassName", wt.LPCWSTR)]
 
-        HOOKPROC = ctypes.WINFUNCTYPE(LRESULT, ctypes.c_int, wt.WPARAM, wt.LPARAM)
-        user32.SetWindowsHookExW.argtypes = [ctypes.c_int, HOOKPROC, wt.HINSTANCE, wt.DWORD]
-        user32.SetWindowsHookExW.restype = wt.HHOOK
-        user32.CallNextHookEx.argtypes = [wt.HHOOK, ctypes.c_int, wt.WPARAM, wt.LPARAM]
-        user32.CallNextHookEx.restype = LRESULT
+        class RAWINPUTDEVICE(ctypes.Structure):
+            _fields_ = [("usUsagePage", wt.USHORT), ("usUsage", wt.USHORT),
+                        ("dwFlags", wt.DWORD), ("hwndTarget", wt.HWND)]
+
+        class RAWINPUTHEADER(ctypes.Structure):
+            _fields_ = [("dwType", wt.DWORD), ("dwSize", wt.DWORD), ("hDevice", wt.HANDLE), ("wParam", wt.WPARAM)]
+
+        class RAWMOUSE(ctypes.Structure):
+            _fields_ = [("usFlags", wt.USHORT), ("_pad", wt.USHORT), ("ulButtons", wt.ULONG),
+                        ("ulRawButtons", wt.ULONG), ("lLastX", wt.LONG), ("lLastY", wt.LONG),
+                        ("ulExtraInformation", wt.ULONG)]
+
+        class RAWINPUT(ctypes.Structure):
+            _fields_ = [("header", RAWINPUTHEADER), ("mouse", RAWMOUSE)]
+
+        user32.DefWindowProcW.argtypes = [wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM]
+        user32.DefWindowProcW.restype = LRESULT
+        user32.CreateWindowExW.restype = wt.HWND
+        user32.CreateWindowExW.argtypes = [wt.DWORD, wt.LPCWSTR, wt.LPCWSTR, wt.DWORD, ctypes.c_int, ctypes.c_int,
+                                           ctypes.c_int, ctypes.c_int, wt.HWND, wt.HMENU, wt.HINSTANCE, wt.LPVOID]
+        user32.GetRawInputData.argtypes = [wt.HANDLE, wt.UINT, wt.LPVOID, ctypes.POINTER(wt.UINT), wt.UINT]
         user32.GetClipCursor.argtypes = [ctypes.POINTER(wt.RECT)]
         user32.GetWindowRect.argtypes = [wt.HWND, ctypes.POINTER(wt.RECT)]
         user32.GetCursorPos.argtypes = [ctypes.POINTER(wt.POINT)]
-        WM_MOUSEMOVE = 0x0200
-        buttons = (0x01, 0x02, 0x04)       # VK_LBUTTON, VK_RBUTTON, VK_MBUTTON
-
-        def proc(code, wparam, lparam):
-            try:
-                if code == 0 and wparam == WM_MOUSEMOVE and self.rect and not self._busy:
-                    m = ctypes.cast(lparam, ctypes.POINTER(MSLL)).contents
-                    if not self._captured(user32, wt):
-                        self._est = None
-                        self._free = (m.pt.x, m.pt.y)
-                    else:
-                        cur = wt.POINT(); user32.GetCursorPos(ctypes.byref(cur))
-                        l, t, r, b = self.rect
-                        if self._est is None:       # capture just began: from where it was clicked
-                            f = self._free
-                            self._est = [f[0], f[1]] if f and l <= f[0] < r and t <= f[1] < b \
-                                else [(l + r) // 2, (t + b) // 2]
-                        self._est[0] += m.pt.x - cur.x
-                        self._est[1] += m.pt.y - cur.y
-                        x, y = self._est
-                        held = any(user32.GetAsyncKeyState(k) & 0x8000 for k in buttons)
-                        if not held and not (l - 2 <= x < r + 2 and t - 2 <= y < b + 2):
-                            out_x = l - 8 if x < l else r + 8 if x >= r else x
-                            out_y = t - 8 if y < t else b + 8 if y >= b else y
-                            self._busy = True
-                            self._est = None
-                            threading.Thread(target=self._release, args=(out_x, out_y), daemon=True).start()
-            except Exception as e:
-                print("mouse edge:", e, flush=True)
-            return user32.CallNextHookEx(None, code, wparam, lparam)
-
-        cb = HOOKPROC(proc)
-        kernel32.GetModuleHandleW.restype = wt.HMODULE          # a 64-bit handle, not an int
+        kernel32.GetModuleHandleW.restype = wt.HMODULE
         kernel32.GetModuleHandleW.argtypes = [wt.LPCWSTR]
-        hook = user32.SetWindowsHookExW(14, cb, kernel32.GetModuleHandleW(None), 0)   # WH_MOUSE_LL
+        WM_INPUT, RID_INPUT, MOUSE_MOVE_ABSOLUTE = 0x00FF, 0x10000003, 0x01
+        buttons = (0x01, 0x02, 0x04)       # VK_LBUTTON, VK_RBUTTON, VK_MBUTTON
+        speed = wt.UINT(10)
+        user32.SystemParametersInfoW(0x0070, 0, ctypes.byref(speed), 0)     # SPI_GETMOUSESPEED, 1..20
+        s = speed.value
+        self._scale = s / 10 if s <= 10 else 1 + (s - 10) * 0.25          # Windows' own speed table
+
+        def captured():
+            clip, win = wt.RECT(), wt.RECT()
+            user32.GetClipCursor(ctypes.byref(clip))
+            if not user32.GetWindowRect(self.hwnd, ctypes.byref(win)):
+                return False
+            small = clip.right - clip.left <= 4 and clip.bottom - clip.top <= 4
+            return small and win.left <= clip.left <= win.right and win.top <= clip.top <= win.bottom
+
+        def on_move(dx, dy):
+            if not self.rect or self._busy:
+                return
+            if not captured():
+                self._est = None
+                return
+            l, t, r, b = self.rect
+            if self._est is None:          # capture just began: from where the cursor was clicked
+                p = wt.POINT(); user32.GetCursorPos(ctypes.byref(p))
+                self._est = [float(p.x), float(p.y)] if l <= p.x < r and t <= p.y < b \
+                    else [(l + r) / 2, (t + b) / 2]
+            self._est[0] += dx * self._scale
+            self._est[1] += dy * self._scale
+            x, y = self._est
+            held = any(user32.GetAsyncKeyState(k) & 0x8000 for k in buttons)
+            if not held and not (l - 2 <= x < r + 2 and t - 2 <= y < b + 2):
+                out_x = l - 8 if x < l else r + 8 if x >= r else x
+                out_y = t - 8 if y < t else b + 8 if y >= b else y
+                self._busy = True
+                self._est = None
+                threading.Thread(target=self._release, args=(out_x, out_y), daemon=True).start()
+
+        def wndproc(hwnd, msg, wparam, lparam):
+            if msg == WM_INPUT:
+                try:
+                    ri = RAWINPUT()
+                    size = wt.UINT(ctypes.sizeof(ri))
+                    if user32.GetRawInputData(lparam, RID_INPUT, ctypes.byref(ri), ctypes.byref(size),
+                                              ctypes.sizeof(RAWINPUTHEADER)) not in (0, 0xFFFFFFFF) \
+                            and ri.header.dwType == 0 and not ri.mouse.usFlags & MOUSE_MOVE_ABSOLUTE \
+                            and (ri.mouse.lLastX or ri.mouse.lLastY):
+                        on_move(ri.mouse.lLastX, ri.mouse.lLastY)
+                except Exception as e:
+                    print("mouse edge:", e, flush=True)
+            return user32.DefWindowProcW(hwnd, msg, wparam, lparam)
+
+        proc = WNDPROC(wndproc)
+        hinst = kernel32.GetModuleHandleW(None)
+        cls_name = f"FlingMouseEdge{id(self)}"
+        wc = WNDCLASSW(); wc.lpfnWndProc = proc; wc.hInstance = hinst; wc.lpszClassName = cls_name
+        user32.RegisterClassW(ctypes.byref(wc))
+        win = user32.CreateWindowExW(0, cls_name, None, 0, 0, 0, 0, 0, wt.HWND(-3), None, hinst, None)  # HWND_MESSAGE
+        dev = RAWINPUTDEVICE(0x01, 0x02, 0x00000100, win)                  # mouse, RIDEV_INPUTSINK
+        ok = win and user32.RegisterRawInputDevices(ctypes.byref(dev), 1, ctypes.sizeof(dev))
         self._tid = kernel32.GetCurrentThreadId()
         ready.set()
-        if not hook:
-            print("mouse edge: no hook", ctypes.get_last_error(), flush=True)
+        if not ok:
+            print("mouse edge: no raw input", ctypes.get_last_error(), flush=True)
             return
         msg = wt.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
-            pass
-        user32.UnhookWindowsHookEx(hook)
+            user32.TranslateMessage(ctypes.byref(msg))
+            user32.DispatchMessageW(ctypes.byref(msg))
+        rm = RAWINPUTDEVICE(0x01, 0x02, 0x00000001, None)                  # RIDEV_REMOVE
+        user32.RegisterRawInputDevices(ctypes.byref(rm), 1, ctypes.sizeof(rm))
+        user32.DestroyWindow(win)
+        user32.UnregisterClassW.argtypes = [wt.LPCWSTR, wt.HINSTANCE]
+        user32.UnregisterClassW(cls_name, hinst)
 
 
 def ping_ms(ip: str, timeout_ms: int = 800) -> float | None:

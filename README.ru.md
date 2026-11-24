@@ -28,6 +28,11 @@
 
 </div>
 
+> [!WARNING]
+> **Fling находится в стадии разработки.** От версии к версии многое меняется, а некоторые
+> части ещё сырые (LIVE, ADB-консоль и отправка файлов — новые). Пишите о том, что не работает, в
+> [Issues](https://github.com/orfixe/fling-port/issues).
+
 > **Авторство.** Это **неофициальный** порт **[Fling](https://github.com/tatianathevisionary/fling)** —
 > приложения для macOS, созданного **[Damion Rashford](https://github.com/damionrashford)** (автор кода)
 > и опубликованного **[Tatiana](https://github.com/tatianathevisionary)**. Идея, дизайн, тексты,
