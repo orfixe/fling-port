@@ -535,6 +535,163 @@ class RemoteKeyHook:
         self._down.clear()
 
 
+class MouseEdgeRelease:
+    """Windows, LIVE: give the mouse back as soon as it leaves the TV picture.
+
+    With --mouse=uhid scrcpy captures the mouse (relative mode): Windows' own cursor is
+    hidden and clipped to one pixel in the middle of scrcpy's window, so it can never
+    "leave". This follows the real mouse movement from where the capture began (a
+    low-level mouse hook, only while LIVE is open), and once the mouse would have crossed
+    the edge of the picture it presses LAlt — scrcpy's release key — and puts the cursor
+    just outside that edge, so the mouse simply carries on.
+
+    `rect` = (left, top, right, bottom) of the picture in physical pixels; Qt sets it."""
+
+    def __init__(self, hwnd: int):
+        self.hwnd = int(hwnd)
+        self.rect = None
+        self._thread = None
+        self._tid = None
+        self._est = None            # where the mouse would be if it weren't captured
+        self._free = None           # its last position while free
+        self._busy = False
+
+    def start(self) -> None:
+        if not IS_WIN or (self._thread and self._thread.is_alive()):
+            return
+        ready = threading.Event()
+        self._thread = threading.Thread(target=self._loop, args=(ready,), daemon=True, name="fling-mouse-edge")
+        self._thread.start()
+        ready.wait(1)
+
+    def stop(self) -> None:
+        if self._tid:
+            import ctypes
+            ctypes.windll.user32.PostThreadMessageW(self._tid, 0x0012, 0, 0)   # WM_QUIT
+        self._tid = None
+
+    def _captured(self, user32, wt) -> bool:
+        import ctypes
+        clip, win = wt.RECT(), wt.RECT()
+        user32.GetClipCursor(ctypes.byref(clip))
+        if not user32.GetWindowRect(self.hwnd, ctypes.byref(win)):
+            return False
+        small = clip.right - clip.left <= 4 and clip.bottom - clip.top <= 4
+        return small and win.left <= clip.left <= win.right and win.top <= clip.top <= win.bottom
+
+    def _release(self, x, y):
+        """LAlt (scrcpy's capture toggle), then the cursor just past the edge it crossed."""
+        import ctypes, time as _t
+        user32 = ctypes.windll.user32
+        user32.keybd_event(0xA4, 0, 0, 0)
+        user32.keybd_event(0xA4, 0, 2, 0)
+        _t.sleep(0.08)                     # let SDL leave relative mode first
+        user32.SetCursorPos(int(x), int(y))
+        self._busy = False
+
+    def _loop(self, ready):
+        import ctypes
+        from ctypes import wintypes as wt
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        kernel32 = ctypes.WinDLL("kernel32")
+        LRESULT = ctypes.c_ssize_t
+
+        class MSLL(ctypes.Structure):
+            _fields_ = [("pt", wt.POINT), ("mouseData", wt.DWORD), ("flags", wt.DWORD),
+                        ("time", wt.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+
+        HOOKPROC = ctypes.WINFUNCTYPE(LRESULT, ctypes.c_int, wt.WPARAM, wt.LPARAM)
+        user32.SetWindowsHookExW.argtypes = [ctypes.c_int, HOOKPROC, wt.HINSTANCE, wt.DWORD]
+        user32.SetWindowsHookExW.restype = wt.HHOOK
+        user32.CallNextHookEx.argtypes = [wt.HHOOK, ctypes.c_int, wt.WPARAM, wt.LPARAM]
+        user32.CallNextHookEx.restype = LRESULT
+        user32.GetClipCursor.argtypes = [ctypes.POINTER(wt.RECT)]
+        user32.GetWindowRect.argtypes = [wt.HWND, ctypes.POINTER(wt.RECT)]
+        user32.GetCursorPos.argtypes = [ctypes.POINTER(wt.POINT)]
+        WM_MOUSEMOVE = 0x0200
+        buttons = (0x01, 0x02, 0x04)       # VK_LBUTTON, VK_RBUTTON, VK_MBUTTON
+
+        def proc(code, wparam, lparam):
+            try:
+                if code == 0 and wparam == WM_MOUSEMOVE and self.rect and not self._busy:
+                    m = ctypes.cast(lparam, ctypes.POINTER(MSLL)).contents
+                    if not self._captured(user32, wt):
+                        self._est = None
+                        self._free = (m.pt.x, m.pt.y)
+                    else:
+                        cur = wt.POINT(); user32.GetCursorPos(ctypes.byref(cur))
+                        l, t, r, b = self.rect
+                        if self._est is None:       # capture just began: from where it was clicked
+                            f = self._free
+                            self._est = [f[0], f[1]] if f and l <= f[0] < r and t <= f[1] < b \
+                                else [(l + r) // 2, (t + b) // 2]
+                        self._est[0] += m.pt.x - cur.x
+                        self._est[1] += m.pt.y - cur.y
+                        x, y = self._est
+                        held = any(user32.GetAsyncKeyState(k) & 0x8000 for k in buttons)
+                        if not held and not (l - 2 <= x < r + 2 and t - 2 <= y < b + 2):
+                            out_x = l - 8 if x < l else r + 8 if x >= r else x
+                            out_y = t - 8 if y < t else b + 8 if y >= b else y
+                            self._busy = True
+                            self._est = None
+                            threading.Thread(target=self._release, args=(out_x, out_y), daemon=True).start()
+            except Exception as e:
+                print("mouse edge:", e, flush=True)
+            return user32.CallNextHookEx(None, code, wparam, lparam)
+
+        cb = HOOKPROC(proc)
+        kernel32.GetModuleHandleW.restype = wt.HMODULE          # a 64-bit handle, not an int
+        kernel32.GetModuleHandleW.argtypes = [wt.LPCWSTR]
+        hook = user32.SetWindowsHookExW(14, cb, kernel32.GetModuleHandleW(None), 0)   # WH_MOUSE_LL
+        self._tid = kernel32.GetCurrentThreadId()
+        ready.set()
+        if not hook:
+            print("mouse edge: no hook", ctypes.get_last_error(), flush=True)
+            return
+        msg = wt.MSG()
+        while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+            pass
+        user32.UnhookWindowsHookEx(hook)
+
+
+def ping_ms(ip: str, timeout_ms: int = 800) -> float | None:
+    """Round trip to `ip` in ms, None when it doesn't answer. Windows: IcmpSendEcho (no
+    process, no locale-dependent output); elsewhere: `ping -c 1`."""
+    import socket, struct
+    if not IS_WIN:
+        import re as _re
+        try:
+            r = run(["ping", "-c", "1", "-W", str(max(1, timeout_ms // 1000)), ip],
+                    capture_output=True, text=True, timeout=timeout_ms / 1000 + 2)
+            m = _re.search(r"time[=<]([\d.]+)", r.stdout)
+            return float(m[1]) if m else None
+        except Exception:
+            return None
+    import ctypes
+    iph = ctypes.windll.iphlpapi
+    iph.IcmpCreateFile.restype = ctypes.c_void_p
+    iph.IcmpSendEcho.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint16,
+                                 ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32]
+    iph.IcmpCloseHandle.argtypes = [ctypes.c_void_p]
+    try:
+        addr = struct.unpack("<I", socket.inet_aton(ip))[0]
+    except OSError:
+        return None
+    h = iph.IcmpCreateFile()
+    if not h:
+        return None
+    try:
+        data = b"fling-live"
+        reply = ctypes.create_string_buffer(64 + len(data) + 8)
+        n = iph.IcmpSendEcho(h, addr, data, len(data), None, reply, len(reply), timeout_ms)
+        if not n:
+            return None
+        status, rtt = struct.unpack_from("<II", reply, 4)     # ICMP_ECHO_REPLY: Address, Status, RoundTripTime
+        return float(rtt) if status == 0 else None
+    finally:
+        iph.IcmpCloseHandle(h)
+
+
 def force_foreground(win_id) -> bool:
     """Windows: make a Fling window the foreground window so its text fields get the
     keyboard. A tray app isn't allowed to by default; attaching to the current

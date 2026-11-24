@@ -2030,6 +2030,25 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Щелчки в окне — нажатия на ТВ.", "Clicks in the window tap the TV."),
     ("Экран ТВ закрылся: ", "The TV screen closed: "),
     ("Касания", "Taps"), ("Только смотреть", "Just watch"),
+    ("Качество: авто", "Quality: auto"), ("Чётко", "Sharp"), ("Плавно", "Smooth"), ("Экономно", "Saver"),
+    ("Начинает с хорошего и само снижается, если сеть не успевает",
+     "Starts good and steps down by itself when the network can't keep up"),
+    ("1920 px, 8 Мбит/с — для быстрой сети", "1920 px, 8 Mbit/s — for a fast network"),
+    ("60 кадров/с — для игр и прокрутки", "60 frames/s — for games and scrolling"),
+    ("960 px, 2 Мбит/с — когда картинка запаздывает", "960 px, 2 Mbit/s — when the picture lags"),
+    ("Проверяю связь с ТВ…", "Checking the link to the TV…"),
+    ("ТВ не отвечает по сети", "the TV doesn't answer on the network"),
+    ("сеть теряет пакеты", "the network loses packets"), ("большая задержка сети", "a long network delay"),
+    ("кадры не успевают", "frames can't keep up"), ("Сеть до ТВ", "Network to the TV"), ("нет ответа", "no answer"),
+    ("потеряно", "lost"), ("Кадров", "Frames"), ("пропущено", "skipped"),
+    ("(экран ТВ не меняется — это нормально)", "(the TV screen isn't changing — that's fine)"),
+    ("Как идёт картинка", "How the picture is doing"), ("Нажмите — выбрать качество.", "Click to choose the quality."),
+    ("Картинка может запаздывать: ", "The picture may lag: "), ("Включаю «Экономно»…", "Switching to “Saver”…"),
+    ("Попробуйте качество «Экономно».", "Try the “Saver” quality."),
+    ("Это уже самое лёгкое качество — проверьте Wi-Fi.", "This is already the lightest quality — check the Wi-Fi."),
+    ("Сеть не успевала — включил «Экономно». Качество можно выбрать справа вверху.",
+     "The network couldn't keep up — switched to “Saver”. Choose the quality at the top right."),
+
     ("Пульт и что играет", "The remote and what's playing"),
     ("Экран ТВ вживую, управление мышью", "The TV screen live, control it with the mouse"),
     ("Маленькое окно", "Small window"), ("Среднее окно", "Medium window"), ("Большое окно", "Large window"),
@@ -2048,6 +2067,9 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Клавиатура: на ТВ", "Keyboard: to the TV"), ("Клавиатура: у компьютера", "Keyboard: stays on the PC"),
     ("Щёлкните по картинке — мышь станет курсором на ТВ. Alt — вернуть мышь.",
      "Click the picture — the mouse becomes a pointer on the TV. Alt gives it back."),
+    ("Щёлкните по картинке — мышь станет курсором на ТВ. Уведите её за край картинки (или Alt) — она вернётся.",
+     "Click the picture — the mouse becomes a pointer on the TV. Move it past the picture's edge (or press Alt) "
+     "and it comes back."),
     ("Мышь не захватывается: щелчок по картинке — нажатие в этом месте ТВ.",
      "The mouse isn't captured: a click on the picture taps the TV there."),
     ("Только картинка: мышь и клавиатура остаются у компьютера.",
@@ -3493,6 +3515,12 @@ def scrcpy_download() -> str:
     return exe
 
 
+# LIVE picture quality: (max size, max fps, video bit rate). "auto" starts as "clear-ish"
+# and steps down to "saver" by itself when the network can't keep up.
+QUALITY = {"auto": (1280, 30, "4M"), "clear": (1920, 30, "8M"),
+           "smooth": (1280, 60, "6M"), "saver": (960, 30, "2M")}
+
+
 class TvScreen(QObject):
     """The TV's screen in a window (scrcpy), the computer mouse as a real pointer on the TV.
 
@@ -3511,6 +3539,7 @@ class TvScreen(QObject):
         self.live_audio = False      # live picture: TV sound on this PC too (scrcpy audio, Android 11+)
         self.live_mouse = "uhid"     # live picture: uhid = captured pointer, sdk = taps, view = no control
         self.live_kb = "on"          # live picture: keyboard to the TV (on) or kept on the PC (off)
+        self.live_quality = "auto"   # live picture: auto / clear / smooth / saver (QUALITY)
         self.output = []             # what the running scrcpy printed so far
         self._quiet = set()          # processes we stopped ourselves: their exit is no error
 
@@ -3593,7 +3622,11 @@ class TvScreen(QObject):
         if not audio:
             args.append("--no-audio")
         if mode in ("screen", "live"):
-            args += ["--max-size=1280", "--max-fps=30", "--video-bit-rate=4M"]
+            q = QUALITY.get(self.live_quality if mode == "live" else "auto", QUALITY["auto"])
+            # no extra buffering anywhere: --video-buffer=0 shows each frame as soon as it's decoded
+            args += [f"--max-size={q[0]}", f"--max-fps={q[1]}", f"--video-bit-rate={q[2]}", "--video-buffer=0"]
+        if mode == "live":
+            args.append("--print-fps")           # LiveWindow reads it: frames shown / skipped
         if mode == "live":                       # born off-screen and frameless, then moved into Fling
             # born frameless right over LiveWindow's video area: resizing a window that SDL
             # created off-screen crashes scrcpy (divide by zero), moving an on-screen one is fine
@@ -3613,7 +3646,11 @@ class TvScreen(QObject):
         p.setArguments(args)
         out = []
         self.output = out
-        p.readyReadStandardOutput.connect(lambda: out.append(bytes(p.readAllStandardOutput()).decode(errors="replace")))
+        def read():
+            out.append(bytes(p.readAllStandardOutput()).decode(errors="replace"))
+            if len(out) > 600:                   # --print-fps adds a line a second: keep the start + the recent
+                del out[50:350]
+        p.readyReadStandardOutput.connect(read)
         started = time.monotonic()
 
         def finished(code, _status):
@@ -3870,7 +3907,7 @@ class LiveWindow(QWidget):
 
     SIZES = {"S": (640, 360), "M": (854, 480), "L": (1280, 720)}
     MOUSE = (("uhid", "cursor", "Курсор на ТВ",
-              "Щёлкните по картинке — мышь станет курсором на ТВ. Alt — вернуть мышь."),
+              "Щёлкните по картинке — мышь станет курсором на ТВ. Уведите её за край картинки (или Alt) — она вернётся."),
              ("sdk", "tap", "Касания",
               "Мышь не захватывается: щелчок по картинке — нажатие в этом месте ТВ."),
              ("view", "eye", "Только смотреть",
@@ -3904,6 +3941,25 @@ class LiveWindow(QWidget):
         self.h_now = label("", 11, T.fg_a(0.45))
         self.h_now.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         hl.addWidget(self.h_now, 1)
+        # how the picture is doing: a dot + the network delay; click for the quality menu
+        self.health = QToolButton()
+        self.health.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.health.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.health.setFont(font(10.5))
+        self.health.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.health.setStyleSheet("QToolButton{border:none;border-radius:7px;padding:2px 8px;"
+                                  f"color:{Theme.css(T.fg_a(0.6))};background:transparent}}"
+                                  f"QToolButton:hover{{background:{Theme.css(T.fg_a(0.09))}}}"
+                                  "QToolButton::menu-indicator{image:none;width:0}")
+        qm = QMenu(self.health)
+        qm.aboutToShow.connect(lambda m=qm: self._quality_menu(m))
+        self.health.setMenu(qm)
+        hl.addWidget(self.health)
+        self._pings, self._fps, self._bad = [], [], 0
+        self._health_details = ""
+        self._fps_seen = 0
+        self.health_timer = QTimer(self, interval=2000)
+        self.health_timer.timeout.connect(self._check_health)
         self.size_btns = {}
         for key in self.SIZES:
             b = self._seg(key, lambda _=False, k=key: self.set_size(k), text=True)
@@ -4078,6 +4134,126 @@ class LiveWindow(QWidget):
         if self.isVisible():
             self.restart()
 
+    # --- picture quality and how it's doing
+    QUALITY_NAMES = (("auto", "Качество: авто", "Начинает с хорошего и само снижается, если сеть не успевает"),
+                     ("clear", "Чётко", "1920 px, 8 Мбит/с — для быстрой сети"),
+                     ("smooth", "Плавно", "60 кадров/с — для игр и прокрутки"),
+                     ("saver", "Экономно", "960 px, 2 Мбит/с — когда картинка запаздывает"))
+
+    def _quality(self) -> str:
+        q = self.state.conf.get("live_quality", "auto")
+        return q if q in QUALITY else "auto"
+
+    def _quality_menu(self, m):
+        m.clear()
+        cur = self._quality()
+        for key, title, tip in self.QUALITY_NAMES:
+            a = m.addAction(title, lambda k=key: self._set_quality(k))
+            a.setCheckable(True); a.setChecked(key == cur); a.setToolTip(tr(tip))
+        m.setToolTipsVisible(True)
+        m.addSeparator()
+        m.addAction(self._health_details or tr("Проверяю связь с ТВ…")).setEnabled(False)
+
+    def _set_quality(self, key, note=""):
+        self.state.conf["live_quality"] = key
+        save_conf(self.state.conf)
+        self._bad = 0
+        if note:
+            self._status(note)
+        if self.isVisible():
+            self.restart()
+
+    def _check_health(self):
+        """Every 2 s while the picture runs: the network delay to the TV (one ping, no
+        process) and how many frames scrcpy had to skip to stay live."""
+        sc = self.state.screen
+        if not self.isVisible() or not sc.running("live") or not self.container:
+            return
+        text = "".join(sc.output)
+        lines = re.findall(r"(\d+) fps(?: \(\+(\d+) frames? skipped\))?", text)
+        new = lines[self._fps_seen:]
+        self._fps_seen = len(lines)
+        for f, skipped in new:
+            self._fps = (self._fps + [(int(f), int(skipped or 0))])[-5:]
+        ip = self.state.ip
+
+        def work():
+            return P.ping_ms(ip) if ip else None
+
+        def done(rtt, e):
+            self._pings = (self._pings + [rtt])[-5:]
+            self._show_health()
+        self.state.bg(work, done)
+
+    def _show_health(self):
+        _ms, _s = ("ms", "s") if LANG == "en" else ("мс", "с")
+        pings = [p for p in self._pings if p is not None]
+        lost = len(self._pings) - len(pings)
+        rtt = sorted(pings)[len(pings) // 2] if pings else None          # median: one slow ping isn't a problem
+        shown = sum(f for f, _ in self._fps); skipped = sum(k for _, k in self._fps)
+        skip_part = skipped / (shown + skipped) if shown + skipped >= 10 else 0.0
+        fps = self._fps[-1][0] if self._fps else None
+        level, why = 0, []
+        if rtt is None and self._pings:
+            level, why = 2, [tr("ТВ не отвечает по сети")]
+        else:
+            if lost >= 2:
+                level = max(level, 2); why.append(tr("сеть теряет пакеты"))
+            if rtt is not None and rtt > 120:
+                level = max(level, 2); why.append(tr("большая задержка сети") + f" ({rtt:.0f} {_ms})")
+            elif rtt is not None and rtt > 50:
+                level = max(level, 1)
+            if skip_part > 0.25:
+                level = max(level, 2); why.append(tr("кадры не успевают") + f" ({skip_part:.0%})")
+            elif skip_part > 0.08:
+                level = max(level, 1)
+        col = {0: "#30d158", 1: "#ffd60a", 2: "#ff453a"}[level]
+        label_ = (f"{rtt:.0f} {_ms}" if rtt is not None else "—")
+        qname = next(t for k, t, _ in self.QUALITY_NAMES if k == self._quality())
+        self.health.setText(f"{label_}  ·  {tr(qname)}")
+        details = [tr("Сеть до ТВ") + ": " + (f"{rtt:.0f} {_ms}" if rtt is not None else tr("нет ответа"))
+                   + (f", {tr('потеряно')} {lost}/{len(self._pings)}" if lost else "")]
+        if fps is not None:
+            details.append(tr("Кадров") + f": {fps}/{_s}" + (f", {tr('пропущено')} {skip_part:.0%}" if skipped else "")
+                           + ("" if fps else " " + tr("(экран ТВ не меняется — это нормально)")))
+        self._health_details = " · ".join(details)
+        self.health.setToolTip(tr("Как идёт картинка") + "\n" + self._health_details +
+                               "\n" + tr("Нажмите — выбрать качество."))
+        self._paint_health_dot(col)
+        self._bad = self._bad + 1 if level == 2 else 0
+        if level == 2 and self._bad >= 2:
+            msg = tr("Картинка может запаздывать: ") + ", ".join(why) + "."
+            if self._quality() == "auto" and self.state.screen.live_quality != "saver":
+                self.state.conf["live_quality_auto_step"] = True
+                self._status(msg + " " + tr("Включаю «Экономно»…"))
+                self._bad = 0
+                QTimer.singleShot(1500, lambda: self._restart_saver())
+            else:
+                saver = self.state.screen.live_quality == "saver"     # what runs now, auto included
+                self._status(msg + " " + (tr("Это уже самое лёгкое качество — проверьте Wi-Fi.") if saver
+                                          else tr("Попробуйте качество «Экономно».")))
+        elif level < 2 and self.status_text.startswith(tr("Картинка может запаздывать: ")):
+            self._status("")
+
+    def _restart_saver(self):
+        """Auto quality: the network can't keep up, so the next start uses "saver"."""
+        self._auto_saver = True
+        if self.isVisible():
+            self.restart()
+
+    def _paint_health_dot(self, col):
+        b = self.health
+        b.setStyleSheet("QToolButton{border:none;border-radius:7px;padding:2px 8px;"
+                        f"color:{Theme.css(T.fg_a(0.65))};background:transparent}}"
+                        f"QToolButton:hover{{background:{Theme.css(T.fg_a(0.09))}}}"
+                        "QToolButton::menu-indicator{image:none;width:0}")
+        # the dot in its colour, the rest quiet: rich text isn't possible on a QToolButton, so an icon
+        pm = QPixmap(20, 20); pm.setDevicePixelRatio(2); pm.fill(Qt.GlobalColor.transparent)
+        pp = QPainter(pm); pp.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pp.setPen(Qt.PenStyle.NoPen); pp.setBrush(QColor(col)); pp.drawEllipse(QRectF(2, 2, 6, 6)); pp.end()
+        b.setIcon(QIcon(pm)); b.setIconSize(QSize(10, 10))
+        b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+
     def _toggle_audio(self, on):
         self.state.conf["live_audio"] = bool(on)
         save_conf(self.state.conf)
@@ -4245,6 +4421,12 @@ class LiveWindow(QWidget):
         sc.live_audio = bool(self.state.conf.get("live_audio"))
         sc.live_mouse = self.state.conf.get("live_mouse", "uhid")
         sc.live_kb = self.state.conf.get("live_kb", "on")
+        q = self._quality()
+        sc.live_quality = "saver" if q == "auto" and getattr(self, "_auto_saver", False) else q
+        self._pings, self._fps, self._fps_seen, self._bad = [], [], 0, 0
+        self._health_details = ""
+        self.health.setIcon(QIcon()); self.health.setText(tr("Качество: авто") if q == "auto" else
+                                                          tr(next(t for k, t, _ in self.QUALITY_NAMES if k == q)))
         sc.open("live", on_started=self._started)
 
     def restart(self):
@@ -4275,7 +4457,14 @@ class LiveWindow(QWidget):
                                                ctypes.c_void_p(int(self.winId())))
         self.container = int(hwnd)
         self.msg.hide()                           # it was born in place: no move needed now
-        self._status("")
+        self._status(tr("Сеть не успевала — включил «Экономно». Качество можно выбрать справа вверху.")
+                     if self.state.screen.live_quality == "saver" and self._quality() == "auto" else "")
+        self.health_timer.start()
+        QTimer.singleShot(300, self._check_health)
+        if self.state.screen.live_mouse == "uhid":   # the mouse comes back by itself at the picture's edge
+            self._edge = P.MouseEdgeRelease(self.container)
+            self._edge.rect = self._rect()
+            self._edge.start()
         for ms in (1500, 5000):
             QTimer.singleShot(ms, self._check_audio)
 
@@ -4289,12 +4478,18 @@ class LiveWindow(QWidget):
         y = int(scr.y() + (tl.y() - scr.y()) * dpr)
         return x, y, max(int(self.host.width() * dpr), 160), max(int(self.host.height() * dpr), 90)
 
+    def _rect(self):
+        x, y, w, h = self._geom()
+        return x, y, x + w, y + h
+
     def _place(self):
         """Keep scrcpy's window exactly over the video area."""
         if not self.container:
             return
         import ctypes
         x, y, w, h = self._geom()
+        if getattr(self, "_edge", None):
+            self._edge.rect = (x, y, x + w, y + h)
         SWP_NOACTIVATE, SWP_SHOWWINDOW, HWND_TOP = 0x10, 0x40, 0
         ctypes.windll.user32.SetWindowPos(ctypes.c_void_p(self.container), HWND_TOP, x, y, w, h,
                                           SWP_NOACTIVATE | SWP_SHOWWINDOW)
@@ -4309,6 +4504,9 @@ class LiveWindow(QWidget):
 
     def _drop_container(self):
         """Let go of scrcpy's window first: SDL crashes when its owner disappears under it."""
+        if getattr(self, "_edge", None):
+            self._edge.stop()
+            self._edge = None
         if self.container:
             import ctypes
             ctypes.windll.user32.SetWindowLongPtrW(ctypes.c_void_p(self.container), -8, ctypes.c_void_p(0))
@@ -4327,6 +4525,8 @@ class LiveWindow(QWidget):
 
     def closeEvent(self, e):
         self.proc = None
+        self.health_timer.stop()
+        self._auto_saver = False                  # next time auto starts from the top again
         if self.remote is not None:
             self.remote.hide()
         self._drop_container()
