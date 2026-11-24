@@ -1741,6 +1741,9 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Чтобы Fling видел вкладки Chrome и Edge, нужно один раз добавить в браузер расширение Fling.",
      "For Fling to see Chrome and Edge tabs, add the Fling extension to the browser once."),
     ("Установить расширение…", "Install the extension…"),
+    ("Расширение Fling добавлено в браузер.", "The Fling extension is added to the browser."),
+    ("Добавляю расширение в браузер — не трогайте мышь и клавиатуру пару секунд…",
+     "Adding the extension to the browser — don't touch the mouse or keyboard for a few seconds…"),
     ("Папка расширения не найдена — переустановите Fling.", "The extension folder is missing — reinstall Fling."),
     ("Расширение Fling для Chrome", "Fling extension for Chrome"), ("Один раз в Chrome:", "Once, in Chrome:"),
     ("1. На открывшейся странице «Расширения» включите «Режим разработчика» (справа вверху).",
@@ -2973,11 +2976,62 @@ def _chrome_exe() -> tuple[str, str] | None:
     return None
 
 
-def install_extension(parent=None):
+def _ext_script() -> str | None:
+    """install-extension.ps1: next to Fling.exe (setup), in %LOCALAPPDATA%\\Fling (install.ps1),
+    or in the repo's windows folder."""
+    here = os.path.dirname(os.path.abspath(sys.executable if P.FROZEN else __file__))
+    for d in (here, os.path.join(here, ".."), os.path.join(here, "..", "windows")):
+        p = os.path.join(d, "install-extension.ps1")
+        if os.path.isfile(p):
+            return os.path.normpath(p)
+    return None
+
+
+_ext_busy = False
+
+
+def install_extension(parent=None, state=None):
+    """Windows: load the unpacked extension into Chrome/Edge by driving the browser
+    (install-extension.ps1, in the background). Anything else, or if that fails: the
+    manual walk-through."""
+    global _ext_busy
+    d = extension_dir()
+    script, b = (_ext_script(), _chrome_exe()) if P.IS_WIN else (None, None)
+    if not (d and script and b and state):
+        _install_extension_by_hand(parent, d)
+        return
+    if _ext_busy:
+        return
+    _ext_busy = True
+
+    def run():
+        try:
+            r = P.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-STA", "-File", script,
+                       "-Dir", d, "-Exe", b[0], "-Page", b[1]],
+                      capture_output=True, text=True, timeout=120)
+            out = (r.stdout or "").strip().splitlines()
+            res = out[-1].strip() if out else "fail:" + ((r.stderr or "").strip()[-200:] or "no output")
+        except Exception as ex:
+            res = f"fail:{ex}"
+        state.bridge.call.emit(lambda: done(res))
+
+    def done(res):
+        global _ext_busy
+        _ext_busy = False
+        print("extension install:", res, flush=True)
+        if res in ("ok", "already"):
+            notify_send("Расширение Fling добавлено в браузер.")
+        else:
+            _install_extension_by_hand(parent, d)
+
+    notify_send("Добавляю расширение в браузер — не трогайте мышь и клавиатуру пару секунд…")
+    threading.Thread(target=run, daemon=True, name="fling-ext").start()
+
+
+def _install_extension_by_hand(parent, d):
     """Walk the user through loading the unpacked extension: the folder path goes to the
     clipboard, Explorer shows the folder, the browser opens its extensions page."""
     from PyQt6.QtWidgets import QMessageBox
-    d = extension_dir()
     if not d:
         QMessageBox.warning(parent, "Fling", tr("Папка расширения не найдена — переустановите Fling."))
         return
@@ -3149,7 +3203,7 @@ class Panel(QWidget):
         el.addWidget(label("Чтобы Fling видел вкладки Chrome и Edge, нужно один раз добавить в браузер "
                            "расширение Fling.", 11, T.fg_a(0.6), wrap=True))
         eh = QHBoxLayout(); eh.setSpacing(0)
-        eh.addWidget(small_button("Установить расширение…", lambda: install_extension(self)))
+        eh.addWidget(small_button("Установить расширение…", lambda: install_extension(self, state)))
         eh.addStretch(1)
         el.addLayout(eh)
         il.addWidget(self.i_ext)

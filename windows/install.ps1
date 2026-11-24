@@ -157,6 +157,7 @@ New-Item -ItemType Directory -Force -Path $ExtDir | Out-Null
 Copy-Item (Join-Path $Repo 'extension\dist\chrome') (Join-Path $ExtDir 'chrome') -Recurse
 Copy-Item (Join-Path $Repo 'extension\dist\firefox') (Join-Path $ExtDir 'firefox') -Recurse
 Copy-Item (Join-Path $Repo 'extension\dist\*.zip') $ExtDir
+Copy-Item (Join-Path $PSScriptRoot 'install-extension.ps1') $App -Force
 Note "extensions: $ExtDir"
 
 # ------------------------------------------------------------------ adb (optional)

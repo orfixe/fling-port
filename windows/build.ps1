@@ -81,6 +81,8 @@ if (-not (Test-Path $Adb)) {
 # the Chrome / Edge extension ships inside, for "Load unpacked"
 Copy-Item (Join-Path $Repo 'extension\dist\chrome') (Join-Path $Out 'extension\chrome') -Recurse -Force
 Copy-Item (Join-Path $Repo 'extension\dist\fling-firefox-*.zip') (Join-Path $Out 'extension') -Force
+# "Install the extension..." in the app drives the browser with this script
+Copy-Item (Join-Path $PSScriptRoot 'install-extension.ps1') $Out -Force
 Copy-Item (Join-Path $Repo 'extension\dist\*.zip') $Dist -Force
 
 $Iscc = @((Get-Command iscc -ErrorAction SilentlyContinue).Source,
