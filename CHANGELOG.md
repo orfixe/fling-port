@@ -10,22 +10,46 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-24
+
+The desktop app (Windows above all) grows a LIVE section; Android and macOS are rebuilt
+from the same code as 0.3.2.
+
 ### Added
 
-- Desktop: "Appearance" in the tray menu — dark, light or as the system (follows a system
-  switch once no Fling window is open), and the accent colour: system or a preset. A clearer
-  keyboard icon for typing on the TV.
-- Desktop: "TV screen with mouse" — the TV picture in a window, and the computer mouse becomes a
-  real pointer on the TV (scrcpy, downloaded on first use and checked against its SHA256 sums).
-  "Cursor on the TV (no picture)" does the same without the video. A click on the artwork opens the screen.
-- Desktop: ADB console — run commands on the selected TV with live output, quick commands,
-  history and Stop; commands that may delete data or restart the TV ask first.
-- Desktop: `fling screen`, `fling mouse`, `fling adb`, `fling log`, `fling install-extension`.
-- Desktop: send files to the TV — drag them onto the panel or the ADB console, `fling send`, or
-  Explorer's Send to → "Fling — to the TV": APKs install, a video / song / picture plays (copied
-  over ADB when the TV can't fetch it), anything else lands in the TV's Download folder.
-- Windows: "Install the extension…" adds the extension to Chrome or Edge by itself, with the
-  manual steps as a fallback.
+- Desktop (Windows): **LIVE** — "Remote | ● LIVE" at the top of the panel. LIVE grows the panel
+  into the TV's screen, live: the video edge to edge, one row of icon buttons under it (back,
+  home, play, volume, power, a d-pad flyout), sizes S / M / L and full screen. Click the picture
+  and the mouse becomes a real pointer on the TV; move it past the picture's edge (or press Alt)
+  and it comes back. The mouse can also tap or just watch, the keyboard can go to the TV or stay
+  on the PC, and "Sound on PC" brings the TV's sound to the computer (Android 11+).
+- Desktop: LIVE watches how the picture is doing — the network delay to the TV, lost packets and
+  skipped frames, as a coloured dot in the header — and says so when the picture may lag. Quality:
+  auto / sharp / smooth / saver; auto steps down by itself. No extra buffering (lowest latency).
+- Desktop: "Cursor on the TV (no picture)" — only the pointer, in a small window.
+- Desktop: ADB console — commands on the selected TV with live output, quick commands, history and
+  Stop; commands that may delete data or restart the TV ask first; pulled files land in Downloads.
+- Desktop: ADB works as a fallback remote — keys go as key events when the TV isn't paired.
+- Desktop: send files to the TV — drop them on LIVE or the ADB console, `fling send`, or Explorer's
+  Send to → "Fling — to the TV": APKs install, a video / song / picture plays (copied over ADB when
+  the TV can't fetch it), anything else lands in the TV's Download folder.
+- Desktop: "Appearance" in the tray menu — dark, light or as the system, and the accent colour.
+- Desktop: the "keyboard captured" strip has a Release / Capture button (remembered) and a tooltip
+  that lists the keys that go to the TV.
+- Desktop: `fling screen`, `fling mouse`, `fling adb`, `fling log`, `fling send`,
+  `fling install-extension`.
+- Windows: the setup ships scrcpy (LIVE), so nothing is downloaded on first use. "Install the
+  extension…" adds the browser extension to Chrome or Edge by itself, with the manual steps as a
+  fallback.
+- NOTICE and THIRD-PARTY-NOTICES.md; the setup puts them, LICENSE and CREDITS.md next to Fling.
+
+### Changed
+
+- Desktop: what's playing comes from one lasting Cast connection the TV pushes its status to,
+  instead of starting catt every 2 seconds (in the setup build, a second Fling.exe each time).
+- Desktop: clearer keyboard and Home icons; hints and errors are grey instead of orange; the credit
+  line wraps instead of hiding behind the language flag.
+- LICENSE names the copyright holder of the port; source files carry SPDX headers.
 
 ## [0.3.2] - 2026-11-23
 
