@@ -1834,9 +1834,10 @@ EN_PHRASES = [  # longest first is applied automatically
      "For Fling to see Chrome and Edge tabs, add the Fling extension to the browser once."),
     ("Установить расширение…", "Install the extension…"),
     # TV screen (scrcpy), ADB console
-    ("Экран ТВ с мышью", "TV screen with mouse"), ("Мышь для ТВ", "Mouse for the TV"),
+    ("Экран ТВ с мышью", "TV screen with mouse"), ("Курсор на ТВ (без картинки)", "Cursor on the TV (no picture)"),
+    ("Курсор на ТВ", "Cursor on the TV"),
     ("ADB-консоль…", "ADB console…"), ("Журнал Fling", "Fling log"),
-    ("Fling — экран ТВ", "Fling — TV screen"), ("Fling — мышь для ТВ", "Fling — mouse for the TV"),
+    ("Fling — экран ТВ", "Fling — TV screen"), ("Fling — курсор: щёлкните здесь, Alt — вернуть мышь", "Fling — cursor: click here, Alt gives the mouse back"),
     ("Fling — ADB-консоль", "Fling — ADB console"),
     ("LIVE — экран ТВ вживую, управление мышью", "LIVE — the TV screen live, control it with the mouse"),
     ("Щёлкните по картинке — мышь станет курсором на ТВ. Alt — вернуть мышь. Клавиатура в окне печатает на ТВ.",
@@ -3253,7 +3254,7 @@ class TvScreen(QObject):
         if self.busy:
             return
         self.busy = True
-        what = "Мышь для ТВ" if mode == "mouse" else "Экран ТВ"
+        what = "Курсор на ТВ" if mode == "mouse" else "Экран ТВ"
 
         def work():
             err = _adb_ready_error(ip, what)
@@ -3282,7 +3283,7 @@ class TvScreen(QObject):
 
     def _start(self, exe, ip, mode, mouse):
         from PyQt6.QtCore import QProcess, QProcessEnvironment
-        title = tr("Fling — мышь для ТВ") if mode == "mouse" else tr("Fling — экран ТВ")
+        title = tr("Fling — курсор: щёлкните здесь, Alt — вернуть мышь") if mode == "mouse" else tr("Fling — экран ТВ")
         if mode == "live":                       # a unique title: LiveWindow finds the window by it
             title = f"fling-live-{os.getpid()}-{int(time.monotonic() * 1000)}"
         args = ["-s", _adb_serial(ip), "--no-audio", f"--mouse={mouse}", f"--window-title={title}"]
@@ -4525,7 +4526,7 @@ class Panel(QWidget):
                 ("Домой", "home"),
                 ("Снимок экрана", "screenshot"),
                 ("Экран ТВ с мышью", "screen"),
-                ("Мышь для ТВ", "mouse"),
+                ("Курсор на ТВ (без картинки)", "mouse"),
                 ("ADB-консоль…", "console"),
                 (None, None),
                 ("Настройки", "settings"),
@@ -5607,7 +5608,7 @@ class Tray(QObject):
         tm = m.addMenu("ADB")
         a = tm.addAction("Экран ТВ с мышью", lambda: s.screen.toggle("screen"))
         a.setCheckable(True); a.setChecked(s.screen.running("screen"))
-        a = tm.addAction("Мышь для ТВ", lambda: s.screen.toggle("mouse"))
+        a = tm.addAction("Курсор на ТВ (без картинки)", lambda: s.screen.toggle("mouse"))
         a.setCheckable(True); a.setChecked(s.screen.running("mouse"))
         tm.addAction("ADB-консоль…", lambda: open_adb_console(self.panel, s))
         tm.addAction("Журнал Fling", lambda: P.open_path(P.LOG))

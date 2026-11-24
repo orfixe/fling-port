@@ -14,7 +14,7 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 - Desktop: "TV screen with mouse" — the TV picture in a window, and the computer mouse becomes a
   real pointer on the TV (scrcpy, downloaded on first use and checked against its SHA256 sums).
-  "Mouse for the TV" does the same without the picture. A click on the artwork opens the screen.
+  "Cursor on the TV (no picture)" does the same without the video. A click on the artwork opens the screen.
 - Desktop: ADB console — run commands on the selected TV with live output, quick commands,
   history and Stop; commands that may delete data or restart the TV ask first.
 - Desktop: `fling screen`, `fling mouse`, `fling adb`, `fling log`, `fling install-extension`.
