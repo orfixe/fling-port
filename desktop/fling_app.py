@@ -2086,6 +2086,9 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
 EN_PHRASES += [   # keyboard captured strip
     ("⌨  Клавиатура захвачена, Esc — выход", "⌨  Keyboard captured, Esc to exit"),
     ("⌨  Клавиатура свободна", "⌨  Keyboard is free"),
+    ("Оформление", "Appearance"), ("Как в системе", "As the system"), ("Тёмное", "Dark"),
+    ("Светлое", "Light"), ("Цвет акцента", "Accent colour"), ("Системный", "System"),
+    ("Синий", "Blue"), ("Фиолетовый", "Purple"), ("Зелёный", "Green"), ("Оранжевый", "Orange"),
     ("Отключить", "Release"), ("Захватить", "Capture"),
     ("Пока панель открыта, стрелки, Enter, Пробел, Backspace, Home и +/− управляют ТВ, "
      "а не программой, в которой вы были.\nEsc закрывает панель.\n"
@@ -2182,13 +2185,76 @@ toggle_login = P.toggle_login
 
 # ---------------------------------------------------------------- theme
 
+# conf "accent": preset → (on dark, on light). "auto" = the system accent colour.
+ACCENTS = {"blue": ("#0a84ff", "#007aff"), "purple": ("#bf5af2", "#8e44ad"),
+           "green": ("#30d158", "#1e8e3e"), "orange": ("#ff9f0a", "#c25e00")}
+THEMES = ("auto", "dark", "light")
+
+
+def system_dark(app) -> bool:
+    """The system's own light/dark choice (before Fling overrides anything)."""
+    try:
+        cs = app.styleHints().colorScheme()
+        if cs == Qt.ColorScheme.Dark:
+            return True
+        if cs == Qt.ColorScheme.Light:
+            return False
+    except Exception:
+        pass
+    return app.palette().window().color().lightness() < 128
+
+
+def system_accent() -> QColor | None:
+    """Windows: the accent colour from Personalisation → Colours; elsewhere the palette's."""
+    if P.IS_WIN:
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\DWM") as k:
+                v = int(winreg.QueryValueEx(k, "AccentColor")[0]) & 0xFFFFFFFF   # 0xAABBGGRR
+            return QColor(v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF)
+        except Exception:
+            return None
+    c = QApplication.palette().highlight().color()
+    return c if c.isValid() else None
+
+
+def _readable(c: QColor, dark: bool) -> QColor:
+    """Keep an accent legible on the panel: light enough on dark, dark enough on light."""
+    h, sat, l, a = c.getHsl()
+    if dark and l < 150:
+        l = 150
+    elif not dark and l > 115:
+        l = 115
+    return QColor.fromHsl(max(h, 0), sat, l, 255)
+
+
+def apply_color_scheme(app, conf: dict) -> None:
+    """Dark / Light chosen in Fling: make Qt's own widgets (menus, fields, dialogs) match."""
+    mode = conf.get("theme", "auto")
+    try:
+        app.styleHints().setColorScheme({"dark": Qt.ColorScheme.Dark, "light": Qt.ColorScheme.Light}
+                                        .get(mode, Qt.ColorScheme.Unknown))
+    except Exception:
+        pass
+
+
 class Theme:
-    def __init__(self, app):
+    def __init__(self, app, conf: dict | None = None):
+        conf = load_conf() if conf is None else conf
+        mode, acc = conf.get("theme", "auto"), conf.get("accent", "auto")
         pal = app.palette()
-        self.dark = pal.window().color().lightness() < 128
-        self.fg = QColor(pal.windowText().color())
+        self.dark = {"dark": True, "light": False}.get(mode, pal.window().color().lightness() < 128)
+        pal_dark = pal.window().color().lightness() < 128
+        # the palette's text colour only when it matches the chosen light/dark
+        self.fg = QColor(pal.windowText().color()) if pal_dark == self.dark else \
+            (QColor("#f2f2f7") if self.dark else QColor("#1c1c1e"))
         self.bg = QColor("#2a2a2c") if self.dark else QColor("#f6f6f6")
-        self.accent = QColor("#0a84ff") if self.dark else QColor("#007aff")
+        sysacc = system_accent() if acc == "auto" else None
+        if sysacc is not None:
+            self.accent = _readable(sysacc, self.dark)
+        else:
+            d, l = ACCENTS.get(acc, ACCENTS["blue"])
+            self.accent = QColor(d if self.dark else l)
         self.green = QColor("#30d158") if self.dark else QColor("#28c840")
         self.orange = QColor("#ff9f0a") if self.dark else QColor("#e08600")
         self.red = QColor("#ff453a") if self.dark else QColor("#ff3b30")
@@ -2313,14 +2379,22 @@ def glyph(name, size=14, color=None, weight=1.7):
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawArc(QRectF(s*.26, s*.3, s*.48, s*.42), 180*16, 180*16)
         p.drawLine(QPoint(int(c), int(s*.72)), QPoint(int(c), int(s*.86)))
+    elif name == "dot":                                      # filled circle: a colour swatch
+        p.setPen(Qt.PenStyle.NoPen); p.setBrush(color or T.fg)
+        p.drawEllipse(QRectF(s*.15, s*.15, s*.7, s*.7))
     elif name == "keyboard":
-        # Compact keyboard glyph — opens the “type on TV” field
-        p.drawRoundedRect(QRectF(s*.12, s*.28, s*.76, s*.48), s*.08, s*.08)
-        for i in range(3):
-            for j in range(5):
-                x = s * (.22 + j * .12)
-                y = s * (.38 + i * .12)
-                p.drawLine(QPointF(x, y), QPointF(x + s * .06, y))
+        # Keyboard — opens the “type on TV” field: outline, two rows of keys, a space bar
+        p.drawRoundedRect(QRectF(s*.06, s*.22, s*.88, s*.56), s*.12, s*.12)
+        p.save()
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(color or T.fg)
+        k = s * .11
+        for row, n in ((.33, 5), (.47, 4)):
+            x0 = s*.5 - (n * k + (n - 1) * s*.045) / 2
+            for j in range(n):
+                p.drawRoundedRect(QRectF(x0 + j * (k + s*.045), s*row, k, k), s*.025, s*.025)
+        p.drawRoundedRect(QRectF(s*.28, s*.61, s*.44, k), s*.03, s*.03)
+        p.restore()
     elif name == "play_on_tv":
         p.drawRoundedRect(QRectF(s*.12, s*.22, s*.76, s*.52), s*.08, s*.08)
         p.setBrush(color or T.fg)
@@ -4089,15 +4163,16 @@ class Panel(QWidget):
         ty = QVBoxLayout(); ty.setContentsMargins(14, 4, 14, 9); ty.setSpacing(3)
         tr = QHBoxLayout(); tr.setSpacing(6)
         self.kb_btn = QPushButton()
-        self.kb_btn.setFixedSize(24, 22)
+        self.kb_btn.setFixedSize(30, 24)
         self.kb_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.kb_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.kb_btn.setIcon(glyph("keyboard", 14, T.fg))
-        self.kb_btn.setIconSize(QSize(14, 14))
+        self.kb_btn.setIcon(glyph("keyboard", 20, T.fg, weight=1.5))
+        self.kb_btn.setIconSize(QSize(20, 20))
         self.kb_btn.setToolTip("Клавиатура — печать на ТВ")
         self.kb_btn.setStyleSheet(
-            f"QPushButton{{border:none;border-radius:5px;background:{Theme.css(T.fg_a(0.07))}}}"
-            f"QPushButton:hover{{background:{Theme.css(T.acc_a(0.2))}}}")
+            f"QPushButton{{border:1px solid {Theme.css(T.fg_a(0.18))};border-radius:6px;"
+            f"background:{Theme.css(T.fg_a(0.10))}}}"
+            f"QPushButton:hover{{background:{Theme.css(T.acc_a(0.25))}}}")
         self.kb_btn.clicked.connect(self._toggle_type)
         self.type_edit = field("Печать на ТВ")
         self.type_edit.setToolTip("Текст попадёт в активное поле ввода на телевизоре")
@@ -4503,8 +4578,7 @@ class Panel(QWidget):
         c = load_conf()
         c["lang"] = "en" if LANG == "ru" else "ru"
         save_conf(c)
-        P.restart_app()
-        QApplication.quit()
+        restart_ui()
 
     def open_setup(self):
         # One Connect TV window; close the help guide so they don't stack
@@ -5570,6 +5644,33 @@ class Tray(QObject):
         sub = st.get("subtitle") or st.get("app") or ""
         notify_send(f"Сейчас на ТВ: {title}" + (f" — {sub}" if sub else ""))
 
+    def _appearance_menu(self, m):
+        """Оформление: light/dark (or as the system), and the accent colour."""
+        from PyQt6.QtGui import QActionGroup
+        am = m.addMenu("Оформление")
+        conf = self.state.conf
+        g = QActionGroup(am)
+        for key, title in (("auto", "Как в системе"), ("dark", "Тёмное"), ("light", "Светлое")):
+            a = am.addAction(title, lambda k=key: self.set_look(theme=k))
+            a.setCheckable(True); a.setChecked(conf.get("theme", "auto") == key); g.addAction(a)
+        am.addSeparator()
+        cm = am.addMenu("Цвет акцента")
+        g2 = QActionGroup(cm)
+        for key, title in (("auto", "Системный"), ("blue", "Синий"), ("purple", "Фиолетовый"),
+                           ("green", "Зелёный"), ("orange", "Оранжевый")):
+            a = cm.addAction(glyph("dot", 12, QColor(ACCENTS[key][0 if T.dark else 1])) if key in ACCENTS
+                             else QIcon(), title, lambda k=key: self.set_look(accent=k))
+            a.setCheckable(True); a.setChecked(conf.get("accent", "auto") == key); g2.addAction(a)
+
+    def set_look(self, **kw):
+        """Save the choice and restart the UI with it (like the language switch)."""
+        s = self.state
+        if all(s.conf.get(k, "auto") == v for k, v in kw.items()):
+            return
+        s.conf.update(kw)
+        save_conf(s.conf)
+        restart_ui()
+
     def toggle_notify(self):
         s = self.state
         s.conf["notify_track"] = not s.conf.get("notify_track", True)
@@ -5602,6 +5703,7 @@ class Tray(QObject):
         na.setCheckable(True); na.setChecked(s.conf.get("notify_track", True))
         la = m.addAction("Запускать при входе", toggle_login)
         la.setCheckable(True); la.setChecked(login_enabled())
+        self._appearance_menu(m)
         m.addAction("Как пользоваться", lambda: open_help(self.panel))   # guide from the tray menu
         m.addAction("Сделать снимок", s.tv_screenshot)
         tm = m.addMenu("ADB")
@@ -5613,6 +5715,41 @@ class Tray(QObject):
         tm.addAction("Журнал Fling", lambda: P.open_path(P.LOG))
         m.addAction("Подключение ТВ…", self.panel.open_setup)
         m.addAction("Выйти из Fling", QApplication.quit)
+
+
+_restarting = False
+
+
+def restart_ui():
+    """Start a fresh Fling and quit this one (language / appearance changes)."""
+    global _restarting
+    if _restarting:
+        return
+    _restarting = True
+    P.restart_app()
+    QApplication.quit()
+
+
+def follow_system_scheme(app):
+    """Appearance "as the system": restart when Windows / KDE switches light ↔ dark —
+    but never under the user's hands: wait until no Fling window is open."""
+    pending = QTimer(app, interval=15000)
+
+    def try_now():
+        if load_conf().get("theme", "auto") != "auto":
+            pending.stop(); return
+        if any(w.isVisible() for w in QApplication.topLevelWidgets() if w.isWindow()):
+            if not pending.isActive():
+                pending.start()
+            return
+        pending.stop()
+        restart_ui()
+
+    pending.timeout.connect(try_now)
+    try:
+        app.styleHints().colorSchemeChanged.connect(lambda *_: QTimer.singleShot(500, try_now))
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------- single instance + commands
@@ -5791,7 +5928,9 @@ def main():
         return 0
     if send_to_running(cmd):
         return 0
-    T = Theme(app)
+    conf0 = load_conf()
+    apply_color_scheme(app, conf0)
+    T = Theme(app, conf0)
     install_translation()
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
@@ -5800,6 +5939,8 @@ def main():
     state._panel_ref = panel
     state.panel_visible = panel.isVisible
     tray = Tray(state, panel)
+    if conf0.get("theme", "auto") == "auto":
+        follow_system_scheme(app)
 
     def handle(c):
         c = c.strip()

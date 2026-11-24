@@ -106,6 +106,7 @@ HELP = {
   [
    "Команды и прочее",
    "• Язык — маленький флажок внизу справа.\n"
+   "• «Оформление» в меню значка: тёмное, светлое или как в системе, и цвет акцента.\n"
    "• «Запускать при входе» — чтобы Fling открывался сам.\n"
    "• Выход: «Выйти из Fling», Ctrl+Q или `fling quit`.\n"
    "• Команды:\n"
@@ -231,6 +232,7 @@ HELP = {
   [
    "Commands and the rest",
    "• Language is the small flag at the bottom right.\n"
+   "• “Appearance” in the icon menu: dark, light or as the system, and the accent colour.\n"
    "• “Start at login” opens Fling when you log in.\n"
    "• Quit with “Quit Fling”, Ctrl+Q, or `fling quit`.\n"
    "• Commands:\n"
@@ -285,6 +287,7 @@ WINDOWS = {
   "Bluetooth-пульт": None,
   "Команды и прочее":
    "• Язык — маленький флажок внизу справа.\n"
+   "• «Оформление» в меню значка: тёмное, светлое или как в системе, и цвет акцента.\n"
    "• «Запускать при входе» — чтобы Fling открывался вместе с Windows.\n"
    "• Выход: «Выйти из Fling», Ctrl+Q или `fling quit`.\n"
    "• Команды (PowerShell или cmd):\n"
@@ -332,6 +335,7 @@ WINDOWS = {
   "Bluetooth remote": None,
   "Commands and the rest":
    "• Language is the small flag at the bottom right.\n"
+   "• “Appearance” in the icon menu: dark, light or as the system, and the accent colour.\n"
    "• “Start at login” opens Fling with Windows.\n"
    "• Quit with “Quit Fling”, Ctrl+Q, or `fling quit`.\n"
    "• Commands (PowerShell or cmd):\n"
