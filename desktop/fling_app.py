@@ -112,6 +112,34 @@ def classify(raw: str | None) -> tuple[str, str | None]:
     # Fling blocks these; yt-dlp knows ~1800 sites, so let the user try.
     return "maybe", None
 
+# files dropped on Fling / `fling send`: what goes where
+SEND_CAST_EXT = {"mp4", "mkv", "webm", "mov", "avi", "m4v", "mp3", "m4a", "flac", "wav", "ogg",
+                 "jpg", "jpeg", "png", "gif", "webp"}
+SEND_MAX = 4 * 1024 ** 3                     # adb push of bigger files is slow and /sdcard may be FAT
+
+
+def route_files(paths) -> dict:
+    """→ {"apk": [...], "cast": [...], "push": [...], "skip": [(path, why)]}.
+    APKs install, the first video / audio / picture plays on the TV (catt serves it),
+    everything else is copied to the TV's Download folder over ADB."""
+    out = {"apk": [], "cast": [], "push": [], "skip": []}
+    for raw in paths:
+        f = os.path.abspath(raw) if raw else ""
+        if not raw or not os.path.isfile(f):
+            out["skip"].append((raw, "это не файл"))
+            continue
+        ext = os.path.splitext(f)[1].lstrip(".").lower()
+        if ext == "apk":
+            out["apk"].append(f)
+        elif ext in SEND_CAST_EXT and not out["cast"]:
+            out["cast"].append(f)               # one thing plays; more media get copied
+        elif os.path.getsize(f) > SEND_MAX:
+            out["skip"].append((f, "файл больше 4 ГБ"))
+        else:
+            out["push"].append(f)
+    return out
+
+
 def youtube_id(raw: str) -> str | None:
     u = urlparse(raw or "")
     host = (u.hostname or "").lower()
@@ -1096,6 +1124,111 @@ class State(QObject):
         "INSTALL_FAILED_USER_RESTRICTED": "ТВ запретил установку — подтвердите её на экране ТВ.",
     }
 
+    def send_files(self, paths: list[str]):
+        """Files dropped on Fling or `fling send`: install, play or copy them to the TV."""
+        r = route_files(paths)
+        for f, why in r["skip"]:
+            notify_send(f"Не отправлю {os.path.basename(f) or f}: {why}")
+        if not (r["apk"] or r["cast"] or r["push"]):
+            if not r["skip"]:
+                self._set(last_error="Нечего отправить")
+            return
+        if not self.ip:
+            self._set(last_error="Устройство не выбрано")
+            return
+        if r["apk"]:
+            self.tv_install_apk(r["apk"])
+        for f in r["cast"]:
+            self.cast_local(f)
+        for f in r["push"]:
+            self.adb_push(f)
+
+    def cast_local(self, path: str):
+        """Play a file from this computer on the TV. catt serves it over HTTP for as long
+        as it plays, so it runs as its own lasting process (not in the 2-minute pool).
+        If the TV can't fetch it (firewall, other network) the file is copied over ADB."""
+        ip, name = self.ip, os.path.basename(path)
+        old = getattr(self, "_local_cast", None)
+        if old is not None and old.poll() is None:
+            old.kill()                              # the TV switches to the new file anyway
+        try:
+            p = P.popen(P.catt_cmd(CATT, ["-d", ip, "cast", path]), stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT, env=P.CATT_ENV)
+        except Exception as ex:
+            print("cast file:", ex, flush=True)
+            self.adb_push(path)
+            return
+        self._local_cast = p
+        notify_send(f"Отправляю на ТВ: {name}…")
+
+        def watch():
+            try:
+                out, _ = p.communicate(timeout=45)  # pictures and failures end quickly
+                code = p.returncode
+            except subprocess.TimeoutExpired:       # still serving: the TV is playing it
+                code, out = None, b""
+                threading.Thread(target=p.communicate, daemon=True).start()   # keep the pipe drained
+            text = (out or b"").decode("utf-8", errors="replace")
+            self.bridge.call.emit(lambda: done(code, text))
+
+        def done(code, text):
+            print(f"cast file {name}: exit {code}\n{text[-800:]}", flush=True)
+            if code in (None, 0):                   # playing (or a picture was shown)
+                self._set(last_error=None)
+                notify_send(f"На ТВ: {name}")
+                QTimer.singleShot(1500, lambda: self.refresh(with_tab=False))
+                return
+            if p is not getattr(self, "_local_cast", None):
+                return                              # stopped on purpose: a newer file replaced it
+            err = next((l[6:].strip() for l in reversed(text.splitlines()) if l.startswith("Error:")), "")
+            print("cast file failed, copying over ADB instead:", err, flush=True)
+            notify_send(f"Не получилось показать {name} — копирую файл на ТВ")
+            self.adb_push(path, why=err)
+
+        threading.Thread(target=watch, daemon=True, name="fling-cast-file").start()
+
+    def adb_push(self, path: str, why: str = ""):
+        """Copy a file to the TV's Download folder (ADB), in its own thread."""
+        ip, name = self.ip, os.path.basename(path)
+        if not ip:
+            self._set(last_error="Устройство не выбрано")
+            return
+        try:
+            if os.path.getsize(path) > SEND_MAX:
+                self._set(last_error=f"Не отправлю {name}: файл больше 4 ГБ")
+                return
+        except OSError as ex:
+            self._set(last_error=f"Не отправлю {name}: {ex}")
+            return
+
+        def run():
+            try:
+                err = _adb_ready_error(ip, "Отправка файла")
+                if err:
+                    r = {"error": err + (f" ({why})" if why else "")}
+                else:
+                    res = adb_cmd(ip, ["push", path, "/sdcard/Download/" + name], timeout=3600)
+                    out = (res.stdout or "") + (res.stderr or "")
+                    if res.returncode != 0:
+                        last = next((l.strip() for l in reversed(out.splitlines()) if l.strip()), "нет ответа")
+                        r = {"error": "Файл не скопировался на ТВ: " + last}
+                    else:
+                        r = {"ok": True}
+            except Exception as ex:
+                r = {"error": f"Файл не скопировался на ТВ: {ex}"}
+            self.bridge.call.emit(lambda: done(r))
+
+        def done(r):
+            print("adb push:", name, r, flush=True)
+            if r.get("error"):
+                self._set(last_error=r["error"])
+            else:
+                self._set(last_error=None)
+                notify_send(f"Файл на ТВ: Download/{name}")
+
+        notify_send(f"Копирую на ТВ: {name}…")
+        threading.Thread(target=run, daemon=True, name="fling-push").start()
+
     def tv_install_apk(self, paths: list[str]):
         """Install an APK on the TV over ADB (`adb install -r`). Several files at once are
         the parts of one split app (`install-multiple`)."""
@@ -1859,6 +1992,15 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Чтобы Fling видел вкладки Chrome и Edge, нужно один раз добавить в браузер расширение Fling.",
      "For Fling to see Chrome and Edge tabs, add the Fling extension to the browser once."),
     ("Установить расширение…", "Install the extension…"),
+    # files sent to the TV
+    ("Отпустите — отправлю на ТВ", "Drop — I'll send it to the TV"),
+    ("APK — установка, видео и фото — на экран, остальное — в папку Download",
+     "APK installs, videos and pictures play, the rest goes to the Download folder"),
+    ("Не отправлю ", "Not sending "), ("это не файл", "not a file"), ("файл больше 4 ГБ", "the file is over 4 GB"),
+    ("Нечего отправить", "Nothing to send"), ("Отправляю на ТВ: ", "Sending to the TV: "),
+    ("Не получилось показать ", "Couldn't play "), (" — копирую файл на ТВ", " — copying the file to the TV"),
+    ("Отправка файла", "Sending a file"), ("Файл не скопировался на ТВ: ", "The file wasn't copied to the TV: "),
+    ("Файл на ТВ: Download/", "File on the TV: Download/"), ("Копирую на ТВ: ", "Copying to the TV: "),
     # TV screen (scrcpy), ADB console
     ("Экран ТВ с мышью", "TV screen with mouse"), ("Курсор на ТВ (без картинки)", "Cursor on the TV (no picture)"),
     ("Курсор на ТВ", "Cursor on the TV"),
@@ -3867,6 +4009,7 @@ class AdbConsole(QWidget):
         self.hist = list(state.conf.get("adb_history") or [])[-self.MAX_HISTORY:]
         self.hpos = len(self.hist)
         self.setWindowTitle(tr("Fling — ADB-консоль"))
+        install_file_drop(self, state)
         self.resize(760, 520)
         pal = self.palette(); pal.setColor(self.backgroundRole(), T.bg); self.setPalette(pal)
         self.setAutoFillBackground(True)
@@ -4024,6 +4167,74 @@ def open_adb_console(holder, state: "State"):
     w.show(); w.raise_(); w.activateWindow()
 
 
+class DropHint(QWidget):
+    """Shown over a window while files are dragged onto it."""
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.hide()
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = QRectF(self.rect()).adjusted(6, 6, -6, -6)
+        p.setBrush(QColor(T.bg.red(), T.bg.green(), T.bg.blue(), 225))
+        pen = QPen(T.accent, 2, Qt.PenStyle.DashLine)
+        p.setPen(pen)
+        p.drawRoundedRect(r, 12, 12)
+        p.setPen(T.accent)
+        p.setFont(font(14, QFont.Weight.DemiBold))
+        p.drawText(r, Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
+                   tr("Отпустите — отправлю на ТВ") + "\n")
+        p.setPen(T.fg_a(0.6))
+        p.setFont(font(11))
+        p.drawText(r.adjusted(16, 40, -16, 0), Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
+                   tr("APK — установка, видео и фото — на экран, остальное — в папку Download"))
+
+
+class _FileDrop(QObject):
+    """Event filter that lets a window take files dragged from Explorer → State.send_files."""
+    def __init__(self, widget, state):
+        super().__init__(widget)
+        self.w, self.state = widget, state
+        self.hint = DropHint(widget)
+
+    @staticmethod
+    def _files(e):
+        md = e.mimeData()
+        if md is None or not md.hasUrls():
+            return []
+        return [u.toLocalFile() for u in md.urls() if u.isLocalFile() and os.path.isfile(u.toLocalFile())]
+
+    def eventFilter(self, obj, e):
+        t = e.type()
+        if t in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
+            if self._files(e):
+                e.acceptProposedAction()
+                if not self.hint.isVisible():
+                    self.hint.setGeometry(self.w.rect())
+                    self.hint.raise_()
+                    self.hint.show()
+                return True
+        elif t == QEvent.Type.DragLeave:
+            self.hint.hide()
+        elif t == QEvent.Type.Drop:
+            self.hint.hide()
+            files = self._files(e)
+            if files:
+                e.acceptProposedAction()
+                QTimer.singleShot(0, lambda: self.state.send_files(files))
+                return True
+        return False
+
+
+def install_file_drop(widget, state):
+    """Let `widget` accept files dropped from Explorer / Finder / Dolphin."""
+    widget.setAcceptDrops(True)
+    widget._file_drop = _FileDrop(widget, state)
+    widget.installEventFilter(widget._file_drop)
+
+
 def extension_dir() -> str | None:
     """The unpacked Chrome/Edge extension that came with this Fling: next to Fling.exe in the
     setup build, in %LOCALAPPDATA%\\Fling for install.ps1, or the repo's build output."""
@@ -4138,6 +4349,7 @@ class Panel(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.state = state
         self.hidden_at = 0.0
+        install_file_drop(self, state)        # files dragged onto the panel go to the TV
         # Catch keys even when a child button has focus (arrows still drive the TV)
         QApplication.instance().installEventFilter(self)
         self._wheel = [0.0, 0.0, 0.0]  # accX, accY, last emit
@@ -6160,6 +6372,8 @@ def main():
         sys.argv.insert(1, cmd)
     if cmd == "install-apk":                       # `fling install-apk app.apk [split2.apk …]`
         cmd = "\t".join(["install-apk", *(os.path.abspath(a) for a in sys.argv[2:])])
+    if cmd == "send":                              # `fling send file…` (also Explorer's Send to)
+        cmd = "\t".join(["send", *(os.path.abspath(a) for a in sys.argv[2:])])
     app = QApplication(sys.argv)
     app.setApplicationName("Fling")
     app.setDesktopFileName("fling")
@@ -6196,6 +6410,8 @@ def main():
             open_help(panel)
         elif c == "screenshot":
             state.tv_screenshot()
+        elif c.startswith("send\t"):
+            state.send_files([f for f in c.split("\t")[1:] if f])
         elif c.startswith("install-apk"):
             files = [f for f in c.split("\t")[1:] if f]
             state.tv_install_apk(files) if files else pick_apk(state)

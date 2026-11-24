@@ -71,6 +71,7 @@ if ($Uninstall) {
   Stop-Fling
   Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Fling' -ErrorAction SilentlyContinue
   Remove-Item $Lnk -Force -ErrorAction SilentlyContinue
+  Remove-Item (Join-Path ([Environment]::GetFolderPath('SendTo')) 'Fling - TV.lnk') -Force -ErrorAction SilentlyContinue
   Remove-Item 'HKCU:\Software\Classes\SystemFileAssociations\.apk\shell\FlingInstallApk' -Recurse -Force -ErrorAction SilentlyContinue
   Remove-FromUserPath $Bin
   $uv = Get-Command uv -ErrorAction SilentlyContinue
@@ -197,6 +198,13 @@ if (-not (($userPath -split ';') -contains $Bin)) {
 }
 
 $sh = New-Object -ComObject WScript.Shell
+# Explorer: Send to -> "Fling - TV" (fling send: installs APKs, plays media, copies the rest)
+$st = $sh.CreateShortcut((Join-Path ([Environment]::GetFolderPath('SendTo')) 'Fling - TV.lnk'))
+$st.TargetPath = $Pyw
+$st.Arguments = "`"$Main`" send"
+$st.WorkingDirectory = $App
+$st.IconLocation = (Join-Path $App 'fling.ico')
+$st.Save()
 $l = $sh.CreateShortcut($Lnk)
 $l.TargetPath = $Pyw
 $l.Arguments = "`"$Main`" show"
