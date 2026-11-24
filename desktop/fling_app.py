@@ -1692,7 +1692,8 @@ class State(QObject):
     @property
     def remote_ready(self):
         # Damion's Fling: d-pad / typing need the Android TV Remote (or BT) session
-        return self.tv_paired or self.bt_connected
+        # plus ADB as a fallback: keys go as `input keyevent` (slower, but no pairing needed)
+        return self.tv_paired or self.bt_connected or self.adb_ok()
 
     def poll_bt(self):
         def done(r, e):
@@ -1725,8 +1726,30 @@ class State(QObject):
             self.atv.key(self.ip, code)
         elif self.bt_connected and code in BT_NAMES:
             self._bt(f"key {BT_NAMES[code]}")
+        elif self.ip and self.adb_ok():
+            self._adb_key(code)
         elif self.ip:
             self.atv.key(self.ip, code)
+
+    def _adb_key(self, code):
+        """Fallback remote: `adb shell input keyevent` (KEY codes are Android key codes).
+        One worker thread keeps the presses in order; held arrows don't pile up."""
+        ip = self.ip
+        if not hasattr(self, "_adb_keys"):
+            self._adb_keys = ThreadPoolExecutor(max_workers=1)
+            self._adb_queued = 0
+        if self._adb_queued > 3:                  # the TV is slower than a held key: drop repeats
+            return
+        self._adb_queued += 1
+
+        def run():
+            try:
+                adb_cmd(ip, ["shell", "input", "keyevent", str(int(code))], timeout=6)
+            except Exception as ex:
+                print("adb key:", ex, flush=True)
+            finally:
+                self._adb_queued -= 1
+        self._adb_keys.submit(run)
 
     def tv_launch(self, link):
         if self.ip:
