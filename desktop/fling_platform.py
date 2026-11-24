@@ -111,6 +111,30 @@ def find_adb() -> str:
     return cands[0] if cands else _exe("adb")
 
 
+SCRCPY_DIR = os.path.join(DATA, "scrcpy")      # scrcpy downloaded by Fling on first use
+SCRCPY_RELEASES = "https://api.github.com/repos/Genymobile/scrcpy/releases/latest"
+
+
+def find_scrcpy() -> str | None:
+    """scrcpy (TV screen + mouse): Fling's own download first, then PATH."""
+    own = os.path.join(SCRCPY_DIR, _exe("scrcpy"))
+    if os.path.isfile(own):
+        return own
+    return shutil.which("scrcpy")
+
+
+def scrcpy_asset_prefix() -> str | None:
+    """Start of the release asset name for this computer, e.g. 'scrcpy-win64-'."""
+    import platform
+    m = platform.machine().lower()
+    arm = m in ("arm64", "aarch64")
+    if IS_WIN:
+        return "scrcpy-winarm64-" if arm else ("scrcpy-win64-" if sys.maxsize > 2**32 else "scrcpy-win32-")
+    if IS_MAC:
+        return "scrcpy-macos-aarch64-" if arm else "scrcpy-macos-x86_64-"
+    return None if arm else "scrcpy-linux-x86_64-"
+
+
 def adb_available() -> bool:
     """True when an adb binary exists on disk (PATH, Fling data, or Android SDK)."""
     path = find_adb()

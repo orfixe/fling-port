@@ -93,6 +93,17 @@ HELP = {
    "• Без ADB снимка не будет. Включите его в «Подключение ТВ…»."
   ],
   [
+   "Экран ТВ, мышь и ADB-консоль",
+   "• Всё это — в меню зелёного значка Android внизу панели (или в меню значка в трее → ADB). Нужен включённый ADB.\n"
+   "• «Экран ТВ с мышью» открывает окно с картинкой ТВ. Щёлкните в нём — мышь станет курсором на ТВ. Alt возвращает мышь компьютеру.\n"
+   "• Щелчок по обложке в панели открывает то же окно.\n"
+   "• «Мышь для ТВ» — то же без картинки: маленькое окно, мышь и клавиатура управляют ТВ.\n"
+   "• Работает на scrcpy. Fling скачивает его сам при первом запуске (~12 МБ).\n"
+   "• Видео YouTube и Netflix в окне может быть чёрным — это защита от записи, меню видно нормально.\n"
+   "• «ADB-консоль…» — команды для ТВ. Пишите как в `adb shell`: `getprop`, `pm list packages`. `logcat`, `install`, `pull` — как есть. Есть «Быстрые команды», ↑/↓ — история, «Стоп» прерывает.\n"
+   "• Команды, которые могут удалить данные или перезагрузить ТВ, Fling сначала переспросит."
+  ],
+  [
    "Команды и прочее",
    "• Язык — маленький флажок внизу справа.\n"
    "• «Запускать при входе» — чтобы Fling открывался сам.\n"
@@ -103,6 +114,8 @@ HELP = {
    "  - `fling cast-tab` — отправить вкладку\n"
    "  - `fling clip` — ссылка из буфера\n"
    "  - `fling screenshot` — сделать снимок\n"
+   "  - `fling screen` / `fling mouse` — экран ТВ с мышью / мышь для ТВ\n"
+   "  - `fling adb` — ADB-консоль, `fling log` — журнал\n"
    "  - `fling help` — эта подсказка\n"
    "  - `fling quit` — выход\n"
    "  - `fling tui` — пульт в терминале"
@@ -205,6 +218,17 @@ HELP = {
    "• No ADB, no screenshot. Turn it on in “Connect TV…”."
   ],
   [
+   "TV screen, mouse and ADB console",
+   "• All in the menu of the green Android icon at the bottom of the panel (or the tray icon menu → ADB). ADB has to be on.\n"
+   "• “TV screen with mouse” opens a window with the TV picture. Click in it and the mouse becomes a pointer on the TV. Alt gives the mouse back.\n"
+   "• A click on the artwork in the panel opens the same window.\n"
+   "• “Mouse for the TV” is the same without the picture: a small window, the mouse and keyboard drive the TV.\n"
+   "• It runs on scrcpy. Fling downloads it by itself the first time (~12 MB).\n"
+   "• YouTube and Netflix video may be black in the window — that's copy protection; menus show fine.\n"
+   "• “ADB console…” runs commands on the TV. Type them as in `adb shell`: `getprop`, `pm list packages`. `logcat`, `install`, `pull` as they are. There are “Quick commands”, ↑/↓ for history, “Stop” ends a command.\n"
+   "• Commands that may delete data or restart the TV ask first."
+  ],
+  [
    "Commands and the rest",
    "• Language is the small flag at the bottom right.\n"
    "• “Start at login” opens Fling when you log in.\n"
@@ -215,6 +239,8 @@ HELP = {
    "  - `fling cast-tab` — cast the tab\n"
    "  - `fling clip` — link from the clipboard\n"
    "  - `fling screenshot` — take a screenshot\n"
+   "  - `fling screen` / `fling mouse` — TV screen with mouse / mouse for the TV\n"
+   "  - `fling adb` — ADB console, `fling log` — the log\n"
    "  - `fling help` — this guide\n"
    "  - `fling quit` — quit\n"
    "  - `fling tui` — remote in the terminal"
@@ -267,6 +293,8 @@ WINDOWS = {
    "  - `fling cast-tab` — отправить вкладку\n"
    "  - `fling clip` — ссылка из буфера\n"
    "  - `fling screenshot` — сделать снимок\n"
+   "  - `fling screen` / `fling mouse` — экран ТВ с мышью / мышь для ТВ\n"
+   "  - `fling adb` — ADB-консоль, `fling log` — журнал\n"
    "  - `fling help` — эта подсказка\n"
    "  - `fling quit` — выход",
   "Если что-то не работает":
@@ -312,6 +340,8 @@ WINDOWS = {
    "  - `fling cast-tab` — cast the tab\n"
    "  - `fling clip` — link from the clipboard\n"
    "  - `fling screenshot` — take a screenshot\n"
+   "  - `fling screen` / `fling mouse` — TV screen with mouse / mouse for the TV\n"
+   "  - `fling adb` — ADB console, `fling log` — the log\n"
    "  - `fling help` — this guide\n"
    "  - `fling quit` — quit",
   "If something doesn't work":

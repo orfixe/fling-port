@@ -10,6 +10,17 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+### Added
+
+- Desktop: "TV screen with mouse" — the TV picture in a window, and the computer mouse becomes a
+  real pointer on the TV (scrcpy, downloaded on first use and checked against its SHA256 sums).
+  "Mouse for the TV" does the same without the picture. A click on the artwork opens the screen.
+- Desktop: ADB console — run commands on the selected TV with live output, quick commands,
+  history and Stop; commands that may delete data or restart the TV ask first.
+- Desktop: `fling screen`, `fling mouse`, `fling adb`, `fling log`, `fling install-extension`.
+- Windows: "Install the extension…" adds the extension to Chrome or Edge by itself, with the
+  manual steps as a fallback.
+
 ## [0.3.2] - 2026-11-23
 
 Includes the macOS update below (Russian / English, WASD, TV volume slider, no keychain prompts).

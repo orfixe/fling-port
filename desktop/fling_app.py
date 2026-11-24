@@ -867,6 +867,7 @@ class State(QObject):
         self.pool = ThreadPoolExecutor(max_workers=4)
         self.bridge = Bridge()
         self.bridge.call.connect(lambda f: f())
+        self.screen = TvScreen(self)              # scrcpy window: TV screen + mouse pointer
         self.catt_ok = os.path.exists(CATT)
         self.tab = None
         self.browser_tab = None      # active tab reported by a browser extension (fling_bridge)
@@ -1741,6 +1742,52 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Чтобы Fling видел вкладки Chrome и Edge, нужно один раз добавить в браузер расширение Fling.",
      "For Fling to see Chrome and Edge tabs, add the Fling extension to the browser once."),
     ("Установить расширение…", "Install the extension…"),
+    # TV screen (scrcpy), ADB console
+    ("Экран ТВ с мышью", "TV screen with mouse"), ("Мышь для ТВ", "Mouse for the TV"),
+    ("ADB-консоль…", "ADB console…"), ("Журнал Fling", "Fling log"),
+    ("Fling — экран ТВ", "Fling — TV screen"), ("Fling — мышь для ТВ", "Fling — mouse for the TV"),
+    ("Fling — ADB-консоль", "Fling — ADB console"),
+    ("Открыть экран ТВ — управление мышью", "Open the TV screen — control it with the mouse"),
+    ("Скачиваю scrcpy (~12 МБ) — один раз…", "Downloading scrcpy (~12 MB) — just once…"),
+    ("Щёлкните в окне — мышь станет курсором на ТВ. Alt — вернуть мышь компьютеру.",
+     "Click in the window — the mouse becomes a pointer on the TV. Alt gives the mouse back."),
+    ("Щелчки в окне — нажатия на ТВ.", "Clicks in the window tap the TV."),
+    ("Экран ТВ закрылся: ", "The TV screen closed: "),
+    (" работает через ADB — включите его: «Подключение ТВ…» → ADB.",
+     " works over ADB — turn it on: “Connect TV…” → ADB."),
+    (": ADB не установлен — откройте «Подключение ТВ…» и скачайте platform-tools.",
+     ": ADB is not installed — open “Connect TV…” and download platform-tools."),
+    (": подтвердите на ТВ «Разрешить отладку».", ": allow debugging on the TV."),
+    (": ADB не подключён — откройте «Подключение ТВ…».", ": ADB is not connected — open “Connect TV…”."),
+    (": установите scrcpy (sudo apt install scrcpy).", ": install scrcpy (sudo apt install scrcpy)."),
+    ("Экран ТВ", "TV screen"),
+    ("для этого компьютера нет готовой сборки scrcpy — установите его из пакетов",
+     "there is no scrcpy build for this computer — install it from your packages"),
+    ("в релизе scrcpy нет сборки для этого компьютера", "the scrcpy release has no build for this computer"),
+    ("нет контрольной суммы scrcpy", "no scrcpy checksum"),
+    ("архив scrcpy повреждён (контрольная сумма не сошлась)", "the scrcpy download is damaged (checksum mismatch)"),
+    ("в архиве scrcpy нет программы scrcpy", "the scrcpy download has no scrcpy program"),
+    ("Выполнить", "Run"), ("Стоп", "Stop"), ("Быстрые команды ▾", "Quick commands ▾"),
+    ("Копировать вывод", "Copy output"), ("Очистить", "Clear"),
+    ("ТВ не выбран   ·   ", "No TV selected   ·   "), ("ТВ не выбран.", "No TV selected."), ("ТВ: ", "TV: "),
+    ("Команда выполняется в оболочке ТВ (adb shell). adb-команды вроде logcat, install, pull пишите как есть. "
+     "↑/↓ — история.",
+     "Commands run in the TV's shell (adb shell). Type adb commands like logcat, install, pull as they are. "
+     "↑/↓ — history."),
+    ("Эта команда может удалить данные, перезагрузить ТВ или разорвать связь ADB. Выполнить?",
+     "This command may delete data, restart the TV or cut the ADB link. Run it?"),
+    ("консоль всегда работает с выбранным ТВ: -s, connect, pair, kill-server и другие ключи adb здесь не нужны — "
+     "подключение настраивается в «Подключение ТВ…».",
+     "the console always works with the selected TV: -s, connect, pair, kill-server and other adb options "
+     "aren't needed here — the link is set up in “Connect TV…”."),
+    ("напишите команду после shell — интерактивная оболочка здесь не открывается.",
+     "type a command after shell — an interactive shell doesn't open here."),
+    ("кавычки не закрыты", "unclosed quotes"),
+    ("Модель и Android", "Model and Android"), ("Что играет", "What's playing"),
+    ("Активное приложение", "Foreground app"), ("Установленные приложения", "Installed apps"),
+    ("Разрешение экрана", "Screen size"), ("Свободное место", "Free space"), ("Память", "Memory"),
+    ("Сеть", "Network"), ("Логи: последние 300 строк", "Logs: last 300 lines"),
+    ("Логи вживую: только ошибки", "Live logs: errors only"),
     ("Расширение Fling добавлено в браузер.", "The Fling extension is added to the browser."),
     ("Добавляю расширение в браузер — не трогайте мышь и клавиатуру пару секунд…",
      "Adding the extension to the browser — don't touch the mouse or keyboard for a few seconds…"),
@@ -1938,7 +1985,7 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
     ('ТВ', 'TV'),
 ]
 EN_PHRASES += [   # keyboard captured strip
-    ("⌨  Клавиатура захвачена — Esc, чтобы выйти", "⌨  Keyboard captured — Esc to exit"),
+    ("⌨  Клавиатура захвачена, Esc — выход", "⌨  Keyboard captured, Esc to exit"),
 ]
 EN_PHRASES += [   # installing an APK on the TV
     ("Установить APK на ТВ", "Install APK on the TV"),
@@ -2499,12 +2546,14 @@ class Artwork(QWidget):
 
     BTN = 28
 
-    def __init__(self, height, on_refresh=None):
+    def __init__(self, height, on_refresh=None, on_click=None):
         super().__init__()
         self.setFixedHeight(height)
         self.pix = None
         self.url = None
         self.on_refresh = on_refresh
+        self.on_click = on_click      # () -> bool: True when a click on the picture did something
+        self.click_ok = lambda: False
         self.hover = False
         self.pressed = False
         self.angle = 0.0
@@ -2540,9 +2589,11 @@ class Artwork(QWidget):
 
     def mouseMoveEvent(self, e):
         h = self.on_refresh is not None and self._btn_rect().contains(e.position())
+        hand = h or (self.on_click is not None and self.click_ok())
+        self.setCursor(Qt.CursorShape.PointingHandCursor if hand else Qt.CursorShape.ArrowCursor)
+        self.setToolTip("" if h or not hand else "Открыть экран ТВ — управление мышью")
         if h != self.hover:
             self.hover = h
-            self.setCursor(Qt.CursorShape.PointingHandCursor if h else Qt.CursorShape.ArrowCursor)
             self.update()
 
     def leaveEvent(self, e):
@@ -2558,6 +2609,9 @@ class Artwork(QWidget):
         if self.pressed and self._btn_rect().contains(e.position()):
             self.start_spin()
             self.on_refresh()
+        elif (not self.pressed and self.on_click and self.click_ok() and e.button() == Qt.MouseButton.LeftButton
+              and self.rect().contains(e.position().toPoint())):
+            self.on_click()
         self.pressed = False
         self.update()
 
@@ -2952,6 +3006,407 @@ def pick_apk(state: "State"):
         state.tv_install_apk(paths)
 
 
+# ---------------------------------------------------------------- TV screen + mouse (scrcpy)
+
+def _adb_ready_error(ip: str, what: str) -> str | None:
+    """None when ADB to this TV works (one connect is fine: the user asked), else what to do."""
+    if not P.adb_available():
+        return what + ": ADB не установлен — откройте «Подключение ТВ…» и скачайте platform-tools."
+    st = adb_state(ip, force=True)
+    if st == "device":
+        return None
+    return {"unauthorized": what + ": подтвердите на ТВ «Разрешить отладку».",
+            "closed": what + " работает через ADB — включите его: «Подключение ТВ…» → ADB."}.get(
+        st, what + ": ADB не подключён — откройте «Подключение ТВ…».")
+
+
+def scrcpy_download() -> str:
+    """Fetch the latest scrcpy release for this computer into P.SCRCPY_DIR (checked against
+    the release's SHA256SUMS.txt) and return the scrcpy binary."""
+    import hashlib, shutil, tarfile, tempfile, urllib.request, zipfile
+    pre = P.scrcpy_asset_prefix()
+    if not pre:
+        raise RuntimeError("для этого компьютера нет готовой сборки scrcpy — установите его из пакетов")
+    def get(url, timeout=30):
+        return urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "Fling"}), timeout=timeout)
+    rel = json.load(get(P.SCRCPY_RELEASES, 20))
+    assets = {a["name"]: a["browser_download_url"] for a in rel.get("assets", [])}
+    name = next((n for n in assets if n.startswith(pre) and n.endswith((".zip", ".tar.gz"))), None)
+    if not name or "SHA256SUMS.txt" not in assets:
+        raise RuntimeError("в релизе scrcpy нет сборки для этого компьютера")
+    sums = get(assets["SHA256SUMS.txt"]).read().decode(errors="replace")
+    want = next((l.split()[0].lower() for l in sums.splitlines() if l.strip().endswith(name)), None)
+    if not want:
+        raise RuntimeError("нет контрольной суммы scrcpy")
+    tmp = tempfile.mkdtemp(prefix="fling-scrcpy-")
+    try:
+        arch = os.path.join(tmp, name)
+        h = hashlib.sha256()
+        with get(assets[name], 120) as r, open(arch, "wb") as f:
+            while chunk := r.read(1 << 16):
+                h.update(chunk); f.write(chunk)
+        if h.hexdigest() != want:
+            raise RuntimeError("архив scrcpy повреждён (контрольная сумма не сошлась)")
+        out = os.path.join(tmp, "x")
+        if name.endswith(".zip"):
+            with zipfile.ZipFile(arch) as z:
+                z.extractall(out)                 # zipfile drops "..", absolute paths
+        else:
+            with tarfile.open(arch) as t:
+                t.extractall(out, filter="data")
+        top = [os.path.join(out, x) for x in os.listdir(out)]
+        src = top[0] if len(top) == 1 and os.path.isdir(top[0]) else out
+        shutil.rmtree(P.SCRCPY_DIR, ignore_errors=True)
+        os.makedirs(os.path.dirname(P.SCRCPY_DIR), exist_ok=True)
+        shutil.move(src, P.SCRCPY_DIR)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    exe = P.find_scrcpy()
+    if not exe or not exe.startswith(P.SCRCPY_DIR):
+        raise RuntimeError("в архиве scrcpy нет программы scrcpy")
+    print("scrcpy:", rel.get("tag_name"), "→", P.SCRCPY_DIR, flush=True)
+    return exe
+
+
+class TvScreen(QObject):
+    """The TV's screen in a window (scrcpy), the computer mouse as a real pointer on the TV.
+
+    mode "screen": video + mouse;  mode "mouse": no video, a small window that captures
+    the mouse and keyboard for the TV. --mouse=uhid makes Android show its own cursor;
+    TVs without UHID fall back to taps (--mouse=sdk)."""
+    changed = pyqtSignal()
+
+    def __init__(self, state: "State"):
+        super().__init__()
+        self.state = state
+        self.proc = None
+        self.mode = None
+        self.busy = False
+        self._quiet = set()          # processes we stopped ourselves: their exit is no error
+
+    def running(self, mode=None) -> bool:
+        from PyQt6.QtCore import QProcess
+        on = self.proc is not None and self.proc.state() != QProcess.ProcessState.NotRunning
+        return on and (mode is None or mode == self.mode)
+
+    def toggle(self, mode="screen"):
+        """Open the window; the same menu item again closes it."""
+        if self.running(mode):
+            self.stop()
+            return
+        self.open(mode)
+
+    def stop(self):
+        if self.running():
+            self._quiet.add(id(self.proc))
+            self.proc.terminate()                # scrcpy cleans up on the TV when it can
+            p = self.proc
+            QTimer.singleShot(3000, lambda: p.kill() if p.state() != p.ProcessState.NotRunning else None)
+
+    def open(self, mode="screen"):
+        s = self.state
+        ip = s.ip
+        if not ip:
+            s._set(last_error="Устройство не выбрано")
+            return
+        if self.busy:
+            return
+        self.busy = True
+        what = "Экран ТВ" if mode == "screen" else "Мышь для ТВ"
+
+        def work():
+            err = _adb_ready_error(ip, what)
+            if err:
+                return {"error": err}
+            exe = P.find_scrcpy()
+            if not exe:
+                if P.IS_LINUX and not P.scrcpy_asset_prefix():
+                    return {"error": what + ": установите scrcpy (sudo apt install scrcpy)."}
+                self.state.bridge.call.emit(lambda: notify_send("Скачиваю scrcpy (~12 МБ) — один раз…"))
+                exe = scrcpy_download()
+            return {"exe": exe}
+
+        def done(r, e):
+            self.busy = False
+            if e or not r:
+                s._set(last_error=f"{what}: {e}")
+                return
+            if r.get("error"):
+                s._set(last_error=r["error"])
+                return
+            self.stop()
+            self._start(r["exe"], ip, mode, "uhid")
+
+        s.bg(work, done)
+
+    def _start(self, exe, ip, mode, mouse):
+        from PyQt6.QtCore import QProcess, QProcessEnvironment
+        title = tr("Fling — экран ТВ") if mode == "screen" else tr("Fling — мышь для ТВ")
+        args = ["-s", _adb_serial(ip), "--no-audio", f"--mouse={mouse}", f"--window-title={title}"]
+        if mode == "screen":
+            args += ["--max-size=1280", "--max-fps=30", "--video-bit-rate=4M"]
+        else:
+            args += ["--no-video", "--window-width=440", "--window-height=120"]
+        p = QProcess(self)
+        env = QProcessEnvironment.systemEnvironment()
+        if os.path.isfile(_ADB):
+            env.insert("ADB", _ADB)              # one adb server: Fling's, not scrcpy's own copy
+        p.setProcessEnvironment(env)
+        p.setWorkingDirectory(os.path.dirname(exe))
+        p.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
+        p.setProgram(exe)
+        p.setArguments(args)
+        out = []
+        p.readyReadStandardOutput.connect(lambda: out.append(bytes(p.readAllStandardOutput()).decode(errors="replace")))
+        started = time.monotonic()
+
+        def finished(code, _status):
+            text = "".join(out)
+            print(f"scrcpy {mode} ({mouse}) exit {code}:\n{text[-1500:]}", flush=True)
+            if self.proc is p:
+                self.proc, self.mode = None, None
+            self.changed.emit()
+            if id(p) in self._quiet or code == 0:
+                self._quiet.discard(id(p))
+                return
+            quick = time.monotonic() - started < 15
+            if quick and mouse == "uhid" and "uhid" in text.lower():
+                self._start(exe, ip, mode, "sdk")    # no UHID on this TV: taps instead of a cursor
+                return
+            err = [l.split(":", 1)[1].strip() for l in text.splitlines() if l.startswith("ERROR:")]
+            self.state._set(last_error=tr("Экран ТВ закрылся: ") + (err[-1] if err else f"scrcpy {code}"))
+
+        p.finished.connect(finished)
+        p.errorOccurred.connect(lambda e: print("scrcpy error:", e, flush=True))
+        self.proc, self.mode = p, mode
+        print("scrcpy:", exe, *args, flush=True)
+        p.start()
+        self.changed.emit()
+        notify_send("Щёлкните в окне — мышь станет курсором на ТВ. Alt — вернуть мышь компьютеру."
+                    if mouse == "uhid" else "Щелчки в окне — нажатия на ТВ.")
+
+
+# ---------------------------------------------------------------- ADB console
+
+# adb subcommands typed as-is; anything else runs as `adb shell <text>`
+_ADB_SUBCMDS = {"shell", "exec-out", "logcat", "install", "install-multiple", "uninstall", "pull", "push",
+                "reboot", "get-state", "get-serialno", "get-devpath", "bugreport", "forward", "reverse",
+                "root", "unroot", "remount", "tcpip", "usb", "sideload", "jdwp", "features", "version",
+                "disconnect", "wait-for-device", "emu", "devices"}
+# typed adb options that would aim the console at another device / server
+_ADB_FORBIDDEN = {"-s", "-t", "-H", "-P", "-L", "-d", "-e", "connect", "pair", "kill-server", "start-server",
+                  "-a", "nodaemon", "server"}
+# asks first: may lose data, reboot the TV or cut the ADB link
+_ADB_RISKY_SUB = {"reboot", "uninstall", "sideload", "tcpip", "usb", "root", "unroot", "remount", "disconnect"}
+_ADB_RISKY = re.compile(        # inside `adb shell …`
+    r"(^|[;&|\s])(reboot|wipe|recovery|rm|mv|dd|setprop|svc|"
+    r"pm\s+(clear|uninstall|disable|disable-user|hide|suspend|reset-permissions)|"
+    r"settings\s+(put|delete|reset)|cmd\s+package\s+(uninstall|clear)|am\s+force-stop)(\s|$)", re.I)
+
+ADB_QUICK = (
+    ("Модель и Android", "getprop ro.product.manufacturer; getprop ro.product.model; "
+                         "getprop ro.build.version.release; getprop ro.build.version.sdk"),
+    ("Что играет", "dumpsys media_session | grep -E 'package=|active=|state=PlaybackState|description='"),
+    ("Активное приложение", "dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'"),
+    ("Установленные приложения", "pm list packages -3"),
+    ("Разрешение экрана", "wm size; wm density"),
+    ("Свободное место", "df -h /data"),
+    ("Память", "head -3 /proc/meminfo"),
+    ("Сеть", "ip -4 addr show"),
+    ("Логи: последние 300 строк", "logcat -d -t 300"),
+    ("Логи вживую: только ошибки", "logcat *:E"),
+)
+
+
+def adb_console_args(text: str) -> tuple[list[str] | None, str | None]:
+    """What the user typed → (adb arguments after `-s TV`, or None and why not)."""
+    import shlex
+    t = text.strip()
+    if t.lower().startswith("adb "):
+        t = t[4:].strip()
+    if not t:
+        return None, None
+    try:
+        words = shlex.split(t, posix=True)
+    except ValueError as ex:
+        return None, f"кавычки не закрыты ({ex})"
+    first = words[0]
+    if first in _ADB_FORBIDDEN or first.startswith("-"):
+        return None, ("консоль всегда работает с выбранным ТВ: -s, connect, pair, kill-server "
+                      "и другие ключи adb здесь не нужны — подключение настраивается в «Подключение ТВ…».")
+    if first in ("shell", "exec-out"):
+        rest = t.split(None, 1)[1] if len(words) > 1 else ""
+        if not rest:
+            return None, "напишите команду после shell — интерактивная оболочка здесь не открывается."
+        return [first, rest], None                # the TV's shell parses the rest itself
+    if first in _ADB_SUBCMDS:
+        return words, None
+    return ["shell", t], None
+
+
+class AdbConsole(QWidget):
+    """Run adb commands against the selected TV and watch the output live."""
+    MAX_HISTORY = 50
+
+    def __init__(self, state: "State"):
+        super().__init__(None, Qt.WindowType.Window)
+        from PyQt6.QtWidgets import QPlainTextEdit
+        self.state = state
+        self.proc = None
+        self.hist = list(state.conf.get("adb_history") or [])[-self.MAX_HISTORY:]
+        self.hpos = len(self.hist)
+        self.setWindowTitle(tr("Fling — ADB-консоль"))
+        self.resize(760, 520)
+        pal = self.palette(); pal.setColor(self.backgroundRole(), T.bg); self.setPalette(pal)
+        self.setAutoFillBackground(True)
+        v = QVBoxLayout(self); v.setContentsMargins(14, 12, 14, 12); v.setSpacing(8)
+        self.head = label("", 11, T.fg_a(0.6), wrap=True)
+        v.addWidget(self.head)
+        row = QHBoxLayout(); row.setSpacing(6)
+        self.cmd = field("getprop ro.product.model   ·   logcat -d -t 100   ·   pm list packages -3", mono=True)
+        self.cmd.returnPressed.connect(self.run)
+        self.cmd.installEventFilter(self)
+        row.addWidget(self.cmd, 1)
+        self.go = small_button("Выполнить", self.run)
+        row.addWidget(self.go)
+        self.stop_btn = small_button("Стоп", self.stop)
+        self.stop_btn.setEnabled(False)
+        row.addWidget(self.stop_btn)
+        v.addLayout(row)
+        row2 = QHBoxLayout(); row2.setSpacing(6)
+        quick = small_button("Быстрые команды ▾", lambda: None)
+        qm = QMenu(quick)
+        for title, c in ADB_QUICK:
+            qm.addAction(title, lambda c=c: (self.cmd.setText(c), self.run()))
+        quick.setMenu(qm)
+        row2.addWidget(quick)
+        row2.addStretch(1)
+        row2.addWidget(small_button("Копировать вывод", lambda: QApplication.clipboard().setText(self.out.toPlainText())))
+        row2.addWidget(small_button("Очистить", lambda: self.out.clear()))
+        v.addLayout(row2)
+        self.out = QPlainTextEdit()
+        self.out.setReadOnly(True)
+        self.out.setMaximumBlockCount(20000)
+        self.out.setFont(font(12, mono=True))
+        self.out.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        self.out.setStyleSheet(f"QPlainTextEdit{{background:{Theme.css(T.fg_a(0.05))};border:none;"
+                               "border-radius:6px;padding:6px}")
+        v.addWidget(self.out, 1)
+        self._head()
+
+    def _head(self):
+        ip = self.state.ip
+        self.head.setText((tr("ТВ: ") + _adb_serial(ip) + "   ·   " if ip else tr("ТВ не выбран   ·   ")) +
+                          tr("Команда выполняется в оболочке ТВ (adb shell). adb-команды вроде logcat, "
+                             "install, pull пишите как есть. ↑/↓ — история."))
+
+    def showEvent(self, e):
+        self._head()
+        self.cmd.setFocus()
+        super().showEvent(e)
+
+    def eventFilter(self, obj, e):
+        if obj is self.cmd and e.type() == QEvent.Type.KeyPress and self.hist:
+            if e.key() == Qt.Key.Key_Up:
+                self.hpos = max(0, self.hpos - 1)
+                self.cmd.setText(self.hist[self.hpos]); return True
+            if e.key() == Qt.Key.Key_Down:
+                self.hpos = min(len(self.hist), self.hpos + 1)
+                self.cmd.setText(self.hist[self.hpos] if self.hpos < len(self.hist) else ""); return True
+        return super().eventFilter(obj, e)
+
+    def _print(self, text):
+        from PyQt6.QtGui import QTextCursor
+        c = self.out.textCursor()
+        c.movePosition(QTextCursor.MoveOperation.End)
+        c.insertText(text)
+        self.out.setTextCursor(c)
+        self.out.ensureCursorVisible()
+
+    def running(self) -> bool:
+        from PyQt6.QtCore import QProcess
+        return self.proc is not None and self.proc.state() != QProcess.ProcessState.NotRunning
+
+    def run(self):
+        from PyQt6.QtWidgets import QMessageBox
+        text = self.cmd.text().strip()
+        if not text or self.running():
+            return
+        ip = self.state.ip
+        if not ip:
+            self._print(tr("ТВ не выбран.") + "\n"); return
+        args, why = adb_console_args(text)
+        if not args:
+            if why:
+                self._print("✗ " + tr(why) + "\n")
+            return
+        if args[0] in _ADB_RISKY_SUB or (args[0] in ("shell", "exec-out") and _ADB_RISKY.search(args[1])):
+            ok = QMessageBox.question(self, "Fling", tr("Эта команда может удалить данные, перезагрузить ТВ "
+                                                        "или разорвать связь ADB. Выполнить?") + "\n\n" + text)
+            if ok != QMessageBox.StandardButton.Yes:
+                return
+        if not self.hist or self.hist[-1] != text:
+            self.hist = (self.hist + [text])[-self.MAX_HISTORY:]
+            self.state.conf["adb_history"] = self.hist
+            save_conf(self.state.conf)
+        self.hpos = len(self.hist)
+        self.cmd.clear()
+        self.go.setEnabled(False)
+        self._print(f"\n$ adb -s {_adb_serial(ip)} " + " ".join(args) + "\n")
+
+        def work():
+            return _adb_ready_error(ip, "ADB")
+
+        def done(err, e):
+            if e or err:
+                self.go.setEnabled(True)
+                self._print("✗ " + tr(str(e or err)) + "\n")
+                return
+            self._launch(ip, args)
+        self.state.bg(work, done)
+
+    def _launch(self, ip, args):
+        from PyQt6.QtCore import QProcess
+        p = QProcess(self)
+        p.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
+        p.readyReadStandardOutput.connect(
+            lambda: self._print(bytes(p.readAllStandardOutput()).decode("utf-8", errors="replace").replace("\r\n", "\n")))
+        started = time.monotonic()
+
+        def finished(code, _st):
+            en = LANG == "en"
+            what = ("stopped" if en else "остановлено") if getattr(p, "killed", False) else \
+                f"{'exit' if en else 'код'} {code}"
+            self._print(f"[{what} · {time.monotonic() - started:.1f} {'s' if en else 'с'}]\n")
+            self.go.setEnabled(True); self.stop_btn.setEnabled(False)
+            print("adb console:", *args, "→", code, flush=True)
+
+        p.finished.connect(finished)
+        p.errorOccurred.connect(lambda err: self._print(f"✗ adb: {err}\n") if err == QProcess.ProcessError.FailedToStart else None)
+        p.setProgram(_ADB)
+        p.setArguments(["-s", _adb_serial(ip), *args])
+        self.proc = p
+        self.stop_btn.setEnabled(True)
+        p.start()
+        p.closeWriteChannel()                    # no stdin: commands never wait for input
+
+    def stop(self):
+        if self.running():
+            self.proc.killed = True
+            self.proc.kill()
+
+    def closeEvent(self, e):
+        self.stop()
+        super().closeEvent(e)
+
+
+def open_adb_console(holder, state: "State"):
+    if not getattr(holder, "_adb_console", None):
+        holder._adb_console = AdbConsole(state)
+    w = holder._adb_console
+    w.show(); w.raise_(); w.activateWindow()
+
+
 def extension_dir() -> str | None:
     """The unpacked Chrome/Edge extension that came with this Fling: next to Fling.exe in the
     setup build, in %LOCALAPPDATA%\\Fling for install.ps1, or the repo's build output."""
@@ -3102,7 +3557,8 @@ class Panel(QWidget):
         # ---- casting
         self.casting = QWidget()
         cl = QVBoxLayout(self.casting); cl.setContentsMargins(0, 0, 0, 0); cl.setSpacing(0)
-        self.c_art = Artwork(120, on_refresh=self._refresh_now)
+        self.c_art = Artwork(120, on_refresh=self._refresh_now, on_click=self._open_screen)
+        self.c_art.click_ok = state.adb_ok
         cl.addWidget(padded(self.c_art, 12, 10, 12, 0))
         self.c_title = label("", 12.5, weight=QFont.Weight.DemiBold, wrap=True)
         self.c_host = label("", 11, T.fg_a(0.55))
@@ -3169,7 +3625,8 @@ class Panel(QWidget):
         # ---- idle
         self.idle = QWidget()
         il = QVBoxLayout(self.idle); il.setContentsMargins(0, 0, 0, 0); il.setSpacing(0)
-        self.i_art = Artwork(108, on_refresh=self._refresh_now)
+        self.i_art = Artwork(108, on_refresh=self._refresh_now, on_click=self._open_screen)
+        self.i_art.click_ok = state.adb_ok
         self.i_art_box = padded(self.i_art, 12, 10, 12, 0)
         il.addWidget(self.i_art_box)
         self.i_title = label("", 12.5, weight=QFont.Weight.DemiBold, wrap=True)
@@ -3343,7 +3800,7 @@ class Panel(QWidget):
         rl.addLayout(ty)
         v.addWidget(self.r_ctl)
 
-        self.r_fail = label("", 11, T.orange, wrap=True)
+        self.r_fail = label("", 11, T.fg_a(0.6), wrap=True)
         self.r_fail_box = padded(self.r_fail, 14, 0, 14, 7)
         v.addWidget(self.r_fail_box)
 
@@ -3465,7 +3922,7 @@ class Panel(QWidget):
         strip, box = getattr(self, "kb_strip", None), getattr(self, "kb_box", None)
         if strip is None or box is None:
             return
-        text = "⌨  Клавиатура захвачена — Esc, чтобы выйти"
+        text = "⌨  Клавиатура захвачена, Esc — выход"
         if strip.text() != tr(text):
             strip.setText(text)
         if box.isVisibleTo(self) != on:
@@ -3692,6 +4149,11 @@ class Panel(QWidget):
         for a in (self.c_art, self.i_art):
             a.busy = lambda: self.state._refreshing
 
+    def _open_screen(self):
+        """Click on the cover: the TV's live screen in a window, the mouse drives the TV."""
+        self.hide()
+        self.state.screen.open("screen")
+
     def _toggle_lang(self):
         c = load_conf()
         c["lang"] = "en" if LANG == "ru" else "ru"
@@ -3717,6 +4179,10 @@ class Panel(QWidget):
                 ("Усыпить", "sleep"),
                 ("Домой", "home"),
                 ("Снимок экрана", "screenshot"),
+                ("Экран ТВ с мышью", "screen"),
+                ("Мышь для ТВ", "mouse"),
+                ("ADB-консоль…", "console"),
+                (None, None),
                 ("Настройки", "settings"),
                 ("Приложения", "apps"),
                 ("Закрыть приложение", "force_stop"),
@@ -3732,6 +4198,11 @@ class Panel(QWidget):
                     m.addAction(title, lambda: (self.hide(), self.open_setup()))
                 elif act == "screenshot":
                     m.addAction(title, self.state.tv_screenshot)
+                elif act in ("screen", "mouse"):
+                    a = m.addAction(title, lambda a=act: self.state.screen.toggle(a))
+                    a.setCheckable(True); a.setChecked(self.state.screen.running(act))
+                elif act == "console":
+                    m.addAction(title, lambda: (self.hide(), open_adb_console(self, self.state)))
                 elif act == "apk":
                     # the popup would close under the file dialog anyway
                     m.addAction(title, lambda: (self.hide(), pick_apk(self.state)))
@@ -4180,7 +4651,7 @@ class AdbBadge(QWidget):
             if self._compact:
                 self.msg.hide()
             else:
-                self.msg.setStyleSheet(f"color:{Theme.css(T.orange)};background:transparent")
+                self.msg.setStyleSheet(f"color:{Theme.css(T.fg_a(0.6))};background:transparent")
                 self.msg.setText("Подключаюсь…"); self.msg.show()
         else:
             self.ok.hide()
@@ -4788,6 +5259,13 @@ class Tray(QObject):
         la.setCheckable(True); la.setChecked(login_enabled())
         m.addAction("Как пользоваться", lambda: open_help(self.panel))   # guide from the tray menu
         m.addAction("Сделать снимок", s.tv_screenshot)
+        tm = m.addMenu("ADB")
+        a = tm.addAction("Экран ТВ с мышью", lambda: s.screen.toggle("screen"))
+        a.setCheckable(True); a.setChecked(s.screen.running("screen"))
+        a = tm.addAction("Мышь для ТВ", lambda: s.screen.toggle("mouse"))
+        a.setCheckable(True); a.setChecked(s.screen.running("mouse"))
+        tm.addAction("ADB-консоль…", lambda: open_adb_console(self.panel, s))
+        tm.addAction("Журнал Fling", lambda: P.open_path(P.LOG))
         m.addAction("Подключение ТВ…", self.panel.open_setup)
         m.addAction("Выйти из Fling", QApplication.quit)
 
@@ -4995,6 +5473,14 @@ def main():
             state.tv_install_apk(files) if files else pick_apk(state)
         elif c == "setup":
             panel.open_setup()
+        elif c in ("screen", "mouse"):                       # `fling screen` / `fling mouse`
+            state.screen.toggle(c)
+        elif c == "adb":                                     # `fling adb`: the ADB console
+            open_adb_console(panel, state)
+        elif c == "log":                                     # `fling log`: open app.log
+            P.open_path(P.LOG)
+        elif c == "install-extension":
+            install_extension(None, state)
         elif c == "quit":
             app.quit()
 
