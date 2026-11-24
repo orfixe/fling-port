@@ -2026,6 +2026,17 @@ EN_PHRASES = [  # longest first is applied automatically
      "Click in the window — the mouse becomes a pointer on the TV. Alt gives the mouse back."),
     ("Щелчки в окне — нажатия на ТВ.", "Clicks in the window tap the TV."),
     ("Экран ТВ закрылся: ", "The TV screen closed: "),
+    ("Мышь: курсор на ТВ", "Mouse: pointer on the TV"), ("Мышь: касания", "Mouse: taps"),
+    ("Мышь: только смотреть", "Mouse: just watch"),
+    ("Клавиатура: на ТВ", "Keyboard: to the TV"), ("Клавиатура: у компьютера", "Keyboard: stays on the PC"),
+    ("Щёлкните по картинке — мышь станет курсором на ТВ. Alt — вернуть мышь.",
+     "Click the picture — the mouse becomes a pointer on the TV. Alt gives it back."),
+    ("Мышь не захватывается: щелчок по картинке — нажатие в этом месте ТВ.",
+     "The mouse isn't captured: a click on the picture taps the TV there."),
+    ("Только картинка: мышь и клавиатура остаются у компьютера.",
+     "Just the picture: the mouse and keyboard stay with the computer."),
+    ("Клавиатура в окне печатает на ТВ.", "The keyboard in the window types on the TV."),
+    ("Клавиатура не передаётся на ТВ.", "The keyboard isn't sent to the TV."),
     ("Экран ТВ: scrcpy не запустился — ", "TV screen: scrcpy didn't start — "),
     (" работает через ADB — включите его: «Подключение ТВ…» → ADB.",
      " works over ADB — turn it on: “Connect TV…” → ADB."),
@@ -3479,6 +3490,8 @@ class TvScreen(QObject):
         self.busy = False
         self.live_geom = None        # (x, y, w, h) in physical pixels: where the live video goes
         self.live_audio = False      # live picture: TV sound on this PC too (scrcpy audio, Android 11+)
+        self.live_mouse = "uhid"     # live picture: uhid = captured pointer, sdk = taps, view = no control
+        self.live_kb = "on"          # live picture: keyboard to the TV (on) or kept on the PC (off)
         self.output = []             # what the running scrcpy printed so far
         self._quiet = set()          # processes we stopped ourselves: their exit is no error
 
@@ -3541,7 +3554,7 @@ class TvScreen(QObject):
                 s._set(last_error=r["error"])
                 return
             self.stop()
-            self._start(r["exe"], ip, mode, "uhid")
+            self._start(r["exe"], ip, mode, self.live_mouse if mode == "live" else "uhid")
 
         s.bg(work, done)
 
@@ -3551,7 +3564,13 @@ class TvScreen(QObject):
         if mode == "live":                       # a unique title: LiveWindow finds the window by it
             title = f"fling-live-{os.getpid()}-{int(time.monotonic() * 1000)}"
         audio = mode == "live" and self.live_audio
-        args = ["-s", _adb_serial(ip), f"--mouse={mouse}", f"--window-title={title}"]
+        args = ["-s", _adb_serial(ip), f"--window-title={title}"]
+        if mouse == "view":                      # just watch: no mouse, no keys to the TV
+            args.append("--no-control")
+        else:
+            args.append(f"--mouse={mouse}")
+            if mode == "live" and self.live_kb == "off":
+                args.append("--keyboard=disabled")
         if not audio:
             args.append("--no-audio")
         if mode in ("screen", "live"):
@@ -3709,10 +3728,19 @@ class LiveWindow(QWidget):
         self.audio_note = label("", 10.5, T.fg_a(0.5), wrap=True)
         self.audio_note.hide()
         sl.addWidget(padded(self.audio_note, 14, 2, 14, 0))
+        # how the mouse and keyboard work on the picture (remembered; switching restarts it)
+        self.mouse_btn = small_button("", lambda: None)
+        self.kb_btn = small_button("", lambda: None)
+        for b, menu in ((self.mouse_btn, self._mouse_menu), (self.kb_btn, self._kb_menu)):
+            m = QMenu(b)
+            m.aboutToShow.connect(lambda m=m, f=menu: f(m))
+            b.setMenu(m)
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            sl.addWidget(padded(b, 14, 6, 14, 0))
         sl.addStretch(1)
-        tip = label("Щёлкните по картинке — мышь станет курсором на ТВ. "
-                    "Alt — вернуть мышь. Клавиатура в окне печатает на ТВ.", 10.5, T.fg_a(0.5), wrap=True)
-        sl.addWidget(padded(tip, 14, 4, 14, 4))
+        self.tip = label("", 10.5, T.fg_a(0.5), wrap=True)
+        sl.addWidget(padded(self.tip, 14, 4, 14, 4))
+        self._input_labels()
         self.status = label("", 10.5, T.fg_a(0.5), wrap=True)
         sl.addWidget(padded(self.status, 14, 0, 14, 4))
         sl.addWidget(padded(small_button("Перезапустить картинку", self.restart), 14, 2, 14, 0))
@@ -3734,6 +3762,47 @@ class LiveWindow(QWidget):
         state.screen.changed.connect(self._sync)
         state.changed.connect(self._sync_now)
         self._sync_now()
+        install_file_drop(self, state)            # files dropped on the remote side go to the TV
+
+    MOUSE = (("uhid", "Мышь: курсор на ТВ", "Щёлкните по картинке — мышь станет курсором на ТВ. Alt — вернуть мышь."),
+             ("sdk", "Мышь: касания", "Мышь не захватывается: щелчок по картинке — нажатие в этом месте ТВ."),
+             ("view", "Мышь: только смотреть", "Только картинка: мышь и клавиатура остаются у компьютера."))
+    KB = (("on", "Клавиатура: на ТВ", "Клавиатура в окне печатает на ТВ."),
+          ("off", "Клавиатура: у компьютера", "Клавиатура не передаётся на ТВ."))
+
+    def _input_labels(self):
+        c = self.state.conf
+        mouse = c.get("live_mouse", "uhid")
+        kb = c.get("live_kb", "on")
+        mt = next(x for x in self.MOUSE if x[0] == mouse) if mouse in dict((x[0], 1) for x in self.MOUSE) else self.MOUSE[0]
+        kt = next(x for x in self.KB if x[0] == kb) if kb in ("on", "off") else self.KB[0]
+        self.mouse_btn.setText(mt[1] + "  ▾")
+        self.kb_btn.setText(kt[1] + "  ▾")
+        self.kb_btn.setEnabled(mt[0] != "view")
+        self.tip.setText(tr(mt[2]) + ("" if mt[0] == "view" else " " + tr(kt[2])))
+
+    def _mouse_menu(self, m):
+        m.clear()
+        cur = self.state.conf.get("live_mouse", "uhid")
+        for key, title, tip in self.MOUSE:
+            a = m.addAction(title, lambda k=key: self._set_input("live_mouse", k))
+            a.setCheckable(True); a.setChecked(key == cur); a.setToolTip(tr(tip))
+
+    def _kb_menu(self, m):
+        m.clear()
+        cur = self.state.conf.get("live_kb", "on")
+        for key, title, tip in self.KB:
+            a = m.addAction(title, lambda k=key: self._set_input("live_kb", k))
+            a.setCheckable(True); a.setChecked(key == cur); a.setToolTip(tr(tip))
+
+    def _set_input(self, name, value):
+        if self.state.conf.get(name) == value:
+            return
+        self.state.conf[name] = value
+        save_conf(self.state.conf)
+        self._input_labels()
+        if self.isVisible():
+            self.restart()                        # scrcpy takes these only at start
 
     def _toggle_audio(self, on):
         self.state.conf["live_audio"] = bool(on)
@@ -3838,6 +3907,8 @@ class LiveWindow(QWidget):
         self.status.setText(tr("Подключаюсь к экрану ТВ…"))
         self.state.screen.live_geom = self._geom()
         self.state.screen.live_audio = bool(self.state.conf.get("live_audio"))
+        self.state.screen.live_mouse = self.state.conf.get("live_mouse", "uhid")
+        self.state.screen.live_kb = self.state.conf.get("live_kb", "on")
         self.state.screen.open("live", on_started=self._started)
 
     def restart(self):
