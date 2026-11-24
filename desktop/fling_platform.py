@@ -679,6 +679,22 @@ class MicRecorder:
 
 # ---------------------------------------------------------------- pictures folder
 
+def downloads_dir() -> str:
+    """The user's Downloads folder (Windows: wherever it was moved to), else home."""
+    if IS_WIN:
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders") as k:
+                d = os.path.expandvars(winreg.QueryValueEx(k, "{374DE290-123F-4565-9164-39C4925E467B}")[0])
+            if os.path.isdir(d):
+                return d
+        except OSError:
+            pass
+    d = os.path.join(HOME, "Downloads")
+    return d if os.path.isdir(d) else HOME
+
+
 def pictures_dir() -> str:
     if IS_LINUX:
         try:

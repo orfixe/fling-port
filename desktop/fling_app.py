@@ -329,10 +329,13 @@ class CastLink:
         if not cc.socket_client.is_connected:
             raise CattError("Телевизор не ответил.")
         cs, mc = cc.status, cc.media_controller
-        try:
-            mc.update_status()                    # ask for a fresh one; it arrives for the next poll
-        except Exception:
-            pass
+        # Ask for a fresh status only while a Cast app with the media namespace runs:
+        # otherwise pychromecast *launches* the Default Media Receiver on the TV to send it.
+        if mc.is_active:
+            try:
+                mc.update_status()                # it arrives for the next poll
+            except Exception:
+                pass
         ms = mc.status
         vol = int(round(cs.volume_level * 100)) if cs and cs.volume_level is not None else None
         app = getattr(cs, "app_id", None)
@@ -1853,6 +1856,7 @@ EN_PHRASES = [  # longest first is applied automatically
      "Click in the window — the mouse becomes a pointer on the TV. Alt gives the mouse back."),
     ("Щелчки в окне — нажатия на ТВ.", "Clicks in the window tap the TV."),
     ("Экран ТВ закрылся: ", "The TV screen closed: "),
+    ("Экран ТВ: scrcpy не запустился — ", "TV screen: scrcpy didn't start — "),
     (" работает через ADB — включите его: «Подключение ТВ…» → ADB.",
      " works over ADB — turn it on: “Connect TV…” → ADB."),
     (": ADB не установлен — откройте «Подключение ТВ…» и скачайте platform-tools.",
@@ -3186,12 +3190,26 @@ def scrcpy_download() -> str:
                 z.extractall(out)                 # zipfile drops "..", absolute paths
         else:
             with tarfile.open(arch) as t:
-                t.extractall(out, filter="data")
+                if hasattr(tarfile, "data_filter"):
+                    t.extractall(out, filter="data")
+                else:                             # Python < 3.11.4: check the paths by hand
+                    root = os.path.realpath(out)
+                    for m in t.getmembers():
+                        dest = os.path.realpath(os.path.join(out, m.name))
+                        if not dest.startswith(root + os.sep) or m.issym() or m.islnk():
+                            raise RuntimeError("архив scrcpy повреждён (контрольная сумма не сошлась)")
+                    t.extractall(out)
         top = [os.path.join(out, x) for x in os.listdir(out)]
         src = top[0] if len(top) == 1 and os.path.isdir(top[0]) else out
-        shutil.rmtree(P.SCRCPY_DIR, ignore_errors=True)
         os.makedirs(os.path.dirname(P.SCRCPY_DIR), exist_ok=True)
-        shutil.move(src, P.SCRCPY_DIR)
+        new, old = P.SCRCPY_DIR + ".new", P.SCRCPY_DIR + ".old"
+        shutil.rmtree(new, ignore_errors=True)
+        shutil.move(src, new)                     # the old copy stays usable until the swap
+        shutil.rmtree(old, ignore_errors=True)
+        if os.path.isdir(P.SCRCPY_DIR):
+            os.replace(P.SCRCPY_DIR, old)
+        os.replace(new, P.SCRCPY_DIR)
+        shutil.rmtree(old, ignore_errors=True)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     exe = P.find_scrcpy()
@@ -3327,7 +3345,15 @@ class TvScreen(QObject):
             self.state._set(last_error=tr("Экран ТВ закрылся: ") + (err[-1] if err else f"scrcpy {code}"))
 
         p.finished.connect(finished)
-        p.errorOccurred.connect(lambda e: print("scrcpy error:", e, flush=True))
+        def failed(err):
+            print("scrcpy error:", err, flush=True)
+            if err == QProcess.ProcessError.FailedToStart:
+                if self.proc is p:
+                    self.proc, self.mode = None, None
+                self.state._set(last_error=tr("Экран ТВ: scrcpy не запустился — ") + p.errorString())
+                self.changed.emit()
+
+        p.errorOccurred.connect(failed)
         self.proc, self.mode = p, mode
         print("scrcpy:", exe, *args, flush=True)
         p.start()
@@ -3501,9 +3527,9 @@ _ADB_FORBIDDEN = {"-s", "-t", "-H", "-P", "-L", "-d", "-e", "connect", "pair", "
 # asks first: may lose data, reboot the TV or cut the ADB link
 _ADB_RISKY_SUB = {"reboot", "uninstall", "sideload", "tcpip", "usb", "root", "unroot", "remount", "disconnect"}
 _ADB_RISKY = re.compile(        # inside `adb shell …`
-    r"(^|[;&|\s])(reboot|wipe|recovery|rm|mv|dd|setprop|svc|"
+    r"(^|[;&|\s/'\"(`$])(reboot|wipe|recovery|rm|mv|dd|setprop|svc|"
     r"pm\s+(clear|uninstall|disable|disable-user|hide|suspend|reset-permissions)|"
-    r"settings\s+(put|delete|reset)|cmd\s+package\s+(uninstall|clear)|am\s+force-stop)(\s|$)", re.I)
+    r"settings\s+(put|delete|reset)|cmd\s+package\s+(uninstall|clear)|am\s+force-stop)(['\")`]|\s|$)", re.I)
 
 ADB_QUICK = (
     ("Модель и Android", "getprop ro.product.manufacturer; getprop ro.product.model; "
@@ -3684,7 +3710,13 @@ class AdbConsole(QWidget):
             print("adb console:", *args, "→", code, flush=True)
 
         p.finished.connect(finished)
-        p.errorOccurred.connect(lambda err: self._print(f"✗ adb: {err}\n") if err == QProcess.ProcessError.FailedToStart else None)
+        def failed(err):
+            if err == QProcess.ProcessError.FailedToStart:
+                self._print(f"✗ adb: {p.errorString()}\n")
+                self.go.setEnabled(True); self.stop_btn.setEnabled(False)
+
+        p.errorOccurred.connect(failed)
+        p.setWorkingDirectory(P.downloads_dir())      # `adb pull` / `bugreport` files go here
         p.setProgram(_ADB)
         p.setArguments(["-s", _adb_serial(ip), *args])
         self.proc = p
