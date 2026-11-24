@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 # Private macOS build: official Fling sources + keyboard-icon patch + Mac keyboard as the TV remote.
 # Must run on macOS 14+ with Swift 6.
 set -euo pipefail

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 """Fling for Linux and Windows — tray caster + TV remote. A port of the macOS
 Fling panel (menu-bar popover) to KDE Plasma and Windows: cast the current
 browser tab to a Chromecast / Google TV via catt, and drive the TV over the

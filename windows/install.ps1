@@ -13,6 +13,9 @@
   powershell -ExecutionPolicy Bypass -File windows\install.ps1
   powershell -ExecutionPolicy Bypass -File windows\install.ps1 -Uninstall
 #>
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 param(
   [switch]$Uninstall,
   [switch]$NoAdb,
@@ -159,6 +162,9 @@ Copy-Item (Join-Path $Repo 'extension\dist\chrome') (Join-Path $ExtDir 'chrome')
 Copy-Item (Join-Path $Repo 'extension\dist\firefox') (Join-Path $ExtDir 'firefox') -Recurse
 Copy-Item (Join-Path $Repo 'extension\dist\*.zip') $ExtDir
 Copy-Item (Join-Path $PSScriptRoot 'install-extension.ps1') $App -Force
+foreach ($n in 'LICENSE', 'NOTICE', 'CREDITS.md', 'THIRD-PARTY-NOTICES.md') {   # authorship and licenses
+  Copy-Item (Join-Path $Repo $n) (Join-Path $App $n) -Force
+}
 Note "extensions: $ExtDir"
 
 # ------------------------------------------------------------------ adb (optional)

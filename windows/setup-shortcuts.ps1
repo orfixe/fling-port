@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 # Standalone Fling (Fling.exe from the release zip): Start menu shortcut + `fling` command.
 # Run from the unpacked Fling folder; `-Remove` takes them away again.
 param([switch]$Remove)

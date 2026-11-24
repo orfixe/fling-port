@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 """Compose docs/screenshots/hero.png: the four app screenshots as even cards in one row.
 
     python docs/screenshots/make_hero.py

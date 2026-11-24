@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 # fling — terminal remote for Chromecast / Google TV on top of catt (Linux/KDE).
 #   fling              interactive remote
 #   fling clip         send link from clipboard to TV (for hotkey)

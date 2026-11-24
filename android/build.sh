@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 # Builds Fling.apk without Gradle: aapt2 → javac → d8 → zipalign → apksigner.
 # Works on Linux and on Windows (Git Bash): tools are found with or without .exe/.bat.
 set -euo pipefail

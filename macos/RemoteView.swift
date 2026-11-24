@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 orfixe and the Fling port contributors
+// Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 import SwiftUI
 import Combine
 import FlingKit

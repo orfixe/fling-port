@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 """Give the Fling launcher its own name and icon, so Task Manager shows "Fling", not "Python".
 
     uv run --no-project --with pyinstaller python brand-exe.py <Fling.exe> <fling.ico> <version>

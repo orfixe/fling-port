@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 # Private install for the unofficial macOS Fling Port build.
 #
 # Do NOT download Fling.app.zip in Safari/Chrome — macOS quarantines browser

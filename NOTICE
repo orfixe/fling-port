@@ -1,0 +1,20 @@
+Fling port - Windows, Linux, Android, browser extension and macOS add-ons
+Copyright (c) 2026 orfixe and the Fling port contributors
+Licensed under the MIT License (see LICENSE) - the code of this port only.
+
+This is an UNOFFICIAL port of Fling, "Your TV, from the Mac menu bar."
+  https://github.com/tatianathevisionary/fling
+  Author of the original code: Damion Rashford (https://github.com/damionrashford)
+  Owner and publisher of the original repository: Tatiana (https://github.com/tatianathevisionary)
+
+Fling's idea, design, panel layout, wording, TV app catalog and protocol research are
+their work. No Swift source of the original was copied into this port's own code; the
+macOS build (macos/) compiles the original sources with small patches. The original
+repository has no license, so all its rights stay with its authors and this port is
+not published without their permission. This port is not affiliated with or endorsed
+by them.
+
+When you redistribute this port, keep this NOTICE, LICENSE, CREDITS.md and
+THIRD-PARTY-NOTICES.md with it, and keep the in-app credit line.
+
+Third-party software used or bundled: see THIRD-PARTY-NOTICES.md.

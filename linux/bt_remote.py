@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 """Fling Bluetooth remote: the laptop poses as a Bluetooth LE HID remote
 (HID-over-GATT: keyboard + consumer control) that Google TV pairs with under
 Settings → Remotes & accessories. Controlled over a local UNIX socket:

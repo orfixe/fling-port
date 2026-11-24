@@ -19,6 +19,7 @@ AppName=Fling
 AppVersion={#AppVersion}
 AppVerName=Fling {#AppVersion}
 AppPublisher=Fling for Windows (unofficial port by orfixe)
+AppCopyright=(c) 2026 orfixe and the Fling port contributors. Fling by Damion Rashford and Tatiana.
 AppPublisherURL=https://github.com/orfixe/fling-port
 AppSupportURL=https://github.com/orfixe/fling-port/issues
 DefaultDirName={localappdata}\Programs\Fling

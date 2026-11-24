@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 # Build the Safari version of the Fling extension (run on a Mac with Xcode 15+).
 #
 #   ./extension/safari/build-safari.sh

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 """Build the Fling browser extension for every browser from one source tree.
 
     python extension/build.py            → extension/dist/{chrome,firefox,safari}/ + .zip files

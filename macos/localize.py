@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 """Port: route the author's user-visible strings through tr() (L10n.swift).
 
 Runs at build time on a fresh upstream checkout, so the author's sources stay

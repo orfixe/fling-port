@@ -8,6 +8,9 @@
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File windows\build.ps1
 #>
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 $ErrorActionPreference = 'Stop'
 $Repo  = Split-Path -Parent $PSScriptRoot
 $Work  = Join-Path $Repo 'build\windows'
@@ -111,6 +114,10 @@ Copy-Item (Join-Path $Repo 'extension\dist\chrome') (Join-Path $Out 'extension\c
 Copy-Item (Join-Path $Repo 'extension\dist\fling-firefox-*.zip') (Join-Path $Out 'extension') -Force
 # "Install the extension..." in the app drives the browser with this script
 Copy-Item (Join-Path $PSScriptRoot 'install-extension.ps1') $Out -Force
+# authorship and licenses travel with the program
+foreach ($n in 'LICENSE', 'NOTICE', 'CREDITS.md', 'THIRD-PARTY-NOTICES.md') {
+  Copy-Item (Join-Path $Repo $n) (Join-Path $Out $n) -Force
+}
 Copy-Item (Join-Path $Repo 'extension\dist\*.zip') $Dist -Force
 
 $Iscc = @((Get-Command iscc -ErrorAction SilentlyContinue).Source,

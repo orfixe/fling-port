@@ -142,5 +142,9 @@ ADB («Разрешить отладку?» → «Всегда»), по жела
 
 ## Лицензия
 
-Код этого репозитория — [MIT](LICENSE). Оригинальный Fling — его дизайн, тексты и идея — принадлежит
-Damion Rashford и Tatiana, см. [CREDITS.md](CREDITS.md).
+Код этого порта — [MIT](LICENSE), © 2026 orfixe и участники порта Fling. Оригинальный Fling — его
+дизайн, тексты и идея — принадлежит Damion Rashford и Tatiana, см. [NOTICE](NOTICE) и
+[CREDITS.md](CREDITS.md). Сборка для Windows включает сторонние программы со своими лицензиями —
+PyQt6 (GPL-3.0; полный исходный код — этот репозиторий), scrcpy (Apache-2.0) и другие:
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Распространяя порт, сохраняйте эти файлы и строку
+об авторстве в приложении.

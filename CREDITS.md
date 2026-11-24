@@ -42,6 +42,12 @@ which means all rights are reserved by its authors. This repository is therefore
 | [uv](https://github.com/astral-sh/uv) | Python and catt install | Apache-2.0 / MIT |
 | [BlueZ](http://www.bluez.org/) | Bluetooth LE HID remote | GPL-2.0 |
 | [Android platform-tools](https://developer.android.com/tools/releases/platform-tools) | ADB | Apache-2.0 |
+| [scrcpy](https://github.com/Genymobile/scrcpy) (with SDL, FFmpeg, libusb) | LIVE: TV screen and mouse | Apache-2.0 (SDL: Zlib, FFmpeg / libusb: LGPL-2.1) |
+| [PyChromecast](https://github.com/home-assistant-libs/pychromecast) | lasting Cast connection | MIT |
+| [python-zeroconf](https://github.com/python-zeroconf/python-zeroconf) | finding TVs | LGPL-2.1 |
+| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | video links for casting | Unlicense |
+
+The complete list with what each build bundles: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ## Contributors
 

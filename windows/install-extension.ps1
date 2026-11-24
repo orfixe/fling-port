@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 # Loads Fling's unpacked extension into Chrome or Edge by driving the browser's own UI
 # (UI Automation): extensions page -> Developer mode -> Load unpacked -> pick the folder.
 # Browsers don't let programs add an extension that isn't from their store any other way.

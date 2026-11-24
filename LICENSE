@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 Fling for Windows, Linux & Android contributors
+Copyright (c) 2026 orfixe and the Fling port contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -20,7 +20,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-NOTE: this license covers only the new Linux/Android code in this repository.
+NOTE: this license covers only the new code of this port (Windows, Linux, Android,
+macOS add-ons, browser extension) in this repository.
 Fling itself — the original macOS app, its idea, design and wording — is the
 work of Damion Rashford (author) and Tatiana (repository owner), see
 CREDITS.md. Public release of this port is pending their permission.

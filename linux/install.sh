@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 # Installs Fling for Linux into ~/.local (no root needed except for system packages).
 #   ./install.sh            install / update
 #   ./install.sh --uninstall

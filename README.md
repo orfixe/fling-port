@@ -301,6 +301,9 @@ Details in [CREDITS.md](CREDITS.md).
 
 ## License
 
-The code in this repository is [MIT](LICENSE). The original Fling — its design, texts and idea —
-belongs to Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md). The standalone Windows build
-bundles PyQt6 (GPL-3.0); its complete source is this repository.
+The code of this port is [MIT](LICENSE), © 2026 orfixe and the Fling port contributors. The
+original Fling — its design, texts and idea — belongs to Damion Rashford and Tatiana; see
+[NOTICE](NOTICE) and [CREDITS.md](CREDITS.md). The Windows build bundles third-party software
+under its own licenses — PyQt6 (GPL-3.0; the complete source is this repository), scrcpy
+(Apache-2.0) and others: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Redistributing the
+port means keeping these files and the in-app credit line with it.

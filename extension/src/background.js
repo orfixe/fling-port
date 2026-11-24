@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 orfixe and the Fling port contributors
+// Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 // Fling browser extension — background.
 // Talks only to the Fling desktop app on this computer (http://127.0.0.1:47613).
 // Chrome/Edge run this as a service worker, Firefox and Safari as an event page.

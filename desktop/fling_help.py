@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 orfixe and the Fling port contributors
+# Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 """Built-in "How to use" guide. Shown by `fling help`, the panel and the tray menu.
 
 Button names here are the ones on screen. If a label changes in fling_app.py, change it here too.
