@@ -2553,9 +2553,9 @@ def glyph(name, size=14, color=None, weight=1.7):
         p.drawArc(QRectF(s*.2, s*.22, s*.6, s*.6), 120 * 16, 300 * 16)
         p.drawLine(QPoint(int(c), int(s*.14)), QPoint(int(c), int(s*.5)))
     elif name == "home":
-        path((s*.2, s*.5), (c, s*.2), (s*.8, s*.5))
-        path((s*.28, s*.44), (s*.28, s*.82), (s*.72, s*.82), (s*.72, s*.44))
-        path((s*.43, s*.82), (s*.43, s*.62), (s*.57, s*.62), (s*.57, s*.82))
+        path((s*.15, s*.46), (c, s*.17), (s*.85, s*.46))
+        path((s*.25, s*.38), (s*.25, s*.83), (s*.75, s*.83), (s*.75, s*.38))
+        path((s*.42, s*.83), (s*.42, s*.66), (s*.58, s*.66), (s*.58, s*.83))
     elif name == "back":
         pa = QPainterPath(); pa.moveTo(s*.3, s*.38); pa.lineTo(s*.62, s*.38)
         pa.arcTo(QRectF(s*.44, s*.38, s*.36, s*.36), 90, -180); pa.lineTo(s*.4, s*.74)
@@ -3694,9 +3694,9 @@ def live_icon(name: str, size: int = 18, color=None) -> QIcon:
         pa.cubicTo(P_(18, 10.5), P_(20, 13), P_(20, 15.5)); pa.cubicTo(P_(20, 18), P_(18, 19.5), P_(15, 19.5))
         pa.lineTo(P_(11, 19.5)); p.drawPath(pa)
     elif name == "home":
-        path((3.5, 11.5), (12, 4.5), (20.5, 11.5))
-        path((6, 9.5), (6, 19.5), (18, 19.5), (18, 9.5))
-        path((10, 19.5), (10, 14.5), (14, 14.5), (14, 19.5))
+        import sf_icons
+        from PyQt6.QtGui import QTransform
+        p.drawPath(QTransform.fromScale(u, u).map(sf_icons._house_path()))   # scale the shape, not the pen
     elif name == "playpause":
         path((4, 6), (4, 18), (11, 12), close=True, fill=True)
         p.save(); pb = QPen(col, s * 0.11); pb.setCapStyle(Qt.PenCapStyle.RoundCap); p.setPen(pb)

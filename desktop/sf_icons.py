@@ -50,13 +50,21 @@ def _power_path() -> QPainterPath:
     return p
 
 def _house_path() -> QPainterPath:
+    """A plain house on a 24-grid: the roof runs into the walls, an arched door."""
     p = QPainterPath()
-    # roof
-    p.moveTo(6,12)
-    p.lineTo(12,5)
-    p.lineTo(18,12)
-    # body
-    p.addRect(8,12,8,7)
+    p.moveTo(3.5, 11)            # roof
+    p.lineTo(12, 4)
+    p.lineTo(20.5, 11)
+    p.moveTo(6, 9.2)             # walls
+    p.lineTo(6, 18.5)
+    p.quadTo(6, 20, 7.5, 20)
+    p.lineTo(16.5, 20)
+    p.quadTo(18, 20, 18, 18.5)
+    p.lineTo(18, 9.2)
+    p.moveTo(10, 20)             # door
+    p.lineTo(10, 16)
+    p.arcTo(10, 14, 4, 4, 180, -180)
+    p.lineTo(14, 20)
     return p
 
 def _arrow_uturn_backward_path() -> QPainterPath:
