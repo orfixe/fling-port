@@ -1,4 +1,7 @@
 name: macOS Fling (private)
+# Builds the macOS app and keeps it as a workflow artifact. It never touches a release:
+# release files are signed on the maintainer's machine (windows/release.ps1, SECURITY.md),
+# and a CI upload would replace them with unsigned rebuilds.
 on:
   workflow_dispatch:
   push:
@@ -8,7 +11,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -28,15 +31,3 @@ jobs:
             macos/dist/Fling
             macos/dist/Info.plist
           if-no-files-found: error
-      - name: Attach to latest private release (optional)
-        if: github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -e
-          TAG=$(gh release list -R "$GITHUB_REPOSITORY" --limit 1 --json tagName -q '.[0].tagName' || true)
-          if [ -n "$TAG" ]; then
-            gh release upload "$TAG" \
-              macos/dist/Fling.app.zip macos/dist/Fling macos/dist/Info.plist \
-              --repo "$GITHUB_REPOSITORY" --clobber || true
-          fi
