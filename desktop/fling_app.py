@@ -42,6 +42,8 @@ from PyQt6.QtWidgets import (QApplication, QGraphicsOpacityEffect, QGridLayout, 
                              QSystemTrayIcon, QVBoxLayout, QWidget, QFrame,
                              QSlider, QToolButton)
 
+import fling_tools                     # adb / scrcpy: find, choose, install (the Tools window)
+
 HOME = P.HOME
 CATT = P.find_catt()
 DATA = P.DATA
@@ -847,6 +849,18 @@ def bt_ensure_running():
 
 _THUMB: dict = {}
 _ADB = P.find_adb()
+
+
+def _tools_changed():
+    """A tool was installed, removed or chosen in the Tools window: use that adb from now on."""
+    global _ADB
+    _ADB = P.find_adb()
+    for ip, (st, _until) in list(_ADB_HOST.items()):
+        if st == "missing":
+            _ADB_HOST.pop(ip, None)
+
+
+fling_tools.on_change(_tools_changed)
 
 # Per-TV ADB state so we don't re-hit the TV's "Allow debugging?" every few seconds.
 # state → device | unauthorized | closed | offline | missing; until → monotonic deadline
@@ -2025,7 +2039,6 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Звук ТВ пойдёт на этот компьютер; на самом ТВ он может пропасть, пока открыта картинка. Переключение перезапускает картинку.",
      "The TV's sound goes to this computer; the TV itself may go quiet while the picture is open. Switching restarts the picture."),
     ("Звук с этого ТВ не передаётся", "This TV doesn't send its sound"), ("Звук на ПК", "Sound on PC"),
-    ("Скачиваю scrcpy (~12 МБ) — один раз…", "Downloading scrcpy (~12 MB) — just once…"),
     ("Щёлкните в окне — мышь станет курсором на ТВ. Alt — вернуть мышь компьютеру.",
      "Click in the window — the mouse becomes a pointer on the TV. Alt gives the mouse back."),
     ("Щелчки в окне — нажатия на ТВ.", "Clicks in the window tap the TV."),
@@ -2090,7 +2103,6 @@ EN_PHRASES = [  # longest first is applied automatically
      "there is no scrcpy build for this computer — install it from your packages"),
     ("в релизе scrcpy нет сборки для этого компьютера", "the scrcpy release has no build for this computer"),
     ("нет контрольной суммы scrcpy", "no scrcpy checksum"),
-    ("архив scrcpy повреждён (контрольная сумма не сошлась)", "the scrcpy download is damaged (checksum mismatch)"),
     ("в архиве scrcpy нет программы scrcpy", "the scrcpy download has no scrcpy program"),
     ("Выполнить", "Run"), ("Стоп", "Stop"), ("Быстрые команды ▾", "Quick commands ▾"),
     ("Копировать вывод", "Copy output"), ("Очистить", "Clear"),
@@ -2363,6 +2375,7 @@ EN_PHRASES += [   # installing an APK on the TV
     ("ТВ запретил установку — подтвердите её на экране ТВ.", "the TV blocked the install — confirm it on the TV screen."),
     ("нет ответа", "no answer"),
 ]
+EN_PHRASES += fling_tools.EN_PHRASES   # the Tools window keeps its texts next to its code
 EN_PHRASES.sort(key=lambda kv: -len(kv[0]))
 EN_REGEX = [(re.compile(r"(\d+) с\b"), r"\1s")]
 R.bind(sys.modules[__name__])     # fling_remote reuses the helpers below and adds its phrases
@@ -3475,64 +3488,16 @@ def _adb_ready_error(ip: str, what: str) -> str | None:
 
 
 def scrcpy_download() -> str:
-    """Fetch the latest scrcpy release for this computer into P.SCRCPY_DIR (checked against
-    the release's SHA256SUMS.txt) and return the scrcpy binary."""
-    import hashlib, shutil, tarfile, tempfile, urllib.request, zipfile
-    pre = P.scrcpy_asset_prefix()
-    if not pre:
-        raise RuntimeError("для этого компьютера нет готовой сборки scrcpy — установите его из пакетов")
-    def get(url, timeout=30):
-        return urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "Fling"}), timeout=timeout)
-    rel = json.load(get(P.SCRCPY_RELEASES, 20))
-    assets = {a["name"]: a["browser_download_url"] for a in rel.get("assets", [])}
-    name = next((n for n in assets if n.startswith(pre) and n.endswith((".zip", ".tar.gz"))), None)
-    if not name or "SHA256SUMS.txt" not in assets:
-        raise RuntimeError("в релизе scrcpy нет сборки для этого компьютера")
-    sums = get(assets["SHA256SUMS.txt"]).read().decode(errors="replace")
-    want = next((l.split()[0].lower() for l in sums.splitlines() if l.strip().endswith(name)), None)
-    if not want:
-        raise RuntimeError("нет контрольной суммы scrcpy")
-    tmp = tempfile.mkdtemp(prefix="fling-scrcpy-")
+    """Install the latest scrcpy for this computer into P.SCRCPY_DIR through the toolkit
+    (checked against the release's SHA256SUMS.txt; progress shows in the Tools window)
+    and return the scrcpy binary. Call it off the UI thread."""
     try:
-        arch = os.path.join(tmp, name)
-        h = hashlib.sha256()
-        with get(assets[name], 120) as r, open(arch, "wb") as f:
-            while chunk := r.read(1 << 16):
-                h.update(chunk); f.write(chunk)
-        if h.hexdigest() != want:
-            raise RuntimeError("архив scrcpy повреждён (контрольная сумма не сошлась)")
-        out = os.path.join(tmp, "x")
-        if name.endswith(".zip"):
-            with zipfile.ZipFile(arch) as z:
-                z.extractall(out)                 # zipfile drops "..", absolute paths
-        else:
-            with tarfile.open(arch) as t:
-                if hasattr(tarfile, "data_filter"):
-                    t.extractall(out, filter="data")
-                else:                             # Python < 3.11.4: check the paths by hand
-                    root = os.path.realpath(out)
-                    for m in t.getmembers():
-                        dest = os.path.realpath(os.path.join(out, m.name))
-                        if not dest.startswith(root + os.sep) or m.issym() or m.islnk():
-                            raise RuntimeError("архив scrcpy повреждён (контрольная сумма не сошлась)")
-                    t.extractall(out)
-        top = [os.path.join(out, x) for x in os.listdir(out)]
-        src = top[0] if len(top) == 1 and os.path.isdir(top[0]) else out
-        os.makedirs(os.path.dirname(P.SCRCPY_DIR), exist_ok=True)
-        new, old = P.SCRCPY_DIR + ".new", P.SCRCPY_DIR + ".old"
-        shutil.rmtree(new, ignore_errors=True)
-        shutil.move(src, new)                     # the old copy stays usable until the swap
-        shutil.rmtree(old, ignore_errors=True)
-        if os.path.isdir(P.SCRCPY_DIR):
-            os.replace(P.SCRCPY_DIR, old)
-        os.replace(new, P.SCRCPY_DIR)
-        shutil.rmtree(old, ignore_errors=True)
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        fling_tools.run_now("scrcpy")
+    except fling_tools.ToolError as e:
+        raise RuntimeError(tr(str(e))) from None
     exe = P.find_scrcpy()
-    if not exe or not exe.startswith(P.SCRCPY_DIR):
-        raise RuntimeError("в архиве scrcpy нет программы scrcpy")
-    print("scrcpy:", rel.get("tag_name"), "→", P.SCRCPY_DIR, flush=True)
+    if not exe:
+        raise RuntimeError(tr("в архиве нет программы ") + "scrcpy")
     return exe
 
 
@@ -3610,7 +3575,8 @@ class TvScreen(QObject):
             if not exe:
                 if P.IS_LINUX and not P.scrcpy_asset_prefix():
                     return {"error": what + ": установите scrcpy (sudo apt install scrcpy)."}
-                self.state.bridge.call.emit(lambda: notify_send("Скачиваю scrcpy (~12 МБ) — один раз…"))
+                self.state.bridge.call.emit(lambda: (notify_send("Скачиваю scrcpy — ход загрузки в окне «Инструменты»…"),
+                                                     fling_tools.open_window()))
                 exe = scrcpy_download()
             return {"exe": exe}
 
@@ -5711,11 +5677,14 @@ class Panel(QWidget):
                 ("Отключить ADB", "disconnect"),
                 (None, None),
                 ("Подключение ТВ…", "setup"),
+                ("Инструменты…", "tools"),
             ):
                 if title is None:
                     m.addSeparator(); continue
                 if act == "setup":
                     m.addAction(title, lambda: (self.hide(), self.open_setup()))
+                elif act == "tools":
+                    m.addAction(title, lambda: (self.hide(), fling_tools.open_window()))
                 elif act == "screenshot":
                     m.addAction(title, self.state.tv_screenshot)
                 elif act in ("screen", "mouse"):
@@ -5729,6 +5698,9 @@ class Panel(QWidget):
                 else:
                     m.addAction(title, lambda a=act: self.state.adb_action(a))
             m.exec(self.adb_badge.mapToGlobal(self.adb_badge.rect().bottomLeft()))
+        elif not P.adb_available():                 # nothing to connect with: install adb first
+            self.hide()
+            fling_tools.open_window()
         else:
             self.hide()
             self.open_setup()
@@ -6085,26 +6057,8 @@ def adb_state(ip: str, force: bool = False, port: int | None = None) -> str:
 
 
 def _adb_missing_html() -> str:
-    """Clickable download links when platform-tools / adb is not installed."""
-    zip_url = P.platform_tools_zip_url()
-    page = P.PLATFORM_TOOLS_PAGE
-    dest = P.DATA
-    col = Theme.css(T.accent)
-    if LANG == "en":
-        return (
-            "ADB was not found on this computer. Download Android platform-tools "
-            f'(<a href="{zip_url}" style="color:{col}">zip for this OS</a> · '
-            f'<a href="{page}" style="color:{col}">Google’s page</a>), '
-            f"unzip the <code>platform-tools</code> folder into <code>{dest}</code> "
-            "or put <code>adb</code> on your PATH — then press “Check”."
-        )
-    return (
-        "ADB не найден на этом компьютере. Скачайте Android platform-tools "
-        f'(<a href="{zip_url}" style="color:{col}">zip для этой ОС</a> · '
-        f'<a href="{page}" style="color:{col}">страница Google</a>), '
-        f"распакуйте папку <code>platform-tools</code> в <code>{dest}</code> "
-        "или положите <code>adb</code> в PATH — затем нажмите «Проверить»."
-    )
+    """adb is not installed: a link that installs it (Tools window), or how to do it by hand."""
+    return fling_tools.missing_adb_html()
 
 
 class AdbBadge(QWidget):
@@ -6130,7 +6084,7 @@ class AdbBadge(QWidget):
         self.btn.clicked.connect(self.clicked.emit)
         lay.addWidget(self.btn, 0, Qt.AlignmentFlag.AlignVCenter)
         self.msg = label("", 11, T.fg_a(0.55), wrap=True)
-        self.msg.setOpenExternalLinks(True)
+        self.msg.linkActivated.connect(fling_tools.link)     # web links + "install automatically"
         self.msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         if compact:
             self.msg.hide()
@@ -6604,6 +6558,8 @@ class SetupWindow(QWidget):
             self._set("remote", "fail", s.tv_pairing_msg or "Не вышло.", "Попробовать снова", False)
         else:
             self._set("remote", "off", "Не связан.", "Связать", False)
+        if self.adb == "missing" and P.adb_available():    # installed meanwhile (Tools window)
+            self.adb = "?"
         # Prefer live authorize state so the tools appear without re-clicking Android
         if s.adb_ok() or self.adb == "device":
             self.adb = "device"
@@ -6792,6 +6748,7 @@ class Tray(QObject):
         tm.addAction("ADB-консоль…", lambda: open_adb_console(self.panel, s))
         tm.addAction("Журнал Fling", lambda: P.open_path(P.LOG))
         m.addAction("Подключение ТВ…", self.panel.open_setup)
+        m.addAction("Инструменты…", lambda: fling_tools.open_window())
         m.addAction("Настройки…", lambda: open_settings(self.panel))
         m.addAction("О программе Fling", lambda: open_settings(self.panel, "about"))
         m.addSeparator()
@@ -6978,6 +6935,9 @@ def catt_main(args):
     return cm()
 
 
+fling_tools.bind_ui(sys.modules[__name__])   # the Tools window uses label(), glyph(), T …
+
+
 def main():
     global T
     if len(sys.argv) > 1 and sys.argv[1] == "--catt":
@@ -7065,6 +7025,8 @@ def main():
             state.screen.toggle(c)
         elif c == "adb":                                     # `fling adb`: the ADB console
             open_adb_console(panel, state)
+        elif c == "tools":                                   # `fling tools`: adb / scrcpy
+            fling_tools.open_window()
         elif c == "log":                                     # `fling log`: open app.log
             P.open_path(P.LOG)
         elif c == "install-extension":
@@ -7118,6 +7080,8 @@ def main():
         bridge.start()
         app.aboutToQuit.connect(bridge.stop)
 
+    fling_tools.cleanup()                          # leftovers of an interrupted tool install
+    fling_tools.first_run_scan()                   # pick adb / scrcpy copies found on this computer
     state.atv.connect(state.ip)
     state.refresh()
     if cmd not in ("tray", "background"):

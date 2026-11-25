@@ -97,7 +97,20 @@ def platform_tools_zip_url() -> str:
 CATT_ENV = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
 
 
+def _toolkit_choice(key: str) -> str | None:
+    """The copy picked in the Tools window (fling_tools); None → the search below decides."""
+    try:
+        import fling_tools
+        return fling_tools.resolve(key)
+    except Exception as e:                       # the toolkit must never break finding a tool
+        print("toolkit:", e, flush=True)
+        return None
+
+
 def find_adb() -> str:
+    chosen = _toolkit_choice("adb")
+    if chosen:
+        return chosen
     found = shutil.which("adb")
     if found:
         return found
@@ -120,7 +133,10 @@ SCRCPY_RELEASES = "https://api.github.com/repos/Genymobile/scrcpy/releases/lates
 
 def find_scrcpy() -> str | None:
     """scrcpy (TV screen + mouse): Fling's own download first, then the copy the setup
-    ships next to Fling.exe, then PATH."""
+    ships next to Fling.exe, then PATH. A copy chosen in the Tools window wins."""
+    chosen = _toolkit_choice("scrcpy")
+    if chosen:
+        return chosen
     own = os.path.join(SCRCPY_DIR, _exe("scrcpy"))
     if os.path.isfile(own):
         return own
