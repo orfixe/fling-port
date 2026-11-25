@@ -281,5 +281,25 @@ final class L {
         e("ТВ не смог настроить видео.", "The TV couldn't set up the video.");
         e("ТВ не запустил scrcpy: %s", "The TV didn't start scrcpy: %s");
         e("Не удалось скачать scrcpy-server: ", "Couldn't download scrcpy-server: ");
+
+        // LIVE: screen and mini remote (LiveActivity)
+        e("Подключение…", "Connecting…");
+        e("Переподключение…", "Reconnecting…");
+        e("Снижаю качество…", "Lowering the quality…");
+        e("Повторить", "Retry");
+        e("Видео с ТВ прервалось.", "The picture from the TV stopped.");
+        e("Телефон не может показать видео с этого ТВ.", "This phone can't play the video from this TV.");
+        e("Касание — OK, свайп — стрелки, удержание — «Назад»", "Tap for OK, swipe for the arrows, press and hold for Back");
+        e("Домой", "Home");
+        e("Вверх", "Up");
+        e("Вниз", "Down");
+        e("Влево", "Left");
+        e("Вправо", "Right");
+        e("Тише", "Volume down");
+        e("Громче", "Volume up");
+        e("Пауза / воспроизведение", "Play/pause");
+        e("Клавиатура", "Keyboard");
+        e("%d мс", "%d ms");
+        e("мс", "ms");
     }
 }

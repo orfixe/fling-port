@@ -73,6 +73,15 @@
             android:label="@string/settings_label"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
 
+        <!-- LIVE: the TV screen over scrcpy with a mini remote on top -->
+        <activity
+            android:name=".LiveActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen"
+            android:windowSoftInputMode="adjustNothing|stateAlwaysHidden"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" />
+
         <service
             android:name=".CastService"
             android:exported="false"
