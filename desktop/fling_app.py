@@ -2495,9 +2495,19 @@ def font(px, weight=QFont.Weight.Normal, mono=False):
         f.setStyleHint(QFont.StyleHint.Monospace)
     return f
 
+_SHORT_WORD = re.compile(r"(?<![\w-])([А-Яа-яЁё]{1,2}) (?=\S)")
+
+
+def typo_ru(text: str) -> str:
+    """Russian typography for wrapped text: a one- or two-letter word (и, в, с, на, по…)
+    never hangs at the end of a line — it is glued to the next word. Russian UI only:
+    in English the Russian string is still the translation key."""
+    return _SHORT_WORD.sub("\\1\u00a0", text) if LANG != "en" and "<" not in text else text
+
+
 def label(text="", px=12.5, color=None, weight=QFont.Weight.Normal, wrap=False):
     l = QLabel()
-    l.setText(text)
+    l.setText(typo_ru(text) if wrap else text)
     l.setFont(font(px, weight))
     l.setStyleSheet(f"color:{Theme.css(color or T.fg)};background:transparent")
     l.setWordWrap(wrap)
