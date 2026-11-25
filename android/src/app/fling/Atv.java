@@ -36,7 +36,11 @@ final class Atv {
     }
 
     static final int POWER = 26, HOME = 3, BACK = 4, UP = 19, DOWN = 20, LEFT = 21, RIGHT = 22, OK = 23,
-            VOL_UP = 24, VOL_DOWN = 25, MUTE = 164, PLAY_PAUSE = 85, SEARCH = 84, REWIND = 89, FFWD = 90;
+            VOL_UP = 24, VOL_DOWN = 25, MUTE = 164, PLAY_PAUSE = 85, SEARCH = 84, REWIND = 89, FFWD = 90,
+            ENTER = 66, STOP = 86, NEXT = 87, PREV = 88, INFO = 165, CH_UP = 166, CH_DOWN = 167, GUIDE = 172,
+            CAPTIONS = 175, INPUT = 178, RED = 183, GREEN = 184, YELLOW = 185, BLUE = 186, AUDIO = 222;
+    /** KEYCODE_0..KEYCODE_9 are 7..16. */
+    static int digit(int d) { return 7 + d; }
 
     private static final long F_PING = 1, F_KEY = 2, F_IME = 4, F_VOICE = 8, F_POWER = 32, F_VOLUME = 64, F_APPLINK = 512;
 
@@ -66,6 +70,28 @@ final class Atv {
     }
 
     boolean paired(String host) { return host != null && prefs.getBoolean("paired_" + host, false); }
+
+    /** True when this phone has been paired with any TV address. */
+    boolean pairedAnywhere() {
+        for (String k : prefs.getAll().keySet()) if (k.startsWith("paired_") && prefs.getBoolean(k, false)) return true;
+        return false;
+    }
+
+    /** The TV trusts this phone's certificate, not an address: a TV paired at home is already
+     *  paired when it is reached again by its Tailscale address. Tries a session quietly and,
+     *  if the TV accepts it, remembers the new address as paired. No code on the TV screen. */
+    void adopt(String host) {
+        if (host == null || paired(host) || !pairedAnywhere()) return;
+        io.execute(() -> {
+            try {
+                connectNow(host);
+                prefs.edit().putBoolean("paired_" + host, true).apply();
+                l.onPairing("idle", "");
+            } catch (Exception e) {
+                disconnectNow();   // not trusted at this address (or not reachable): pairing stays manual
+            }
+        });
+    }
 
     // ------------------------------------------------------------ pairing
 
@@ -307,6 +333,13 @@ final class Atv {
 
     void text(String host, String text) {
         if (text == null || text.isEmpty()) return;
+        textLive(host, text);
+    }
+
+    /** Sets the text of the TV's focused field to exactly this (empty clears it): typing is sent
+     *  as it happens, each change replacing the whole field. */
+    void textLive(String host, String text) {
+        if (text == null) return;
         command(host, () -> {
             int cursor = Math.max(0, text.codePointCount(0, text.length()) - 1);
             Proto.W obj = new Proto.W();
@@ -379,7 +412,7 @@ final class Atv {
             return L.t("Телевизор больше не доверяет этому телефону — свяжите его с ТВ заново.");
         if (e instanceof java.net.SocketTimeoutException) return L.t("Телевизор не ответил.");
         if (e instanceof java.net.ConnectException || e instanceof java.net.NoRouteToHostException)
-            return L.t("Не удалось связаться с ТВ. Телефон и ТВ в одной сети Wi-Fi?");
+            return L.t("Не удалось связаться с ТВ. Он включён и в той же сети Wi‑Fi или Tailscale?");
         String m = e.getMessage();
         return m == null ? e.getClass().getSimpleName() : m;
     }

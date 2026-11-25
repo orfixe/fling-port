@@ -90,7 +90,7 @@ final class L {
         // errors: Cast / Atv
         e("Устройство не выбрано", "No device selected");
         e("Телевизор не ответил.", "The TV didn't respond.");
-        e("Не удалось связаться с ТВ. Телефон и ТВ в одной сети Wi-Fi?", "Couldn't reach the TV. Are the phone and TV on the same Wi-Fi?");
+        e("Не удалось связаться с ТВ. Он включён и в той же сети Wi‑Fi или Tailscale?", "Couldn't reach the TV. Is it on, and on the same Wi‑Fi or Tailscale network?");
         e("Соединение с ТВ потеряно.", "Lost the connection to the TV.");
         e("Нет соединения с ТВ", "Not connected to the TV");
         e("Телевизор не смог открыть это видео.", "The TV couldn't open this video.");
@@ -257,5 +257,6 @@ final class L {
         e("Экран телефона не гаснет, пока открыт Fling.", "The phone screen stays on while Fling is open.");
         e("О приложении", "About");
         e("Проверить обновления", "Check for updates");
+
     }
 }
