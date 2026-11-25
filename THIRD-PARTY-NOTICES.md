@@ -46,6 +46,20 @@ Copies found already installed (PATH, Android SDK, WinGet, Scoop, Chocolatey, Ho
 system packages) are only run, or copied into Fling's folder when the user asks; their own
 licenses apply.
 
+## Downloaded on first use (Android app, LIVE)
+
+| Software | From | Checked against | License |
+|---|---|---|---|
+| [scrcpy-server](https://github.com/Genymobile/scrcpy) v5.0.1 (`scrcpy-server-v5.0.1`) | the [GitHub release](https://github.com/Genymobile/scrcpy/releases/tag/v5.0.1) | SHA-256 pinned in the app (`ScrcpyProto.SERVER_SHA256`, from the release's `SHA256SUMS.txt`), checked before every use | Apache-2.0, © Genymobile and Romain Vimont |
+
+The Android app keeps the file in its private storage and uploads it, unmodified, to the TV
+(`/data/local/tmp/`), where it runs the screen capture for LIVE. A file that doesn't match
+the pinned hash is deleted and never run. The scrcpy client in the app (`Scrcpy.java`,
+`ScrcpyProto.java`) is Fling's own code speaking the scrcpy protocol; the APK contains no
+scrcpy code. Downloaded rather than bundled: the server (~720 KB) is several times the
+size of the whole APK, and the repository stays free of binaries — the pinned hash makes
+the check exactly as strict as bundling would.
+
 ## Used by other parts
 
 | Software | Used for | License |
