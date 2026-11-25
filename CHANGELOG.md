@@ -10,8 +10,21 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-26
+
+Remote access over Tailscale, the TV screen on the phone, and a Catalog of official apps for the
+TV.
+
 ### Added
 
+- Android: **LIVE on the phone** — the TV's screen in Fling for Android with low latency
+  (scrcpy: the official scrcpy-server, checked against its published SHA-256, hardware decoding
+  straight to the screen), a mini remote over the picture, swipes as arrows, typing to the TV and a
+  latency chip. Works at home and over Tailscale; quality adapts to the network.
+- **Remote access over Tailscale** — desktop: TVs on your tailnet in the TV chooser, a *Remote
+  access* page in Settings with what works away from home and an example ACL, a keep-alive with
+  the link quality in the footer ("via Tailscale · 38 ms"), LIVE starting at Saver quality.
+  Android: add a TV by its Tailscale address. See [docs/tailscale.md](docs/tailscale.md).
 - Desktop: a **Catalog** tab in the Tools window (`fling catalog`) — install free apps on the TV
   over ADB (VLC, Kodi, Jellyfin, Moonlight, LocalSend, Tailscale, Material Files, F-Droid) and
   FFmpeg on the computer, from official sources only. Every download is checked against the
@@ -389,6 +402,7 @@ unchanged.
   instead of a real one, and the TV's name is hidden in the screenshots.
 
 [unreleased]: https://github.com/orfixe/fling-port/compare/v0.4.0...HEAD
+[0.4.1]: https://github.com/orfixe/fling-port/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/orfixe/fling-port/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/orfixe/fling-port/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/orfixe/fling-port/compare/v0.3.1...v0.3.2
