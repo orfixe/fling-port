@@ -30,15 +30,21 @@ Two parts:
 ### Option A — ready-made build (easiest)
 
 1. Download **`Fling-Setup-….exe`** from [Releases](https://github.com/orfixe/fling-port/releases).
+   *Optional:* **verify your download** — every release has `SHA256SUMS.txt` signed with the
+   Fling release key; [SECURITY.md](../SECURITY.md#is-my-copy-the-real-fling) shows the two
+   commands. Only files that pass this check are the real Fling.
 2. Run it. **SmartScreen** may say "Windows protected your PC" — the setup isn't signed with a
    paid certificate. Click **More info → Run anyway**.
 3. Pick the extras (desktop icon, start with Windows, *Install on TV* for `.apk` files, the `fling`
    command) and finish — Fling starts. It installs for your user only, no admin rights needed.
 4. To remove it: *Settings → Apps → Fling → Uninstall*. Your settings stay in `%APPDATA%\Fling`.
-   Some antivirus products are wary of unsigned apps; if Fling.exe lands in quarantine, add
-   `%LOCALAPPDATA%\Programs\Fling` to the exclusions.
+   Some antivirus products are wary of unsigned apps; if Fling.exe or fling-guard.exe lands in
+   quarantine, add `%LOCALAPPDATA%\Programs\Fling` to the exclusions.
 
-No Python needed — everything is bundled.
+No Python needed — everything is bundled, scrcpy for LIVE included. Next to Fling runs
+**fling-guard**: it checks Fling's files against the signed list and lets only those programs
+(and trusted system ones) run as Fling's helpers; see
+[SECURITY.md](../SECURITY.md#what-protects-you-after-the-install-windows).
 
 ### Option B — from source
 
@@ -61,6 +67,9 @@ Update: run `install.cmd` again. Remove: `uninstall.cmd`.
 5. **Pair the remote once:** "Pair with TV" → type the 6-character code shown on the TV.
    For the real title and artwork of whatever plays on the TV, open **Connect TV… → Find and
    connect everything** and enable ADB as the window explains.
+6. If adb or scrcpy is missing (a source install, or you prefer your own copy), open **Tools…**
+   in the tray menu (or `fling tools`): it lists the copies found on the PC, lets you pick one
+   and installs or updates them with a progress bar.
 
 ## Part 2. The browser extension
 
@@ -110,24 +119,30 @@ Fling in Safari → Settings → Extensions.
 | Pause / seek | Space, ← / → in the panel or the extension popup |
 | Install an app on the TV | Android badge in the panel → *Install APK…*, or right-click an `.apk` in Explorer → *Install on TV (Fling)*. Needs ADB (*Connect TV…* → ADB) |
 | TV arrows | the arrow keys on the keyboard while the panel is open, the arrows in the panel, or scroll over the panel |
+| Remote modes | under the app grid: Arrows, Touchpad (drag = arrows, click = OK), Numbers, Media |
+| Favourite apps, scenes, sleep timer | pin apps per TV; the **…** menu in the remote has scenes, the sleep timer and Turn on / Turn off |
+| Files, playlists, slideshows | drop files or folders on the panel, or *Open on TV…*: they play as a queue with shuffle / repeat; subtitles next to a video are found automatically |
+| Settings, themes | the gear in the panel's corner or *Settings…* in the tray menu: 11 themes, accent colour, "As the system", remote and casting options, About |
 | Next-video notifications | on by default (green bell); click "Notify when the video changes" to turn off (red bell) |
 | Guide, compact view | the **?** and ⤡ buttons in the panel's top-right corner. Compact view keeps the artwork and ⏪ ⏯ ⏩ ⏹ keys — labels show on hover |
 | Language | the small flag at the bottom right: click it to switch |
 | Start with Windows | "Start at login" |
-| Commands | `fling`, `fling setup`, `fling cast-tab`, `fling clip`, `fling screenshot`, `fling install-apk app.apk`, `fling send file…`, `fling play file/folder/playlist…`, `fling slideshow folder`, `fling next` / `fling prev`, `fling help`, `fling quit` |
+| Commands | `fling`, `fling setup`, `fling settings`, `fling about`, `fling tools`, `fling cast-tab`, `fling clip`, `fling screenshot`, `fling install-apk app.apk`, `fling send file…`, `fling play file/folder/playlist…`, `fling slideshow folder`, `fling next` / `fling prev`, `fling scene "Name"`, `fling sleep-timer 30`, `fling tv-on` / `fling tv-off`, `fling help`, `fling quit` |
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| "No device found" | Same network? Allow Fling/Python on **Private** networks in Windows Firewall; set your network profile to **Private**. VPNs, guest Wi-Fi and router "client isolation" block discovery — add the TV by IP (**Select** in the panel footer → Add TV by IP…) |
+| "No device found" | Same network? Allow Fling/Python on **Private** networks in Windows Firewall; set your network profile to **Private**. VPNs, guest Wi-Fi and router "client isolation" block discovery — add the TV by IP (**Select** in the panel footer → Add by IP) |
 | Extension says the app isn't running | Start Fling. If port 47613 is taken, set `"bridge_port"` in `fling.json` and the same port in the extension settings |
 | "Cast this tab" is grey | Install the extension and open a video tab |
 | Pause ignored on YouTube | Pair the remote — YouTube on the TV ignores Cast pause |
 | Mic silent | Settings → Privacy & security → Microphone → allow desktop apps. On laptops with vendor audio effects (Realtek, Intel, AMD, Dolby) try turning noise suppression off in the vendor's app |
 | Win+Shift+C does nothing | Another app (often vendor laptop utilities or GPU overlays) owns it; Fling falls back to Ctrl+Alt+Shift+C |
 | Black panel corners (Remote Desktop, VM, old graphics driver) | Usually detected automatically; otherwise add `"solid_panel": true` to `fling.json` |
-| Antivirus removed Fling.exe | Restore it and add an exclusion, or use Option B |
+| "ADB is not installed", LIVE doesn't start | Open **Tools…** in the tray menu and install adb / scrcpy, or pick a copy you already have |
+| Antivirus removed Fling.exe or fling-guard.exe | Restore it and add an exclusion, or use Option B |
+| Not sure the download is genuine | Check it as [SECURITY.md](../SECURITY.md#is-my-copy-the-real-fling) explains; a file that fails the check is not Fling |
 
 Log: `%LOCALAPPDATA%\Fling\logs\app.log` — attach the last lines when you report a problem.
 

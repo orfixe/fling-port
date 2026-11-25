@@ -10,14 +10,63 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-25
+
+Settings and themes, a much bigger remote, playlists and slideshows, a Tools window for adb and
+scrcpy, and signed releases with a guard on Windows. Android casts files from the phone.
+
 ### Added
 
+- Windows: **signed releases** and **fling-guard**. Every release carries `SHA256SUMS.txt` with a
+  minisign signature made with the Fling release key — see
+  [SECURITY.md → Is my copy the real Fling?](SECURITY.md#is-my-copy-the-real-fling). The guard
+  starts with Fling, checks the installed files against a signed list, lets only listed or
+  trusted programs run as Fling's children, and stops a child that keeps 30% of the CPU for 90 s.
+- Desktop: **Settings** window (gear in the panel's corner, the tray menu, `fling settings`):
+  Appearance, General, Remote, Casting and **About** (`fling about`) with version, credits,
+  licenses, an optional update check and "Copy details" for bug reports.
+- Desktop: **11 themes** (6 dark, 5 light) and 11 accent colours, with a live preview on hover;
+  "As the system" picks a day and a night theme and follows the system accent colour too.
+- Desktop: **TV chooser window** — "Choose" (and *Find TVs…* in the tray) searches at once with
+  an animation, lists TVs as cards (model, address, paired, recently seen) and adds a TV by IP;
+  TVs added by hand can be removed.
+- Desktop remote: **modes** under the app grid — Arrows, Touchpad, Numbers (digits, channels,
+  input, guide) and Media (prev / next, stop, subtitles, audio track, colour keys).
+- Desktop remote: **favourite apps** per TV — pin the app that is open, any app installed on the
+  TV or a package by name; reorder, rename, restore the default set.
+- Desktop remote: **scenes** — steps such as turn on, open an app, set the volume, press a key,
+  wait, turn off; run from the panel, the tray or `fling scene "Name"`.
+- Desktop remote: **sleep timer** with a one-minute warning, explicit Turn on / Turn off, and
+  `fling sleep-timer N`, `fling tv-on`, `fling tv-off`.
+- Desktop remote: optional **keys in any app** (Ctrl+Alt+Shift + arrows, Enter…) and the
+  keyboard's media keys for the TV; both off by default.
+- Desktop media: mov, opus and image links cast directly; webp / tiff / heic and very large photos
+  are converted; avi, wmv, ts and similar play in the TV's own player over ADB.
+- Desktop media: **queue** — several files, folders and m3u / m3u8 / pls playlists, with shuffle
+  and repeat; `fling play`, `fling next`, `fling prev`.
+- Desktop media: **photo slideshow** from a folder with an interval (`fling slideshow`).
+- Desktop media: **subtitles** next to a video (or in `Subs\`) are found automatically, chosen in
+  the menu or dropped on a playing film; SRT in Windows-1251 and ASS work.
+- Desktop media: links with `?t=` / `#t=` start at that point; long videos **resume** where you
+  stopped; **recent casts** in "Open on TV…"; playback speed 0.5×–2×.
+- Desktop: **Tools** window (tray menu, the ADB badge, `fling tools`) finds adb and scrcpy already
+  on the computer (PATH, Android SDK, WinGet, Scoop, Chocolatey, Homebrew…), lets you choose a copy
+  and installs or updates them with progress and cancel; downloads are checked against the
+  publisher's checksums.
+- Browser extension: right-click to cast a page, link, video or audio, **"Cast from this
+  moment"**, and type the selected text on the TV.
+- Browser extension: **timestamps** in YouTube, Twitch, Vimeo and `#t=` links start the TV there.
+- Browser extension: new **shortcuts** (cast from this moment, play / pause, ±30 s, TV volume)
+  that you can assign in the browser.
+- Browser extension: previous / next for YouTube, click the progress bar to seek, "Cast from the
+  beginning" next to Resume, **recent casts**; the options page is split into sections.
 - Android: cast **photos, videos and music from the phone** — Share → "Cast to TV" from Gallery or a
   file manager (several files play as a queue), "Open with", or "File from this phone" in the Link
   card. Fling serves them over Wi-Fi with seeking; photos are sent upright and sized for the TV
   (HEIC included); music shows its tags and cover.
 - Android: a **playback notification** with lock-screen controls while something plays on the TV
-  (pause, ±30 s, previous/next for a queue, stop); the volume keys can drive the TV through it.
+  (pause, ±30 s, previous/next for a queue, stop); the **phone's volume keys** can drive the TV
+  through it.
 - Android: **sleep timer** in the remote (15 min to 2 h) — turns the TV off even with Fling closed,
   and never turns on a TV that is already off.
 - Android: **Settings** (gear in the header): theme (system, light, dark, black AMOLED), accent
@@ -26,6 +75,10 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ### Changed
 
+- Desktop: "Appearance" moved from the tray menu into Settings.
+- Desktop: Turn on / Turn off never toggles a slow TV back: POWER is sent only when the TV has just
+  reported the opposite state.
+- Desktop: redrawn keyboard and Home icons — a thin outline instead of a solid block.
 - Android: no app logo inside the app; the header title lines up with the cards.
 
 ### Fixed
@@ -33,6 +86,13 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 - Android: update check no longer crashes on a long numeric version; backups and device transfer
   exclude the pairing key; YouTube links are recognised only on youtube.com; the mic no longer
   races its own release; artwork cache is bounded.
+
+### Security
+
+- Network paths (`\server\share`, `file://host`) are refused for casting, also inside playlists
+  and dropped folders.
+- The local bridge can be limited to given extension IDs (`"bridge_extension_ids"` in
+  `fling.json`).
 
 ## [0.3.3] - 2026-11-24
 
@@ -320,7 +380,9 @@ unchanged.
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.3.2...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/orfixe/fling-port/compare/v0.3.3...v0.4.0
+[0.3.3]: https://github.com/orfixe/fling-port/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/orfixe/fling-port/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/orfixe/fling-port/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/orfixe/fling-port/compare/v0.2.0...v0.3.0

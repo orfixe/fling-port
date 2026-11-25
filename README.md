@@ -30,7 +30,7 @@ power, apps, d-pad, volume, typing, voice search.
 
 > [!WARNING]
 > **Fling is in development.** Things change from release to release and some parts are still
-> rough (LIVE, the ADB console, sending files are new). Please report what breaks in
+> rough (LIVE, the ADB console, scenes, queues and the Tools window are new). Please report what breaks in
 > [Issues](https://github.com/orfixe/fling-port/issues).
 
 > **Authorship.** An **unofficial** port of **[Fling](https://github.com/tatianathevisionary/fling)** —
@@ -50,7 +50,7 @@ power, apps, d-pad, volume, typing, voice search.
 
 | I have… | Do this |
 |---|---|
-| **Windows 10 / 11** | Download `Fling-Setup-….exe` from [Releases](../../releases) and run it. Step by step: **[Windows guide](docs/install-windows.md)** |
+| **Windows 10 / 11** | Download `Fling-Setup-….exe` from [Releases](../../releases), [verify your download](SECURITY.md#is-my-copy-the-real-fling) if you like, and run it. Step by step: **[Windows guide](docs/install-windows.md)** |
 | **Chrome / Edge / Firefox / Safari** | Install the app first, then the [browser extension](#browser-extension) |
 | **Linux (KDE)** | `git clone` and `linux/install.sh` — [details](#install--linux) |
 | **Android phone** | Install `Fling.apk` from [Releases](../../releases) — [details](#install--android) |
@@ -85,11 +85,20 @@ reports are welcome.
 | One-click **Connect TV** window | ✓ | ✓ | — | — |
 | Scroll / swipe anywhere = d-pad | ✓ | ✓ | ✓ | ✓ |
 | Phone volume keys, Quick Settings tile | — | — | ✓ | — |
+| Remote modes (touchpad, numbers, media keys), favourite apps, scenes | ✓ | ✓ | — | — |
+| Sleep timer for the TV | ✓ | ✓ | ✓ | — |
+| Queue, playlists (m3u / pls), photo slideshow, subtitles, resume | ✓ | ✓ | queue ³ | — |
+| Cast photos, videos and music from the phone (Share → Cast to TV) | — | — | ✓ | — |
+| Playback notification with lock-screen controls | — | — | ✓ | — |
+| Settings with themes and a live preview | ✓ 11 themes | ✓ 11 themes | ✓ incl. Material You | ✓ options |
+| **Tools** window: find, install and update adb / scrcpy | ✓ | ✓ | — | — |
+| Signed releases, guard against foreign processes | ✓ | — | — | — |
 | English / Russian UI | ✓ | ✓ | ✓ | ✓ |
 | TV screenshot over ADB (saved to Pictures/Fling) | ✓ | ✓ | ✓ | — |
 | Install an APK on the TV over ADB (pick a file, or right-click it in Explorer) | ✓ | ✓ | — | — |
 
-<sub>¹ when the extension casts the tab. ² Windows doesn't let apps act as a Bluetooth keyboard / remote.</sub>
+<sub>¹ when the extension casts the tab. ² Windows doesn't let apps act as a Bluetooth keyboard / remote.
+³ several shared files play one after another.</sub>
 
 ## How it works
 
@@ -118,8 +127,11 @@ Windows 10 (1809+) or 11, 64-bit (ARM laptops via emulation). No administrator r
 
 - **Setup:** download **`Fling-Setup-….exe`** from [Releases](../../releases) and run it. It installs
   for your user only (no admin rights) with a Start menu entry, the `fling` command and, if you
-  like, autostart; uninstall from *Settings → Apps*. Python, Qt, catt and yt-dlp are bundled. SmartScreen may warn about an unsigned app:
+  like, autostart; uninstall from *Settings → Apps*. Python, Qt, catt, yt-dlp and scrcpy are bundled. SmartScreen may warn about an unsigned app:
   *More info → Run anyway*.
+- **Verify your download:** each release has `SHA256SUMS.txt` signed with the Fling release key —
+  how to check it on any OS: [SECURITY.md](SECURITY.md#is-my-copy-the-real-fling). The installed
+  app is watched by `fling-guard`, which checks Fling's files against that signed list.
 - **From source:** double-click **`windows\install.cmd`** — installs [uv](https://docs.astral.sh/uv/),
   a private Python 3.12, PyQt6, catt and ADB into `%LOCALAPPDATA%\Fling`, adds Fling to the Start
   menu and the `fling` command. `windows\uninstall.cmd` removes everything.
@@ -134,7 +146,10 @@ One extension for **Chrome, Edge, Brave, Opera, Vivaldi, Yandex, Firefox and Saf
 
 - a toolbar popup with *Cast this tab* (or **Resume on TV at 12:34** when the page's video is
   mid-play), now playing, play/pause/seek/stop, volume and the full TV remote;
-- *Cast link / video / page to TV* in the right-click menu, **Alt+Shift+C** in the browser;
+- *Cast link / video / page to TV* and *Cast from this moment* in the right-click menu; timestamps
+  in YouTube, Twitch and Vimeo links are kept;
+- **Alt+Shift+C** in the browser, plus shortcuts you can assign for play / pause, ±30 s and volume;
+- recent casts in the popup;
 - tells the app which tab is active, so the panel's *Cast this tab* and the system-wide
   shortcut work with any browser, not just Firefox.
 
@@ -171,6 +186,9 @@ Commands (the same on Windows, in PowerShell / cmd):
 fling             open the panel (starts Fling if needed)
 fling tray        start only the tray icon
 fling setup       open the Connect TV window
+fling settings    open Settings (themes, remote, casting)
+fling about       open Settings → About
+fling tools       find, install or update adb and scrcpy
 fling help        open the "How to use" guide
 fling screenshot  save a TV screenshot (needs ADB)
 fling install-apk app.apk   install an APK on the TV (needs ADB; no file = choose one)
@@ -180,6 +198,9 @@ fling send file…  to the TV: APKs install, media play, the rest goes to Downlo
 fling play [file|folder|playlist|link…]   play on the TV as a queue (no argument = choose files)
 fling slideshow [folder] [seconds]       photo slideshow (default 7 s per photo)
 fling next / fling prev                  next / previous item of the queue
+fling scene "Name"                       run a scene (e.g. from Task Scheduler / cron)
+fling sleep-timer N                      turn the TV off in N minutes
+fling tv-on / fling tv-off               turn the TV on / off
 fling quit        exit
 fling tui         terminal remote (Linux)
 ```
@@ -223,11 +244,19 @@ Each step shows ✓ done · ⏳ working · ! needs you on the TV · ✗ failed.
   session store (set `browser.sessionstore.interval` to `2000` in `about:config` for quick pick-up).
 - **Notifications:** when the TV moves to another video or track you get a notification with the
   new title; turn it off with *Notify when the video changes* in the panel or the tray menu.
-- **Android:** share a link to **Fling** from YouTube or a browser — it goes straight to the TV.
-  Volume keys control the TV while the app is open. Add the *Pause on TV* Quick Settings tile.
+- **Remote:** below the app grid switch between Arrows, Touchpad, Numbers and Media. The **…** menu
+  has scenes, the sleep timer and Turn on / Turn off; pin your favourite apps per TV.
+- **Files, playlists, slideshows:** drop files or folders on the panel, use *Open on TV…*, or
+  `fling play` / `fling slideshow`. Subtitles next to a video are picked up automatically.
+- **Settings:** the gear in the panel's corner — themes, accent colour, remote and casting options.
+- **Android:** share a link to **Fling** from YouTube or a browser — it goes straight to the TV;
+  share photos, videos or music (*Cast to TV*) and the phone plays them on the TV. Volume keys
+  control the TV while the app is open or from the playback notification. Add the *Pause on TV*
+  Quick Settings tile.
 
 What can be cast: YouTube (opened in the TV's YouTube app), direct media files
-(mp4, mkv, webm, mp3, m3u8, mpd, …) and most sites [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+(mp4, mkv, mov, webm, mp3, opus, m3u8, mpd, …), photos (heic, webp and tiff are converted),
+local files and playlists, and most sites [yt-dlp](https://github.com/yt-dlp/yt-dlp)
 understands. DRM services (Netflix etc.) can be launched and controlled but not cast.
 
 ## Troubleshooting
@@ -249,6 +278,8 @@ Logs: `~/.cache/fling/app.log`, `~/.cache/fling/bt.log` (Linux), `%LOCALAPPDATA%
 
 Everything stays on your network. Fling contacts only your TV, plus `youtube.com` for
 titles/artwork lookups (oEmbed and search) and the YouTube Lounge API when you link it.
+Only when you ask, it checks GitHub for a newer release (*Settings → About*) and downloads
+adb / scrcpy from Google and GitHub (*Tools*).
 The browser extension sends tab addresses only to the Fling app on the same computer and never
 from private windows. Pairing certificates live in `~/.local/share/fling/atv/` (Linux),
 `%LOCALAPPDATA%\Fling\atv\` (Windows) or the app's private storage (Android).
@@ -264,6 +295,13 @@ desktop/             shared by Windows and Linux (PyQt6)
   fling_help.py      texts of the built-in "How to use" guide (EN + RU, Windows variants)
   sf_icons.py        line icons in SF-Symbols style
   fling_remote.py    remote modes (touchpad, numbers, media), favourite apps, scenes, sleep timer
+  fling_media.py     what can be cast and how: formats, queues, playlists, slideshows, subtitles
+  fling_settings.py  Settings window (Appearance, General, Remote, Casting, About)
+  fling_themes.py    theme presets and the "As the system" resolution
+  fling_devices.py   TV chooser window (search, cards, add by IP)
+  fling_tools.py     Tools window: find / install / update adb and scrcpy
+guard/               fling-guard and fling-sign (Rust): signed file list, process allowlist, CPU watchdog
+security/            the release public key (fling-release.pub)
 windows/
   install.ps1        install from source / update / uninstall (install.cmd, uninstall.cmd)
   build.ps1          standalone Fling.exe + release zip (PyInstaller)
@@ -279,7 +317,8 @@ extension/
   safari/            Xcode wrapper script for Safari
 android/
   src/app/fling/     MainActivity, Ui, Atv (TV remote), Cast (Cast v2), Adb (ADB client), Discovery (mDNS),
-                     Proto (protobuf), Tls (self-signed client cert), L (i18n), PauseTile
+                     Proto (protobuf), Tls (self-signed client cert), L (i18n), PauseTile,
+                     MediaServer (phone files), CastService (notification), SleepTimer, SettingsActivity
   res/, AndroidManifest.xml, build.sh
 docs/                guides, architecture, protocols, screenshots
 ```

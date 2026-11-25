@@ -29,6 +29,21 @@ autostart (KDE autostart file / `HKCU\…\Run`), the system-wide shortcut (KDE k
 | Pairing, venv, adb | `~/.local/share/fling/` | `%LOCALAPPDATA%\Fling\` |
 | Log | `~/.cache/fling/app.log` | `%LOCALAPPDATA%\Fling\logs\app.log` |
 
+Larger features live in their own modules; `fling_app.py` only calls into them through small hooks:
+
+| Module | Role |
+|---|---|
+| `fling_settings.py` | Settings window (Appearance, General, Remote, Casting, About) |
+| `fling_themes.py` | Theme presets and accents; "As the system" follows the system's light / dark and accent colour |
+| `fling_devices.py` | TV chooser window: discovery, cards, add by IP |
+| `fling_remote.py` | Remote modes, favourite apps, scenes, sleep timer, system-wide keys |
+| `fling_media.py` | Formats, queues, playlists, slideshows, subtitles, resume and recent casts |
+| `fling_tools.py` | Registry of outside tools (adb, scrcpy): detection, choice in `tools.json`, verified install |
+
+On Windows, `fling-guard.exe` (Rust, `guard/`) starts with Fling, checks the install against
+`fling.manifest` signed with the release key, and keeps Fling's child processes to listed or
+trusted files; see [SECURITY.md](../SECURITY.md).
+
 ## Media: files, queues, slideshows
 
 `desktop/fling_media.py` decides what can be cast and how; `fling_app.py` only calls into it.
@@ -130,6 +145,10 @@ It is controlled over `$XDG_RUNTIME_DIR/fling-bt.sock`:
 | `Proto` | Minimal protobuf encoder / decoder. |
 | `L` | English / Russian strings. |
 | `PauseTile` | Quick Settings tile. |
+| `MediaServer` | LAN HTTP server (per-run token, byte ranges) for photos, videos and music shared from the phone. |
+| `CastService` | Foreground service: playback notification, MediaSession, TV volume from the phone's keys. |
+| `SleepTimer` | Alarm receiver that turns the TV off if it is still on. |
+| `SettingsActivity` | Theme, accent (Material You on Android 12+), notification and volume-key switches, language, updates. |
 
 ## Now playing
 
