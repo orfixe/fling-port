@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- LIVE overlay: play/pause toggle (KEYCODE_MEDIA_PLAY_PAUSE) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M3,5.5v13l8.5,-6.5z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M14,5.5h2.6v13h-2.6zM18.9,5.5h2.6v13h-2.6z"/>
+</vector>

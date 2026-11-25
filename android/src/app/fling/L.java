@@ -72,9 +72,25 @@ final class L {
         e("Найти ТВ заново", "Search for TVs again");
         e("Добавить ТВ по IP…", "Add TV by IP…");
         e("Убрать добавленный вручную", "Remove the TV added by IP");
-        e("Найдите его на ТВ: Настройки → Сеть.", "Find it on the TV: Settings → Network.");
+        e("Адрес телевизора", "The TV's address");
+        e("Дома — IP из настроек ТВ (Сеть). Через Tailscale — 100.x.y.z или имя MagicDNS.", "At home: the IP from the TV's settings (Network). Over Tailscale: 100.x.y.z or a MagicDNS name.");
         e("Добавить", "Add");
-        e("Это не похоже на IP-адрес (пример: 192.168.1.50).", "That doesn't look like an IP address (e.g. 192.168.1.50).");
+        e("Это не похоже на адрес ТВ (пример: 192.168.1.50 или 100.101.102.103).", "That doesn't look like a TV address (e.g. 192.168.1.50 or 100.101.102.103).");
+        // remote access (Tailscale) and the path chip
+        e("Удалённый доступ…", "Remote access…");
+        e("Удалённый доступ", "Remote access");
+        e("Чтобы управлять ТВ не из дома, поставьте Tailscale на телефон и на ТВ. На ТВ его ставит Fling для ПК — из «Каталога».", "To control the TV away from home, install Tailscale on the phone and on the TV. Fling for PC installs it on the TV from its Catalog.");
+        e("Установить Tailscale", "Install Tailscale");
+        e("Tailscale включён. Добавьте ТВ по его адресу 100.x.y.z или имени MagicDNS.", "Tailscale is on. Add the TV by its 100.x.y.z address or MagicDNS name.");
+        e("Tailscale выключен. Включите его, чтобы управлять ТВ не из дома.", "Tailscale is off. Turn it on to control the TV away from home.");
+        e("Добавить ТВ…", "Add a TV…");
+        e("Открыть Tailscale", "Open Tailscale");
+        e("Дома", "At home");
+        e("Через Tailscale", "Via Tailscale");
+        e("Через Tailscale · %d мс", "Via Tailscale · %d ms");
+        e("Нет связи с ТВ", "No connection to the TV");
+        e("Экран ТВ на телефоне", "TV screen on the phone");
+        e("Экран ТВ на телефоне: смотрите и управляйте — дома и через Tailscale.", "The TV screen on your phone: watch and control it, at home or over Tailscale.");
         e("По адресу %s нет Chromecast / Google TV.", "No Chromecast / Google TV at %s.");
         e("Снимок экрана ТВ", "TV screenshot");
         e("Сделать снимок", "Take screenshot");
@@ -90,7 +106,7 @@ final class L {
         // errors: Cast / Atv
         e("Устройство не выбрано", "No device selected");
         e("Телевизор не ответил.", "The TV didn't respond.");
-        e("Не удалось связаться с ТВ. Телефон и ТВ в одной сети Wi-Fi?", "Couldn't reach the TV. Are the phone and TV on the same Wi-Fi?");
+        e("Не удалось связаться с ТВ. Он включён и в той же сети Wi‑Fi или Tailscale?", "Couldn't reach the TV. Is it on, and on the same Wi‑Fi or Tailscale network?");
         e("Соединение с ТВ потеряно.", "Lost the connection to the TV.");
         e("Нет соединения с ТВ", "Not connected to the TV");
         e("Телевизор не смог открыть это видео.", "The TV couldn't open this video.");
@@ -115,7 +131,6 @@ final class L {
         e("Указать IP вручную…", "Enter IP manually…");
         e("Искать заново", "Search again");
         e("Ищу ТВ…", "Looking for TVs…");
-        e("IP-адрес телевизора", "The TV's IP address");
         e("Подключить", "Connect");
         e("Отмена", "Cancel");
         e("Телевизор игнорирует паузу по Chromecast (так ведёт себя YouTube на ТВ). Нажмите «Связать с ТВ» ниже — пауза будет работать как кнопка пульта.",
@@ -172,7 +187,7 @@ final class L {
         e("Напечатать на ТВ", "Type on TV");
         e("Слушаю — нажмите микрофон ещё раз, когда закончите.", "Listening — tap the mic again when done.");
         e("Сменить", "Switch");
-        e("Fling для Android · телефон и ТВ должны быть в одной сети Wi-Fi", "Fling for Android · phone and TV must be on the same Wi-Fi");
+        e("Fling для Android · дома по Wi‑Fi, не из дома — через Tailscale", "Fling for Android · Wi‑Fi at home, Tailscale when away");
         e("Ищу телевизор в сети…", "Looking for a TV on the network…");
         e("Сейчас на «%s»", "Now on “%s”");
         e("Пульт и трансляция на «%s»", "Remote and casting for “%s”");
@@ -257,5 +272,34 @@ final class L {
         e("Экран телефона не гаснет, пока открыт Fling.", "The phone screen stays on while Fling is open.");
         e("О приложении", "About");
         e("Проверить обновления", "Check for updates");
+
+        // LIVE: scrcpy session (Scrcpy)
+        e("Файл scrcpy-server не совпал с контрольной суммой, поэтому он не запущен.", "The scrcpy-server file didn't match its checksum, so it wasn't started.");
+        e("Подтвердите на ТВ «Разрешить отладку» и нажмите LIVE ещё раз.", "Accept “Allow debugging” on the TV, then tap LIVE again.");
+        e("LIVE работает через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети».", "LIVE works over ADB — on the TV, turn on Developer options → Network debugging.");
+        e("ТВ отключил видео.", "The TV turned the video off.");
+        e("ТВ не смог настроить видео.", "The TV couldn't set up the video.");
+        e("ТВ не запустил scrcpy: %s", "The TV didn't start scrcpy: %s");
+        e("Не удалось скачать scrcpy-server: ", "Couldn't download scrcpy-server: ");
+
+        // LIVE: screen and mini remote (LiveActivity)
+        e("Подключение…", "Connecting…");
+        e("Переподключение…", "Reconnecting…");
+        e("Снижаю качество…", "Lowering the quality…");
+        e("Повторить", "Retry");
+        e("Видео с ТВ прервалось.", "The picture from the TV stopped.");
+        e("Телефон не может показать видео с этого ТВ.", "This phone can't play the video from this TV.");
+        e("Касание — OK, свайп — стрелки, удержание — «Назад»", "Tap for OK, swipe for the arrows, press and hold for Back");
+        e("Домой", "Home");
+        e("Вверх", "Up");
+        e("Вниз", "Down");
+        e("Влево", "Left");
+        e("Вправо", "Right");
+        e("Тише", "Volume down");
+        e("Громче", "Volume up");
+        e("Пауза / воспроизведение", "Play/pause");
+        e("Клавиатура", "Keyboard");
+        e("%d мс", "%d ms");
+        e("мс", "ms");
     }
 }

@@ -161,7 +161,7 @@ final class Cast {
     static String message(Exception e) {
         if (e instanceof java.net.SocketTimeoutException) return L.t("Телевизор не ответил.");
         if (e instanceof java.net.ConnectException || e instanceof java.net.NoRouteToHostException)
-            return L.t("Не удалось связаться с ТВ. Телефон и ТВ в одной сети Wi-Fi?");
+            return L.t("Не удалось связаться с ТВ. Он включён и в той же сети Wi‑Fi или Tailscale?");
         if (e instanceof IOException && e.getMessage() == null) return L.t("Соединение с ТВ потеряно.");
         String m = e.getMessage();
         return m == null ? e.getClass().getSimpleName() : m;
