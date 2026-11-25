@@ -204,6 +204,7 @@ ADB («Разрешить отладку?» → «Всегда»), по жела
 | Документ | О чём |
 |---|---|
 | [Гайд для Windows](docs/install-windows.ru.md) · [EN](docs/install-windows.md) | Приложение, расширение, первый запуск, проблемы |
+| [Удалённый доступ через Tailscale](docs/tailscale.ru.md) · [EN](docs/tailscale.md) | Управление ТВ вне дома: настройка, правила доступа (ACL), что работает удалённо |
 | [Architecture](docs/architecture.md) · [Protocols](docs/protocols.md) · [Development](docs/development.md) | Для разработчиков (англ.) |
 | [Changelog](CHANGELOG.md) | Изменения по версиям |
 
