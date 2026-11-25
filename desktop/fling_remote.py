@@ -323,12 +323,13 @@ class Remote(QObject):
         self.s.bg(work, done)
         return None
 
-    # --- power: idempotent keys first (WAKEUP / SLEEP), POWER only when the TV still says otherwise
+    # --- power. POWER toggles, so it is sent only when the TV itself has just reported the
+    # opposite state over the remote session; otherwise the one-way WAKEUP / SLEEP keys.
     def tv_on(self):
         s = self.s
         if s.tv_paired and s.ip:
-            s.atv.key(s.ip, K["wakeup"])
-            QTimer.singleShot(3000, lambda: s.tv_paired and s.tv_on is False and s.atv.key(s.ip, K["power"]))
+            if s.tv_on is not True:
+                s.atv.key(s.ip, K["power"] if s.tv_on is False else K["wakeup"])
         elif s.adb_ok():
             ip = s.ip
             s.bg(lambda: F.adb_cmd(ip, ["shell", "input", "keyevent", "KEYCODE_WAKEUP"], timeout=8))
@@ -340,9 +341,8 @@ class Remote(QObject):
     def tv_off(self):
         s = self.s
         if s.tv_paired and s.ip:
-            s.atv.key(s.ip, K["sleep"])
-            # the TV pushes is_on = False when it goes to sleep; still on after 3 s → it ignores SLEEP
-            QTimer.singleShot(3000, lambda: s.tv_paired and s.tv_on is True and s.atv.key(s.ip, K["power"]))
+            if s.tv_on is not False:
+                s.atv.key(s.ip, K["power"] if s.tv_on is True else K["sleep"])
         elif s.adb_ok():
             ip = s.ip
             s.bg(lambda: F.adb_cmd(ip, ["shell", "input", "keyevent", "KEYCODE_SLEEP"], timeout=8))
@@ -465,7 +465,7 @@ class Remote(QObject):
             elif do == "key" and st.get("key") in K:
                 self.key(K[st["key"]]); nxt(0.5)
             elif do == "wait":
-                nxt(max(0.0, min(600.0, float(st.get("s") or 1))))
+                nxt(max(0.0, min(600.0, float(st.get("s", 1) or 0))))
             elif do == "sleep":
                 self.set_sleep(int(st.get("min") or 30)); nxt()
             elif do == "volume":
@@ -489,7 +489,7 @@ class Remote(QObject):
                 step(0)
             else:
                 s.select_device(d)
-                wait_until(lambda: s.atv.connected or not s.tv_paired, 8, lambda: step(0))
+                wait_until(lambda: not s.tv_paired or (s.atv.connected and s.atv.host == s.ip), 8, lambda: step(0))
         else:
             step(0)
 
@@ -567,7 +567,8 @@ class TvHotkeys:
         self._ready = threading.Event()
 
     def start(self) -> list[str]:
-        threading.Thread(target=self._loop, daemon=True, name="fling-tv-keys").start()
+        self._thread = threading.Thread(target=self._loop, daemon=True, name="fling-tv-keys")
+        self._thread.start()
         self._ready.wait(2)
         return self._failed
 
@@ -597,6 +598,7 @@ class TvHotkeys:
         if self._tid:
             import ctypes
             ctypes.windll.user32.PostThreadMessageW(self._tid, 0x0012, 0, 0)    # WM_QUIT
+            self._thread.join(1)          # its keys are free again before a new set registers them
 
 
 def controller(state) -> Remote:
