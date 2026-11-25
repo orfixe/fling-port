@@ -86,6 +86,28 @@ Builds from source (no signed list) run the same checks in **report-only** mode.
   different key.
 - GitHub Actions are pinned by commit SHA; CI never holds the release key.
 
+## The Catalog (extra modules)
+
+The Catalog tab of the Tools window installs extra apps on the TV (VLC, Kodi, Jellyfin,
+Moonlight, LocalSend, Tailscale, Material Files, F-Droid) and extra PC programs (FFmpeg).
+Only the projects' own channels are used, and nothing is installed unless it passes every
+check:
+
+| Source | Where the checksum comes from |
+|---|---|
+| GitHub Releases | GitHub's `digest` of the uploaded asset, plus the project's checksum file where there is one — both must agree. |
+| VideoLAN, Kodi (mirror networks) | `file?sha256` asked from the official host itself (`get.videolan.org`, `mirrors.kodi.tv`) with redirects refused; the file itself may come from any mirror. |
+| pkgs.tailscale.com | `file.sha256` next to the APK on Tailscale's own server, redirects refused. |
+| F-Droid | `entry.jar`, signed by the F-Droid repository key (fingerprint `43238d51…a9c9ccab`, pinned in the code), gives the SHA-256 of `index-v2.json`; the index gives each APK's SHA-256 and signer. An index older than one already seen is refused. |
+
+On top of that, each APK's **signer certificate** must match the developer's key pinned in
+`desktop/fling_catalog.py` (for F-Droid: the signer listed in the signed index), and its
+package name must be the expected one; Android verifies the signature itself on install,
+and afterwards Fling checks that the package really is on the TV. PC programs are
+registered with the guard by exact hash, like adb and scrcpy. If a developer changes keys,
+the install stops with "not signed with the developer's key" until the pin is updated —
+the intended, safe failure.
+
 ## Future modules
 
 Third-party modules will have to be signed by their author, shown with the author's key

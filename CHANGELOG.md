@@ -10,6 +10,14 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+### Added
+
+- Desktop: a **Catalog** tab in the Tools window (`fling catalog`) — install free apps on the TV
+  over ADB (VLC, Kodi, Jellyfin, Moonlight, LocalSend, Tailscale, Material Files, F-Droid) and
+  FFmpeg on the computer, from official sources only. Every download is checked against the
+  publisher's checksum or F-Droid's signed index, and every APK against the developer's signing
+  key; the tab shows what is already on the TV and opens or removes it.
+
 ## [0.4.0] - 2026-11-25
 
 Settings and themes, a much bigger remote, playlists and slideshows, a Tools window for adb and

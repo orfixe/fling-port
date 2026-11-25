@@ -86,6 +86,8 @@ class Release:
     sha256: str | None = None     # from the publisher (scrcpy: SHA256SUMS.txt)
     sha1: str | None = None       # from the publisher (Google's SDK repository)
     page: str = ""
+    abi: str = ""                 # Android APKs: the processor it is built for ("" = all)
+    signers: list = field(default_factory=list)   # APKs: signer certificate SHA-256s the index lists
 
 
 @dataclass
@@ -121,6 +123,11 @@ class Tool:
     portable_marker: str = ""     # a file next to the exe that says "the whole folder is the tool"
     before_swap: Callable[[str], None] | None = None  # free the folder before it is replaced
     note: str = ""                # Russian, shown when Fling can't install it itself
+    bin: str = ""                 # sub-folder of the install that holds the program (ffmpeg: bin)
+    catalog: bool = False         # an extra module: listed in the Catalog tab, not with the core tools
+    source: str = ""              # where Fling downloads it from (shown in the Catalog)
+    source_url: str = ""
+    tile: tuple = ()              # (letters, colour) of its icon in the Catalog
 
     @property
     def installable(self) -> bool:
@@ -131,7 +138,8 @@ class Tool:
         return os.path.join(ROOT, self.dir) if self.dir else ""
 
     def own_exe(self) -> str:
-        return os.path.join(self.target, _exe(self.exe))
+        return os.path.join(self.target, self.bin, _exe(self.exe)) if self.bin else \
+            os.path.join(self.target, _exe(self.exe))
 
 
 TOOLS: dict[str, Tool] = {}
@@ -163,6 +171,8 @@ def _open(url: str, timeout: float = 30, headers: dict | None = None):
     except urllib.error.HTTPError as e:
         if e.code == 416:
             raise
+        if e.code in (403, 429) and urlparse(url).hostname == "api.github.com":
+            raise ToolError("GitHub временно ограничил число запросов — попробуйте через час") from e
         raise ToolError(f"сервер ответил кодом {e.code}") from e
     except urllib.error.URLError as e:
         raise ToolError("нет связи с сервером загрузки") from e
@@ -376,14 +386,15 @@ def scan(key: str) -> list[Copy]:
     pinned = choice(key).get("path")
     if pinned and not _unc(pinned) and os.path.isfile(pinned) and _norm(pinned) not in seen:
         cands.append((pinned, "custom"))
-    own = _norm(tool.target) if tool.target else None
+    own = _norm(os.path.dirname(tool.own_exe())) if tool.target else None
     with ThreadPoolExecutor(max_workers=4) as ex:
         versions = list(ex.map(lambda ps: _run_version(tool, ps[0]), cands))
     for (path, source), ver in zip(cands, versions):
         folder = os.path.dirname(path)
         owned = bool(own) and _norm(folder) == own
-        portable = not _shim(path) and (not tool.portable_marker or
-                                        os.path.exists(os.path.join(folder, tool.portable_marker)))
+        # a program in a sub-folder (ffmpeg's bin) needs its whole package: not copied
+        portable = not tool.bin and not _shim(path) and (
+            not tool.portable_marker or os.path.exists(os.path.join(folder, tool.portable_marker)))
         copies.append(Copy(path, "fling" if owned else source, ver, owned, portable and not owned,
                            _read_mark(folder) if owned else None))
     rank = {"fling": 3, "bundled": 2, "builtin": 2}
@@ -425,7 +436,7 @@ def first_run_scan() -> None:
     """Background, once per start: pick a copy for tools that have no (valid) choice yet."""
     def go():
         for key, tool in TOOLS.items():
-            if tool.exe and tool.dir and not resolve(key):
+            if tool.exe and tool.dir and not tool.catalog and not resolve(key):
                 try:
                     auto_pick(key, scan(key))
                 except Exception as e:
@@ -499,15 +510,19 @@ def busy(key: str | None = None) -> bool:
     return any(j.state == "run" for k, j in _JOBS.items() if key in (None, k))
 
 
-def start(key: str, action: str = "install", copy: Copy | None = None) -> Job:
-    """Start (or join) a job on its own thread; watch it with job(key)."""
+def start(key: str, action: str = "install", copy: Copy | None = None,
+          worker: Callable[[Job], str] | None = None) -> Job:
+    """Start (or join) a job on its own thread; watch it with job(key).
+
+    worker: a job that is not about a program in TOOLS (the Catalog's TV apps). It gets
+    the Job, reports phases with step(), returns the version and sets j.message."""
     with _JOBS_LOCK:
         j = _JOBS.get(key)
         if j and j.state == "run":
             return j
         j = _JOBS[key] = Job(key, action)
     REVISION[0] += 1
-    threading.Thread(target=_work, args=(j, copy), name=f"toolkit-{key}", daemon=True).start()
+    threading.Thread(target=_work, args=(j, copy, worker), name=f"toolkit-{key}", daemon=True).start()
     return j
 
 
@@ -521,10 +536,12 @@ def run_now(key: str, action: str = "install") -> Copy:
     return Copy(path, "fling", j.version, owned=True)
 
 
-def _work(j: Job, copy: Copy | None):
-    tool = TOOLS[j.key]
+def _work(j: Job, copy: Copy | None, worker: Callable[[Job], str] | None = None):
+    tool = TOOLS.get(j.key)
     try:
-        if j.action == "install":
+        if worker:
+            j.version = worker(j) or ""
+        elif j.action == "install":
             j.version = _install(tool, j)
             j.message = "Установлено: {name} {version}."
         elif j.action == "absorb":
@@ -556,6 +573,9 @@ def _step(j: Job, phase: str, done: int = 0, total: int = 0):
         raise Cancelled()
     j.phase, j.done, j.total = phase, done, total
     j.tick += 1
+
+
+step = _step                          # for workers outside this module (fling_catalog)
 
 
 # ---------------------------------------------------------------- download / verify / unpack
@@ -663,8 +683,10 @@ def _unpack(archive: str, out: str, j: Job) -> None:
             raise ToolError("в архиве опасные пути — установка отменена")
         return d
 
-    if archive.endswith(".tar.gz.part") or archive.endswith(".tar.gz"):
-        with tarfile.open(archive, "r:gz") as t:
+    tar_mode = next((m for ext, m in ((".tar.gz", "r:gz"), (".tar.xz", "r:xz"))
+                     if archive.endswith((ext, ext + ".part"))), None)
+    if tar_mode:
+        with tarfile.open(archive, tar_mode) as t:
             members = t.getmembers()
             files = [m for m in members if m.isfile()]
             n = 0
@@ -718,7 +740,7 @@ def _work_dir(tool: Tool) -> str:
 
 def _test_and_mark(tool: Tool, folder: str, j: Job, record: dict) -> str:
     """Run the new copy's version command (only after its checksum passed)."""
-    exe = os.path.join(folder, _exe(tool.exe))
+    exe = os.path.join(folder, tool.bin, _exe(tool.exe))
     if not os.path.isfile(exe):
         raise ToolError(f"в архиве нет программы {tool.exe}")
     if not P.IS_WIN:
@@ -851,7 +873,7 @@ def _remove(tool: Tool, j: Job) -> None:
                         "и повторите") from e
     shutil.rmtree(old, ignore_errors=True)
     c = choice(tool.key).get("path")
-    if c and _norm(os.path.dirname(c)) == _norm(target):
+    if c and _norm(os.path.dirname(c)) == _norm(os.path.dirname(tool.own_exe())):
         forget(tool.key)
 
 
@@ -1114,6 +1136,17 @@ EN_PHRASES = [
     ("контрольные суммы scrcpy не совпадают — установка отменена",
      "scrcpy's checksums don't match — installation cancelled"),
     ("не вышло", "it didn't work"),
+    # the Catalog tab and the jobs it starts (fling_catalog keeps the rest of its texts)
+    ("Каталог", "Catalog"),
+    ("Источник:", "Source:"),
+    ("МБ", "MB"),
+    ("Загружаю каталог F-Droid: {done} из {total} МБ", "Loading the F-Droid catalog: {done} of {total} MB"),
+    ("Проверяю подпись приложения…", "Checking the app's signature…"),
+    ("Устанавливаю на ТВ — это может занять пару минут…", "Installing on the TV — this can take a couple of minutes…"),
+    ("Проверяю, что приложение появилось на ТВ…", "Checking that the app is on the TV…"),
+    ("Удаляю с ТВ…", "Removing from the TV…"),
+    ("GitHub временно ограничил число запросов — попробуйте через час",
+     "GitHub is limiting requests for now — try again in an hour"),
 ]
 
 SOURCES = {"fling": "Папка Fling", "bundled": "В комплекте Fling", "path": "PATH", "sdk": "Android SDK",
@@ -1176,6 +1209,18 @@ def job_text(j: Job) -> str:
         return _tr("Проверяю, что программа запускается…")
     if j.phase == "swap":
         return _tr("Ставлю на место…") if j.action != "remove" else _tr("Удаляю…")
+    if j.phase == "index":                        # the Catalog: F-Droid's signed index
+        mb = 1 << 20
+        return _tr("Загружаю каталог F-Droid: {done} из {total} МБ").format(
+            done=_num(j.done / mb), total=_num(max(j.total, j.done) / mb))
+    if j.phase == "sign":
+        return _tr("Проверяю подпись приложения…")
+    if j.phase == "tv":
+        return _tr("Устанавливаю на ТВ — это может занять пару минут…")
+    if j.phase == "tv-check":
+        return _tr("Проверяю, что приложение появилось на ТВ…")
+    if j.phase == "tv-remove":
+        return _tr("Удаляю с ТВ…")
     return ""
 
 
@@ -1206,6 +1251,52 @@ def _dots_icon(size: int, color) -> QIcon:
 def _tool_icon(key: str, size: int, color) -> QIcon:
     names = {"adb": "android", "scrcpy": "tv", "catt": "play_on_tv", "yt-dlp": "play_on_tv"}
     return _F.glyph(names.get(key, "tv"), size, color)
+
+
+TILE = 30                         # Catalog icons: a rounded tile with the program's letters
+
+
+def tile_pixmap(letters: str, color: str, size: int = TILE) -> QPixmap:
+    """Drawn at the screen's own scale, so it stays crisp at 100% and 200%. Letters, not
+    logos: the projects' trademarks stay theirs."""
+    scr = QGuiApplication.primaryScreen()
+    dpr = scr.devicePixelRatio() if scr else 1.0
+    pm = QPixmap(round(size * dpr), round(size * dpr))
+    pm.setDevicePixelRatio(dpr)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor(color))
+    p.drawRoundedRect(QRectF(0, 0, size, size), size * 0.26, size * 0.26)
+    p.setPen(QColor("white"))
+    p.setFont(_F.font(size * {1: 0.5, 2: 0.4}.get(len(letters), 0.33), QFont.Weight.Bold))
+    p.drawText(QRectF(0, 0, size, size), Qt.AlignmentFlag.AlignCenter, letters)
+    p.end()
+    return pm
+
+
+def size_text(n: int) -> str:
+    """Download size for people: 87 МБ / 87 MB (one decimal below 10)."""
+    mb = n / (1 << 20)
+    s = _num(mb) if mb < 10 else str(round(mb))
+    return s + " " + _tr("МБ")
+
+
+def credits_html(tool, size: int = 0) -> str:
+    """The small print under a card: source (Catalog), download size, licence, website."""
+    col = _css(_F.T.fg_a(0.6))
+    parts = []
+    src = getattr(tool, "source", "")
+    src = src if isinstance(src, str) else src.name           # a Catalog app: its Source
+    if src:
+        parts.append(f'{_tr("Источник:")} <a href="{tool.source_url}" style="color:{col}">{src}</a>')
+    if size:
+        parts.append(size_text(size))
+    parts.append(f'{_tr("Лицензия")}: <a href="{tool.license_url}" style="color:{col}">{tool.license}</a>')
+    parts.append(f'<a href="{tool.homepage}" style="color:{col}">{_tr("Сайт проекта")}</a>')
+    return " · ".join(parts)
 
 
 class _Elided(QLabel):
@@ -1275,8 +1366,8 @@ class ToolCard(QFrame):
         self.setObjectName("toolcard")
         self.setStyleSheet(f"QFrame#toolcard{{background:{_css(T.fg_a(0.045))};border-radius:10px}}")
         v = QVBoxLayout(self); v.setContentsMargins(14, 12, 14, 12); v.setSpacing(6)
-        top = QHBoxLayout(); top.setSpacing(9)
-        self.icon = QLabel(); self.icon.setFixedSize(20, 20)
+        top = QHBoxLayout(); top.setSpacing(10 if tool.tile else 9)
+        self.icon = QLabel(); self.icon.setFixedSize(*((TILE, TILE) if tool.tile else (20, 20)))
         top.addWidget(self.icon, 0, Qt.AlignmentFlag.AlignVCenter)
         top.addWidget(_F.label(tool.title, 13.5, weight=QFont.Weight.DemiBold), 0, Qt.AlignmentFlag.AlignVCenter)
         top.addStretch(1)
@@ -1314,18 +1405,21 @@ class ToolCard(QFrame):
         # actions
         self.actions = QHBoxLayout(); self.actions.setSpacing(6); self.actions.setContentsMargins(0, 6, 0, 0)
         v.addLayout(self.actions)
-        lic = _F.label(f'{_tr("Лицензия")}: <a href="{tool.license_url}" style="color:{_css(T.fg_a(0.6))}">'
-                       f'{tool.license}</a> · <a href="{tool.homepage}" style="color:{_css(T.fg_a(0.6))}">'
-                       f'{_tr("Сайт проекта")}</a>', 10.5, T.fg_a(0.45))
-        lic.setOpenExternalLinks(True)
-        lic.setContentsMargins(0, 2, 0, 0)
-        v.addWidget(lic)
+        self.lic = _F.label("", 10.5, T.fg_a(0.45), wrap=True)
+        self.lic.setOpenExternalLinks(True)
+        self.lic.setContentsMargins(0, 2, 0, 0)
+        self.lic.setText(credits_html(tool))
+        v.addWidget(self.lic)
         self._job_tick = -1
 
     # ---- render
     def render(self, copies: list[Copy] | None, rel: Release | None):
         T, tool = _F.T, self.tool
-        self.icon.setPixmap(_tool_icon(tool.key, 20, T.fg_a(0.85)).pixmap(QSize(20, 20)))
+        if tool.tile:
+            self.icon.setPixmap(tile_pixmap(*tool.tile))
+            self.lic.setText(credits_html(tool, rel.size if rel else 0))
+        else:
+            self.icon.setPixmap(_tool_icon(tool.key, 20, T.fg_a(0.85)).pixmap(QSize(20, 20)))
         j = job(tool.key)
         running = bool(j and j.state == "run")
         chosen = resolve(tool.key) if tool.dir else None
@@ -1345,7 +1439,8 @@ class ToolCard(QFrame):
         elif running:
             pill = _pill({"install": "Устанавливаю…", "absorb": "Копирую…", "remove": "Удаляю…"}[j.action], T.accent)
         elif cur is None:
-            pill = _pill("Не найден", T.red if tool.installable or not copies else T.orange)
+            # an optional Catalog program that isn't there yet is not a problem: no red pill
+            pill = None if tool.catalog else _pill("Не найден", T.red if tool.installable or not copies else T.orange)
         elif not compatible(tool, cur):
             pill = _pill("Устарел", T.orange)
         elif cur.source == "builtin":
@@ -1543,10 +1638,13 @@ class ToolCard(QFrame):
 
 class ToolsPage(QWidget):
     """The tools list without window chrome: a Settings window can add it as a page."""
-    def __init__(self, parent=None, tools: list[str] | None = None):
+    def __init__(self, parent=None, tools: list[str] | None = None, header: bool = True,
+                 embedded: bool = False):
+        """header=False: no title row (the Tools window puts its tabs and `again` there);
+        embedded=True: no margins or intro either (the Catalog lists its PC programs so)."""
         super().__init__(parent)
         T = _F.T
-        self.keys = tools or list(TOOLS)
+        self.keys = tools or [k for k, t in TOOLS.items() if not t.catalog]
         pal = self.palette(); pal.setColor(self.backgroundRole(), T.bg); self.setPalette(pal)
         self.setAutoFillBackground(True)
         self.found: dict[str, list[Copy] | None] = {k: None for k in self.keys}
@@ -1555,19 +1653,23 @@ class ToolsPage(QWidget):
         self._lock = threading.Lock()
         self._rev = -1
         self._seen: set = set()                     # finished jobs already reacted to
-        v = QVBoxLayout(self); v.setContentsMargins(18, 16, 18, 16); v.setSpacing(10)
-        head = QHBoxLayout(); head.setSpacing(8)
-        head.addWidget(_F.label("Инструменты", 17, weight=QFont.Weight.Bold), 1, Qt.AlignmentFlag.AlignVCenter)
+        v = QVBoxLayout(self); v.setSpacing(10)
+        v.setContentsMargins(*((0, 0, 0, 0) if embedded else (18, 6 if not header else 16, 18, 16)))
         self.again = _F.small_button("Найти заново", self.rescan)
-        head.addWidget(self.again, 0, Qt.AlignmentFlag.AlignVCenter)
-        v.addLayout(head)
-        v.addWidget(_F.label("Программы, без которых не работают ADB и экран ТВ. Если они уже есть на компьютере, "
-                             "Fling найдёт их и будет использовать; если нет — скачает и установит сам.",
-                             11.5, T.fg_a(0.6), wrap=True))
+        if header and not embedded:
+            head = QHBoxLayout(); head.setSpacing(8)
+            head.addWidget(_F.label("Инструменты", 17, weight=QFont.Weight.Bold), 1, Qt.AlignmentFlag.AlignVCenter)
+            head.addWidget(self.again, 0, Qt.AlignmentFlag.AlignVCenter)
+            v.addLayout(head)
+        if not embedded:
+            v.addWidget(_F.label("Программы, без которых не работают ADB и экран ТВ. Если они уже есть на компьютере, "
+                                 "Fling найдёт их и будет использовать; если нет — скачает и установит сам.",
+                                 11.5, T.fg_a(0.6), wrap=True))
         self.cards = {k: ToolCard(self, TOOLS[k]) for k in self.keys}
         for k in self.keys:
             v.addWidget(self.cards[k])
-        v.addStretch(1)
+        if not embedded:
+            v.addStretch(1)
         self.timer = QTimer(self, interval=100)
         self.timer.timeout.connect(self._tick)
         self.render_all()
@@ -1648,35 +1750,110 @@ class ToolsPage(QWidget):
             self.timer.stop()
 
 
+class Tabs(QWidget):
+    """"Инструменты | Каталог" — one pill, like the panel's "Пульт | LIVE" switch."""
+    def __init__(self, names: list[tuple[str, str]], on_pick):
+        super().__init__()
+        T = _F.T
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.setObjectName("tooltabs")
+        self.setStyleSheet(f"QWidget#tooltabs{{background:{_css(T.fg_a(0.07))};border-radius:9px}}")
+        lay = QHBoxLayout(self); lay.setContentsMargins(2, 2, 2, 2); lay.setSpacing(0)
+        self.buttons: dict[str, QToolButton] = {}
+        for key, text in names:
+            b = QToolButton()
+            b.setText(_tr(text))
+            b.setFont(_F.font(11.5, QFont.Weight.DemiBold))
+            b.setFixedHeight(24)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            b.clicked.connect(lambda _=False, k=key: on_pick(k))
+            lay.addWidget(b)
+            self.buttons[key] = b
+
+    def set_current(self, key: str):
+        T = _F.T
+        for k, b in self.buttons.items():
+            on = k == key
+            b.setStyleSheet(
+                f"QToolButton{{border:none;border-radius:7px;padding:0 14px;"
+                f"color:{_css(T.fg if on else T.fg_a(0.6))};background:{_css(T.bg) if on else 'transparent'}}}"
+                f"QToolButton:hover{{color:{_css(T.fg)};background:{_css(T.bg) if on else _css(T.fg_a(0.08))}}}")
+
+
+def _scroll(widget: QWidget) -> QScrollArea:
+    area = QScrollArea(); area.setWidgetResizable(True)
+    area.setFrameShape(QFrame.Shape.NoFrame)
+    area.setStyleSheet("QScrollArea{background:transparent}")
+    area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    area.setWidget(widget)
+    return area
+
+
 class ToolsWindow(QWidget):
+    """Two tabs: the programs Fling needs (Tools) and extra modules (Catalog)."""
     def __init__(self):
         super().__init__(None, Qt.WindowType.Window)
+        from PyQt6.QtWidgets import QStackedWidget
+        import fling_catalog                       # imports this module: load it lazily
         T = _F.T
         self.setWindowTitle(_tr("Fling — инструменты"))
-        self.setMinimumWidth(520)
-        self.resize(600, 720)
+        self.setMinimumWidth(540)
+        self.resize(620, 760)
         pal = self.palette(); pal.setColor(self.backgroundRole(), T.bg); self.setPalette(pal)
         self.setAutoFillBackground(True)
-        outer = QVBoxLayout(self); outer.setContentsMargins(0, 0, 0, 0)
-        area = QScrollArea(); area.setWidgetResizable(True)
-        area.setFrameShape(QFrame.Shape.NoFrame)
-        area.setStyleSheet("QScrollArea{background:transparent}")
-        area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.page = ToolsPage()
-        area.setWidget(self.page)
-        outer.addWidget(area)
+        outer = QVBoxLayout(self); outer.setContentsMargins(0, 0, 0, 0); outer.setSpacing(0)
+        bar = QHBoxLayout(); bar.setContentsMargins(18, 14, 18, 8); bar.setSpacing(8)
+        self.tabs = Tabs([("tools", "Инструменты"), ("catalog", "Каталог")], self.show_tab)
+        bar.addWidget(self.tabs, 0, Qt.AlignmentFlag.AlignVCenter)
+        bar.addStretch(1)
+        self.page = ToolsPage(header=False)
+        self.catalog = fling_catalog.CatalogPage()
+        for b in (self.page.again, self.catalog.again):
+            bar.addWidget(b, 0, Qt.AlignmentFlag.AlignVCenter)
+        outer.addLayout(bar)
+        self.bar = bar
+        self.stack = QStackedWidget()
+        self.areas = [_scroll(self.page), _scroll(self.catalog)]
+        for a in self.areas:
+            self.stack.addWidget(a)
+            a.verticalScrollBar().rangeChanged.connect(lambda *_: QTimer.singleShot(0, self._align))
+        outer.addWidget(self.stack, 1)
+        self.show_tab("tools")
+
+    def _align(self):
+        """The button on the right of the tab bar lines up with the cards' right edge,
+        with or without a scroll bar beside them."""
+        sb = self.areas[self.stack.currentIndex()].verticalScrollBar()
+        self.bar.setContentsMargins(18, 14, 18 + (sb.width() if sb.isVisible() else 0), 8)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        QTimer.singleShot(0, self._align)
+
+    def show_tab(self, key: str):
+        self.current = key
+        self.tabs.set_current(key)
+        self.stack.setCurrentIndex(0 if key == "tools" else 1)
+        self.page.again.setVisible(key == "tools")
+        self.catalog.again.setVisible(key == "catalog")
+        (self.page if key == "tools" else self.catalog).render_all()
+        QTimer.singleShot(0, self._align)
 
 
 _WINDOW: list = []
 
 
-def open_window(install: str | None = None) -> ToolsWindow:
-    """Open (or raise) the one Tools window; install="adb" also starts that install."""
+def open_window(install: str | None = None, tab: str | None = None) -> ToolsWindow:
+    """Open (or raise) the one Tools window; install="adb" also starts that install,
+    tab="catalog" opens the Catalog."""
     if not _WINDOW:
         _WINDOW.append(ToolsWindow())
     w = _WINDOW[0]
     if install and not busy(install):
         start(install, "install")
+    if tab or install:
+        w.show_tab(tab or ("catalog" if TOOLS.get(install) and TOOLS[install].catalog else "tools"))
     w.show(); w.raise_(); w.activateWindow()
     w.page.render_all()
     return w
@@ -1700,6 +1877,9 @@ def link(href: str) -> bool:
         return True
     if href == "fling:tools-install-adb":
         open_window(install="adb")
+        return True
+    if href == "fling:catalog":
+        open_window(tab="catalog")
         return True
     if href.startswith(("https://", "http://")):
         QDesktopServices.openUrl(QUrl(href))

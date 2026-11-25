@@ -45,6 +45,7 @@ import fling_media as M                      # formats, queues, slideshows, resu
 M.F = sys.modules[__name__]
 
 import fling_tools                     # adb / scrcpy: find, choose, install (the Tools window)
+import fling_catalog                   # extra modules from official sources (the Catalog tab)
 import fling_devices as D              # the TV chooser window (search animation, cards, add by IP)
 
 HOME = P.HOME
@@ -2326,6 +2327,7 @@ EN_PHRASES += [   # installing an APK on the TV
     ("нет ответа", "no answer"),
 ]
 EN_PHRASES += fling_tools.EN_PHRASES   # the Tools window keeps its texts next to its code
+EN_PHRASES += fling_catalog.EN_PHRASES
 EN_PHRASES += M.PHRASES          # formats, queues, slideshows (fling_media.py)
 EN_PHRASES += D.PHRASES + [("Найти ТВ…", "Find TVs…")]   # the TV chooser (fling_devices.py)
 EN_PHRASES.sort(key=lambda kv: -len(kv[0]))
@@ -6957,6 +6959,7 @@ def main():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     state = State()
+    fling_catalog.bind_state(state)                # the Catalog installs on / reads from this TV
     panel = Panel(state)
     state._panel_ref = panel
     state.panel_visible = panel.isVisible
@@ -7001,6 +7004,8 @@ def main():
             open_adb_console(panel, state)
         elif c == "tools":                                   # `fling tools`: adb / scrcpy
             fling_tools.open_window()
+        elif c == "catalog":                                 # `fling catalog`: extra modules
+            fling_tools.open_window(tab="catalog")
         elif c == "log":                                     # `fling log`: open app.log
             P.open_path(P.LOG)
         elif c == "install-extension":
