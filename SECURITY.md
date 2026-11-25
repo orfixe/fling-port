@@ -21,7 +21,8 @@ not in this repository, not in CI, not in any cloud.
 Release public key (minisign / Ed25519):
 
 ```
-see security/fling-release.pub
+untrusted comment: minisign public key: 2532E17649C7EA66
+RWRm6sdJduEyJc2SZt5ee5tDKKaWvAoJcDttUeHJh1wve7upw8c0p5AJ
 ```
 
 Check a download on **any OS** with [minisign](https://jedisct1.github.io/minisign/)
