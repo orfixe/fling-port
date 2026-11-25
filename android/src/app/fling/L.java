@@ -257,17 +257,5 @@ final class L {
         e("Экран телефона не гаснет, пока открыт Fling.", "The phone screen stays on while Fling is open.");
         e("О приложении", "About");
         e("Проверить обновления", "Check for updates");
-        // remote access over Tailscale (Tailnet)
-        e("через Tailscale", "via Tailscale");
-        e("Добавить ТВ через Tailscale…", "Add TV via Tailscale…");
-        e("ТВ через Tailscale", "TV via Tailscale");
-        e("Адрес ТВ есть в приложении Tailscale: 100.x.y.z или имя MagicDNS.", "The Tailscale app shows the TV's address: 100.x.y.z or a MagicDNS name.");
-        e("Вдали от дома работают пульт, приложения и набор текста. Трансляция может не работать: для неё ТВ должен отвечать на порт Cast через Tailscale.",
-          "Away from home, the remote, apps and typing work. Casting may not: the TV has to answer on the Cast port over Tailscale.");
-        e("Tailscale на телефоне сейчас выключен — включите его, иначе ТВ не ответит.", "Tailscale is off on this phone. Turn it on, or the TV won't answer.");
-        e("Открыть Tailscale", "Open Tailscale");
-        e("Не нашёл «%s». Включён ли Tailscale на телефоне?", "Couldn't find “%s”. Is Tailscale on on this phone?");
-        e("По адресу %s не отвечают ни Cast, ни пульт. Включён ли Tailscale на ТВ?", "Neither Cast nor the remote answers at %s. Is Tailscale on on the TV?");
-        e("ТВ добавлен через Tailscale: пульт работает и вдали от дома.", "TV added via Tailscale: the remote works away from home too.");
     }
 }

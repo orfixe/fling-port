@@ -680,7 +680,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         List<String> marks = new ArrayList<>();
         if (nameClash(d)) marks.add(d.host);                 // tell identical names apart
         if (atv.paired(d.host)) marks.add(L.t("пульт ✓"));   // network remote already paired
-        if (isManual(d)) marks.add(Tailnet.isTailnetIp(d.host) ? L.t("через Tailscale") : L.t("по IP"));   // not found by discovery
+        if (isManual(d)) marks.add(L.t("по IP"));            // not found by discovery
         return (d.host.equals(host) ? "✓  " : "") + d.name + (marks.isEmpty() ? "" : "  ·  " + String.join(", ", marks));
     }
 
@@ -690,7 +690,6 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         if (devices.isEmpty()) pm.getMenu().add(0, 999, 0, L.t("ТВ не найдены")).setEnabled(false);
         pm.getMenu().add(1, 1001, 1001, L.t("Найти ТВ заново"));
         pm.getMenu().add(1, 1000, 1000, L.t("Добавить ТВ по IP…"));
-        if (Tailnet.installed(this)) pm.getMenu().add(1, 1003, 1000, L.t("Добавить ТВ через Tailscale…"));   // the official app is on the phone
         List<Discovery.Device> manual = manualDevices();
         if (!manual.isEmpty()) {
             android.view.SubMenu sm = pm.getMenu().addSubMenu(1, 1002, 1002, L.t("Убрать добавленный вручную"));
@@ -699,7 +698,6 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         pm.setOnMenuItemClickListener(it -> {
             int id = it.getItemId();
             if (id == 1000) askIp();
-            else if (id == 1003) askTailnet();
             else if (id == 1001) { discovery.stop(); discovery.start(); toast(L.t("Ищу ТВ…")); }   // restart mDNS search
             else if (id >= 2000) forgetManual(manual.get(id - 2000));
             else if (id < devices.size()) selectDevice(devices.get(id));
@@ -723,63 +721,18 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 .show();
     }
 
-    /** A TV on the tailnet: its Tailscale IP (100.x.y.z) or MagicDNS name, read from the official
-     *  Tailscale app. Fling has no Tailscale code of its own; the phone's Tailscale app must be on. */
-    private void askTailnet() {
-        EditText e = ui.field("100.x.y.z", false);   // a tailnet address or a MagicDNS name
-        e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        FrameLayout f = new FrameLayout(this);
-        f.setPadding(ui.dp(20), ui.dp(8), ui.dp(20), 0);
-        f.addView(e);
-        boolean on = Tailnet.connected();
-        String msg = L.t("Адрес ТВ есть в приложении Tailscale: 100.x.y.z или имя MagicDNS.") + "\n\n"
-                + L.t("Вдали от дома работают пульт, приложения и набор текста. Трансляция может не работать: для неё ТВ должен отвечать на порт Cast через Tailscale.");
-        if (!on) msg += "\n\n" + L.t("Tailscale на телефоне сейчас выключен — включите его, иначе ТВ не ответит.");
-        AlertDialog.Builder b = new AlertDialog.Builder(this)
-                .setTitle(L.t("ТВ через Tailscale"))
-                .setMessage(msg)
-                .setView(f)
-                .setPositiveButton(L.t("Добавить"), (dlg, w) -> addByIp(e.getText().toString().trim()))
-                .setNegativeButton(L.t("Отмена"), null);
-        if (!on) b.setNeutralButton(L.t("Открыть Tailscale"), (dlg, w) -> Tailnet.open(this));
-        b.show();
-    }
-
-    private static boolean portOpen(String ip, int port) {
-        try (java.net.Socket s = new java.net.Socket()) {
-            s.connect(new java.net.InetSocketAddress(ip, port), 2500);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    /** Checks there is a Cast device at the address, asks the TV its name, saves and selects it.
-     *  A tailnet address (or a MagicDNS name) is enough with the remote answering: the remote
-     *  connects by address, while Cast may not listen on the tailnet. */
-    private void addByIp(String text) {
-        boolean byName = !validIp(text) && Tailnet.isHostName(text);
-        if (!validIp(text) && !byName) { showError(L.t("Это не похоже на IP-адрес (пример: 192.168.1.50).")); return; }   // 4 numbers, each 0..255
+    /** Checks there is a Cast device at the address, asks the TV its name, saves and selects it. */
+    private void addByIp(String ip) {
+        if (!validIp(ip)) { showError(L.t("Это не похоже на IP-адрес (пример: 192.168.1.50).")); return; }   // 4 numbers, each 0..255
         bg(() -> {
-            String addr = text;
-            if (byName) {
-                try {
-                    addr = Tailnet.resolve(text);
-                } catch (Exception e) {
-                    main.post(() -> showError(L.f("Не нашёл «%s». Включён ли Tailscale на телефоне?", text)));
-                    return;
-                }
-            }
-            final String ip = addr;
-            final boolean tailnet = Tailnet.isTailnetIp(ip);
-            boolean cast = portOpen(ip, 8009);   // 8009 = Google Cast port
-            if (!cast && !(tailnet && (portOpen(ip, 6466) || portOpen(ip, 5555)))) {   // the remote / ADB over the tailnet
-                main.post(() -> showError(tailnet ? L.f("По адресу %s не отвечают ни Cast, ни пульт. Включён ли Tailscale на ТВ?", ip)
-                                                  : L.f("По адресу %s нет Chromecast / Google TV.", ip)));
+            String name = ip;
+            try (java.net.Socket s = new java.net.Socket()) {
+                s.connect(new java.net.InetSocketAddress(ip, 8009), 2500);   // 8009 = Google Cast port
+            } catch (Exception e) {
+                main.post(() -> showError(L.f("По адресу %s нет Chromecast / Google TV.", ip)));
                 return;
             }
-            String name = byName ? text.split("\\.")[0] : ip;
-            if (cast) try {   // the TV's own name from its DIAL device description
+            try {   // the TV's own name from its DIAL device description
                 java.net.HttpURLConnection c = (java.net.HttpURLConnection)
                         new java.net.URL("http://" + ip + ":8008/ssdp/device-desc.xml").openConnection();
                 c.setConnectTimeout(3000); c.setReadTimeout(3000);
@@ -800,7 +753,6 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 saveManual(manual);
                 devices = withManual(devices);              // show it in the list right away
                 selectDevice(d);
-                if (tailnet) toast(L.t("ТВ добавлен через Tailscale: пульт работает и вдали от дома."));
             });
         });
     }

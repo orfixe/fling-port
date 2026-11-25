@@ -29,8 +29,8 @@ Tailscale address in the *Add by IP* field: `100.x.y.z` or a MagicDNS name (`liv
 ADB (5555) answer; any one is enough. *Settings → Remote access* shows the same list, what
 works remotely and an example ACL.
 
-**Android.** Fling's TV menu → **Add TV via Tailscale…** (shown when the Tailscale app is
-installed). Enter the address from the Tailscale app. The TV is labelled *via Tailscale*.
+**Phone.** Install the official Tailscale app, turn it on, and add the TV in Fling by its
+Tailscale address (shown in the Tailscale app), just as you would add a TV by IP.
 
 Pair the remote and allow ADB **once at home** (Connect TV); the pairing keeps working over
 the tailnet.
