@@ -101,9 +101,30 @@ if (-not (Test-Path $Adb)) {
 Write-Host '==> scrcpy' -ForegroundColor Cyan
 $ScrDir = Join-Path $Out 'scrcpy'
 if (-not (Test-Path (Join-Path $ScrDir 'scrcpy.exe'))) {
-  $rel = Invoke-RestMethod 'https://api.github.com/repos/Genymobile/scrcpy/releases/latest' -Headers @{ 'User-Agent' = 'Fling-build' }
-  $asset = $rel.assets | Where-Object { $_.name -like 'scrcpy-win64-*.zip' } | Select-Object -First 1
-  $sums = $rel.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' } | Select-Object -First 1
+  # Anonymous GitHub API calls are limited to 60/hour per IP, and a few builds in a row hit it.
+  # Use a token when there is one (GITHUB_TOKEN / GH_TOKEN, or the logged-in gh CLI: 5000/hour);
+  # if the API still refuses, read the latest tag from the releases page, which has no API limit.
+  $ghHeaders = @{ 'User-Agent' = 'Fling-build' }
+  $token = if ($env:GITHUB_TOKEN) { $env:GITHUB_TOKEN } elseif ($env:GH_TOKEN) { $env:GH_TOKEN }
+           elseif (Get-Command gh -ErrorAction SilentlyContinue) { (& gh auth token 2>$null | Out-String).Trim() }
+  if ($token) { $ghHeaders['Authorization'] = "Bearer $token" }
+  $asset = $null; $sums = $null
+  try {
+    $rel = Invoke-RestMethod 'https://api.github.com/repos/Genymobile/scrcpy/releases/latest' -Headers $ghHeaders
+    $asset = $rel.assets | Where-Object { $_.name -like 'scrcpy-win64-*.zip' } | Select-Object -First 1
+    $sums = $rel.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' } | Select-Object -First 1
+  } catch {
+    Write-Host "    GitHub API unavailable ($($_.Exception.Message.Split([char]10)[0])); using the releases page" -ForegroundColor DarkGray
+    # github.com/<repo>/releases/latest redirects to .../releases/tag/<tag>
+    $req = [Net.HttpWebRequest]::Create('https://github.com/Genymobile/scrcpy/releases/latest')
+    $req.AllowAutoRedirect = $false; $req.UserAgent = 'Fling-build'
+    $resp = $req.GetResponse(); $loc = $resp.Headers['Location']; $resp.Close()
+    $tag = ($loc -split '/tag/')[-1]
+    if (-not $tag -or $tag -eq $loc) { throw "could not find the latest scrcpy release (redirect: $loc)" }
+    $base = "https://github.com/Genymobile/scrcpy/releases/download/$tag"
+    $asset = [pscustomobject]@{ name = "scrcpy-win64-$tag.zip"; browser_download_url = "$base/scrcpy-win64-$tag.zip" }
+    $sums = [pscustomobject]@{ name = 'SHA256SUMS.txt'; browser_download_url = "$base/SHA256SUMS.txt" }
+  }
   if (-not $asset -or -not $sums) { throw 'scrcpy release has no win64 zip / SHA256SUMS.txt' }
   $zipScr = Join-Path $Work $asset.name
   Invoke-WebRequest $asset.browser_download_url -OutFile $zipScr
