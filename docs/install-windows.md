@@ -69,7 +69,9 @@ Update: run `install.cmd` again. Remove: `uninstall.cmd`.
    connect everything** and enable ADB as the window explains.
 6. If adb or scrcpy is missing (a source install, or you prefer your own copy), open **Tools…**
    in the tray menu (or `fling tools`): it lists the copies found on the PC, lets you pick one
-   and installs or updates them with a progress bar.
+   and installs or updates them with a progress bar. Its **Catalog** tab installs free apps on the
+   TV over ADB (VLC, Kodi, Jellyfin, Moonlight, LocalSend, Tailscale, Material Files, F-Droid) and
+   FFmpeg on the PC, from official sources only, each file checked before it is installed.
 
 ## Part 2. The browser extension
 
@@ -122,12 +124,15 @@ Fling in Safari → Settings → Extensions.
 | Remote modes | under the app grid: Arrows, Touchpad (drag = arrows, click = OK), Numbers, Media |
 | Favourite apps, scenes, sleep timer | pin apps per TV; the **…** menu in the remote has scenes, the sleep timer and Turn on / Turn off |
 | Files, playlists, slideshows | drop files or folders on the panel, or *Open on TV…*: they play as a queue with shuffle / repeat; subtitles next to a video are found automatically |
+| TV screen (LIVE) | **LIVE** at the top of the panel: the TV's screen in the panel, the mouse as the TV pointer (scrcpy, needs ADB) |
+| Apps for the TV | *Tools… → Catalog* (or `fling catalog`): install, update, open or remove VLC, Kodi, Jellyfin, Tailscale and more, from official sources |
+| Away from home | remote access over Tailscale: *Settings → Remote access* and the **Via Tailscale** group in the TV chooser — see [Remote access over Tailscale](tailscale.md) |
 | Settings, themes | the gear in the panel's corner or *Settings…* in the tray menu: 11 themes, accent colour, "As the system", remote and casting options, About |
 | Next-video notifications | on by default (green bell); click "Notify when the video changes" to turn off (red bell) |
 | Guide, compact view | the **?** and ⤡ buttons in the panel's top-right corner. Compact view keeps the artwork and ⏪ ⏯ ⏩ ⏹ keys — labels show on hover |
 | Language | the small flag at the bottom right: click it to switch |
 | Start with Windows | "Start at login" |
-| Commands | `fling`, `fling setup`, `fling settings`, `fling about`, `fling tools`, `fling cast-tab`, `fling clip`, `fling screenshot`, `fling install-apk app.apk`, `fling send file…`, `fling play file/folder/playlist…`, `fling slideshow folder`, `fling next` / `fling prev`, `fling scene "Name"`, `fling sleep-timer 30`, `fling tv-on` / `fling tv-off`, `fling help`, `fling quit` |
+| Commands | `fling`, `fling setup`, `fling settings`, `fling about`, `fling tools`, `fling catalog`, `fling cast-tab`, `fling clip`, `fling screenshot`, `fling install-apk app.apk`, `fling send file…`, `fling play file/folder/playlist…`, `fling slideshow folder`, `fling next` / `fling prev`, `fling scene "Name"`, `fling sleep-timer 30`, `fling tv-on` / `fling tv-off`, `fling help`, `fling quit` |
 
 ## Troubleshooting
 
@@ -141,6 +146,7 @@ Fling in Safari → Settings → Extensions.
 | Win+Shift+C does nothing | Another app (often vendor laptop utilities or GPU overlays) owns it; Fling falls back to Ctrl+Alt+Shift+C |
 | Black panel corners (Remote Desktop, VM, old graphics driver) | Usually detected automatically; otherwise add `"solid_panel": true` to `fling.json` |
 | "ADB is not installed", LIVE doesn't start | Open **Tools…** in the tray menu and install adb / scrcpy, or pick a copy you already have |
+| A TV added over Tailscale doesn't answer | Is Tailscale on and signed in on both the PC and the TV? The footer shows *via Tailscale · no connection* until it is back; see [Remote access over Tailscale](tailscale.md) |
 | Antivirus removed Fling.exe or fling-guard.exe | Restore it and add an exclusion, or use Option B |
 | Not sure the download is genuine | Check it as [SECURITY.md](../SECURITY.md#is-my-copy-the-real-fling) explains; a file that fails the check is not Fling |
 
@@ -158,5 +164,7 @@ Log: `%LOCALAPPDATA%\Fling\logs\app.log` — attach the last lines when you repo
 ## Privacy
 
 Everything stays on your network. Fling only talks to your TV and youtube.com (titles and
-artwork). The extension sends the tab address only to Fling on the same computer.
+artwork). Only when you ask, it downloads adb / scrcpy and the Catalog's apps from their official
+publishers. Over Tailscale it only reads the Tailscale status and never changes its settings.
+The extension sends the tab address only to Fling on the same computer.
 No analytics, no accounts, no servers.

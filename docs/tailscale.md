@@ -14,7 +14,7 @@ tailnet's settings, opens nothing to the internet and forwards no ports.
 |---|---|
 | Windows, macOS, Linux | [tailscale.com/download](https://tailscale.com/download) |
 | Android phone | Google Play: **Tailscale** (package `com.tailscale.ipn`) |
-| Android TV / Google TV | Google Play on the TV: **Tailscale**, or Fling → TV chooser → *Install Tailscale on the TV…* (official APK over ADB, while you're at home) |
+| Android TV / Google TV | Google Play on the TV: **Tailscale**, or Fling's **Catalog** (*Tools… → Catalog*, or *Settings → Remote access → Install Tailscale on the TV…*): the official APK, checked and installed over ADB while you're at home |
 
 Sign in to **the same account** on every device. On the TV, open Tailscale, sign in (it shows
 a code or a QR code to confirm on your phone) and turn it on. In the TV's Tailscale settings,
@@ -41,7 +41,7 @@ the tailnet.
 |---|---|
 | Remote: d-pad, volume, apps, typing, voice | Works |
 | ADB: installing APKs, files, screenshots, console | Works |
-| TV's live screen (scrcpy) | Works; starts at the *Saver* quality (960 px, 2 Mbit/s), the quality menu changes it |
+| TV's live screen (LIVE, scrcpy) | Works on the computer; starts at the *Saver* quality (960 px, 2 Mbit/s), the quality menu changes it. LIVE on the phone is new in 0.4.1 and adapts its quality to the network — please test it and report |
 | YouTube TV link (Lounge) | Works: it goes through YouTube's servers anyway |
 | Casting links (Cast, port 8009) | Only if the TV's Cast service answers on its Tailscale address. Fling checks when adding; if it doesn't, casting is switched off for that TV with a clear message |
 | Casting files from the computer / phone | Only if the TV can reach the computer back (Tailscale address, firewall); not guaranteed |
