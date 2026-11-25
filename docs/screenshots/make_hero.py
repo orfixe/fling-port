@@ -49,9 +49,9 @@ def card(img, logical_width):
 
 def load():
     shots = []
-    # Windows panel (already cut to the panel, 1.5x); trim the 1 px transparent ring
-    w = QImage(os.path.join(HERE, "windows-panel-en.png"))
-    shots.append(card(w.copy(QRect(1, 1, w.width() - 2, w.height() - 2)), 340))
+    # Windows panel (offscreen render at 2x, 342 logical px: remote modes, favourite apps)
+    w = QImage(os.path.join(HERE, "panel-en.png"))
+    shots.append(card(w, 342))
     # browser extension popup (2x, 320 css px)
     e = QImage(os.path.join(HERE, "extension-popup-en.png"))
     shots.append(card(e, 320))

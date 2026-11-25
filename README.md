@@ -11,7 +11,8 @@
 **Your TV, from the Windows tray, the KDE panel, your browser and your phone.**
 
 Cast a browser tab or a link to a Chromecast / Google TV — and drive the TV itself:
-power, apps, d-pad, volume, typing, voice search.
+power, apps, d-pad, volume, typing, voice search. **LIVE** shows the TV's screen on the PC and
+the phone (scrcpy), and over **Tailscale** it all works away from home.
 
 [![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white)](docs/install-windows.md)
 [![Linux KDE](https://img.shields.io/badge/Linux-KDE%20Plasma-1D99F3?logo=kde&logoColor=white)](#install--linux)

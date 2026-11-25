@@ -11,7 +11,8 @@
 **Ваш телевизор — из трея Windows, панели KDE, браузера и телефона.**
 
 Отправляйте вкладку браузера или ссылку на Chromecast / Google TV — и управляйте самим
-телевизором: питание, приложения, громкость, ввод текста, голосовой поиск.
+телевизором: питание, приложения, громкость, ввод текста, голосовой поиск. **LIVE** показывает
+экран ТВ на компьютере и телефоне (scrcpy), а через **Tailscale** всё это работает и вне дома.
 
 [![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white)](docs/install-windows.ru.md)
 [![Linux KDE](https://img.shields.io/badge/Linux-KDE%20Plasma-1D99F3?logo=kde&logoColor=white)](#linux)
