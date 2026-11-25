@@ -91,14 +91,30 @@ reports are welcome.
 | Cast photos, videos and music from the phone (Share → Cast to TV) | — | — | ✓ | — |
 | Playback notification with lock-screen controls | — | — | ✓ | — |
 | Settings with themes and a live preview | ✓ 11 themes | ✓ 11 themes | ✓ incl. Material You | ✓ options |
+| **LIVE** — the TV's screen with mouse and keyboard (scrcpy) | ✓ in the panel | ✓ scrcpy window | ✓ new ⁴ | — |
+| Remote access over **Tailscale** (remote, ADB, LIVE away from home) | ✓ | ✓ | ✓ | — |
 | **Tools** window: find, install and update adb / scrcpy | ✓ | ✓ | — | — |
+| **Catalog**: official TV apps (VLC, Kodi, Jellyfin, Moonlight, Tailscale…), checked before install | ✓ | ✓ | — | — |
 | Signed releases, guard against foreign processes | ✓ | — | — | — |
 | English / Russian UI | ✓ | ✓ | ✓ | ✓ |
 | TV screenshot over ADB (saved to Pictures/Fling) | ✓ | ✓ | ✓ | — |
 | Install an APK on the TV over ADB (pick a file, or right-click it in Explorer) | ✓ | ✓ | — | — |
 
 <sub>¹ when the extension casts the tab. ² Windows doesn't let apps act as a Bluetooth keyboard / remote.
-³ several shared files play one after another.</sub>
+³ several shared files play one after another. ⁴ new in 0.4.1, not yet tested on many devices.</sub>
+
+### Screenshots
+
+| | |
+|:---:|:---:|
+| <img src="docs/screenshots/panel-en.png" width="340" alt="The panel with the remote"> | <img src="docs/screenshots/tv-chooser-en.png" width="340" alt="The TV chooser with TVs on Tailscale"> |
+| The panel: casting, remote modes, favourite apps | TV chooser: search, cards, TVs on Tailscale |
+| <img src="docs/screenshots/settings-en.png" width="340" alt="Settings: themes with a live preview"> | <img src="docs/screenshots/catalog-en.png" width="340" alt="Tools: the Catalog of official TV apps"> |
+| Settings: 11 themes with a live preview | Catalog: official TV apps, verified before install |
+| <img src="docs/screenshots/remote-access-en.png" width="340" alt="Settings: remote access over Tailscale"> | |
+| Remote access over Tailscale: what works away from home | |
+
+**LIVE** shows the TV's own screen: on Windows inside the panel (click the picture and the mouse and keyboard drive the TV), and since 0.4.1 on the phone too — Fling for Android starts the official scrcpy server on the TV and decodes the picture in hardware with low latency, at home or over Tailscale.
 
 ## How it works
 
