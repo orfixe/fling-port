@@ -24,6 +24,7 @@ from urllib.parse import urlparse, parse_qs
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fling_platform as P
+import fling_remote as R          # remote modes, favourite apps, scenes, sleep timer
 
 P.prepare_qt_env()
 
@@ -1922,7 +1923,7 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Буфер обмена пуст", "Clipboard is empty"),
     ("Введите 12 цифр с экрана:", "Enter the 12 digits shown on screen:"),
     ("Введите код с экрана телевизора", "Enter the code on the TV screen"),
-    ("Вкл/выкл ТВ", "Toggle TV power"), ("Включить ТВ", "Turn on the TV"), ("Выключить ТВ", "Turn TV off"),
+    ("Вкл/выкл ТВ", "Toggle TV power"), ("Включить ТВ", "Turn on the TV"), ("Выключить ТВ", "Turn off the TV"),
     ("Воспроизводится", "Playing"), ("Выйти из Fling", "Quit Fling"),
     ("Остановить голосовой поиск", "Stop voice search"),
     ("Голосовой поиск уже идёт.", "Voice search is already running."), ("Голосовой поиск", "Voice search"),
@@ -2356,6 +2357,7 @@ EN_PHRASES += [   # installing an APK on the TV
 ]
 EN_PHRASES.sort(key=lambda kv: -len(kv[0]))
 EN_REGEX = [(re.compile(r"(\d+) с\b"), r"\1s")]
+R.bind(sys.modules[__name__])     # fling_remote reuses the helpers below and adds its phrases
 
 
 def lang() -> str:
@@ -5192,25 +5194,23 @@ class Panel(QWidget):
         self.r_now = label("", 12.5, weight=QFont.Weight.DemiBold)
         hv.addWidget(self.r_now)
         hdr.addLayout(hv, 1)
+        self.r_more = R.more_button(self)     # ⋯: scenes, sleep timer, turn on / off
+        hdr.addWidget(self.r_more)
         self.r_power = KeyButton("power", size=26, on=lambda: state.tv_key(KEY["power"]))
         hdr.addWidget(self.r_power)
         rl.addLayout(hdr)
-        self.grid_box = QWidget()
-        grid = QGridLayout(self.grid_box); grid.setContentsMargins(12, 0, 12, 8); grid.setSpacing(4)
-        self.chips = []
-        for i, (name, link, pkg) in enumerate(TV_APPS):
-            ch = Chip(name, lambda _=False, l=link: state.tv_launch(l))
-            ch.pkg = pkg
-            self.chips.append(ch)
-            grid.addWidget(ch, i // 4, i % 4)
-        for c in range(4):
-            grid.setColumnStretch(c, 1)
+        self.r_sleep = R.SleepRow(state)      # "Sleep timer: the TV turns off in N min"
+        rl.addWidget(self.r_sleep)
+        # favourite apps of this TV (pin / reorder / add by package), see fling_remote
+        self.grid_box = R.AppGrid(state, self)
         rl.addWidget(self.grid_box)
         k = lambda n: (lambda: state.tv_key(KEY[n]))
         # Round pad like a physical remote; Back · Home below its sides
         # (self._dpad: lit up for a moment when the same key comes from the laptop keyboard)
         pad, self._dpad = build_dpad(k)
-        rl.addWidget(pad)                     # keyboard keys: in each button's tooltip
+        # modes: Arrows (the pad) · Touchpad · Numbers · Media
+        self.modes = R.ModeStack(state, pad)
+        rl.addWidget(self.modes)              # keyboard keys: in each button's tooltip
         # TV volume: the level the TV reports, as a slider; TVs that don't report one keep the keys
         self.r_vol = VolumeRow(state)
         self.r_vol.layout().setContentsMargins(14, 8, 14, 4)
@@ -5371,7 +5371,7 @@ class Panel(QWidget):
         if not capture:                      # the user freed the keyboard: only Esc closes the panel
             h.keys = {0x1B}
         elif s.remote_ready:
-            h.keys = set(h.KEYS)
+            h.keys = set(h.KEYS) | (set(R.DIGIT_VK) if R.numbers_mode(self) else set())
         elif s.panel == "casting":           # no remote yet: ← / → seek, Space pauses
             h.keys = {0x25, 0x27, 0x20, 0x1B}
         else:
@@ -5423,6 +5423,8 @@ class Panel(QWidget):
         if shift and vk in (0x25, 0x27) and self.state.panel == "casting":
             if not repeat:
                 self.state.seek(SEEK if vk == 0x27 else -SEEK)
+            return
+        if not repeat and R.hook_digit(self, vk):    # Numbers page: digit keys type digits
             return
         key = self._VK_QT.get(vk)
         if key is None:
@@ -5516,6 +5518,8 @@ class Panel(QWidget):
                 return self._remote_key("home")
             return False
 
+        if not e.isAutoRepeat() and R.digit_key(self, k):   # Numbers page: digits, not numpad arrows
+            return True
         name = _REMOTE_BY_QT.get(k)
         if name is None:
             # RU/EN letter fallback via the character produced (layout-independent intent)
@@ -5814,9 +5818,13 @@ class Panel(QWidget):
         else:
             self.r_bt_state.setText("Окно сопряжения закрылось — нажмите «Подключить как Bluetooth-пульт» ещё раз.")
         self.r_ctl.setVisible(show_remote and idle_like and ready)
-        bt_only = ready and not s.tv_paired
-        self.grid_box.setVisible(not bt_only)      # app links need the network remote
-        self.mic.setVisible(not bt_only)
+        bt_only = ready and not s.tv_paired and not s.adb_ok()
+        self.grid_box.setVisible(not bt_only)      # apps open over the network remote or ADB
+        self.grid_box.sync()
+        self.modes.sync(bt_only)
+        self.r_more.setVisible(not bt_only)
+        self.r_sleep.sync()
+        self.mic.setVisible(s.tv_paired)           # voice search needs the network remote
         # the TV's own volume as a slider when it reports one; otherwise the − / mute / + keys
         tv_vol = tv_volume_known(s) is not None
         self.r_vol.setVisible(tv_vol)
@@ -5827,6 +5835,8 @@ class Panel(QWidget):
         if bt_only:
             self.r_now.setText(f"Bluetooth-пульт · {s.bt.get('peer') or 'ТВ'}")
             self.r_now.setVisible(True)
+        elif ready and not s.tv_paired:            # keys go over ADB: the TV doesn't report its app
+            self.r_now.setVisible(False)
         if not ready and self.type_edit.isVisible():
             self._hide_type()
         self.r_fail_box.setVisible(show_remote and p == "failed")
@@ -5837,8 +5847,6 @@ class Panel(QWidget):
             sub = f"Сейчас: {app_name(s.tv_app)}" if s.tv_app else ("ТВ выключен" if s.tv_on is False else "")
             self.r_now.setText(sub); self.r_now.setVisible(bool(sub))
             self.r_power.setToolTip({True: "Выключить ТВ", False: "Включить ТВ"}.get(s.tv_on, "Вкл/выкл ТВ"))
-            for ch in self.chips:
-                ch.set_active(ch.pkg == s.tv_app)
             on = s.tv_voice
             self.mic.setIcon(glyph("mic_fill" if on else "mic", 14, T.red if on else T.fg))
             bg = QColor(T.red); bg.setAlphaF(0.15)
@@ -6769,6 +6777,7 @@ class Tray(QObject):
         m.addSeparator()
         dm = m.addMenu("Телевизор" + (f" — {s.device['name']}" if s.device else ""))
         fill_device_menu(dm, s, None)
+        R.tray_menu(m, s, self.panel)            # scenes and the sleep timer
         m.addSeparator()
         m.addAction("Пауза" if s.is_playing else "Играть", s.toggle_play).setEnabled(casting)
         m.addAction(f"Назад {SEEK} с", lambda: s.seek(-SEEK)).setEnabled(casting)
@@ -7001,6 +7010,8 @@ def main():
         cmd = "\t".join(["install-apk", *(os.path.abspath(a) for a in sys.argv[2:])])
     if cmd == "send":                              # `fling send file…` (also Explorer's Send to)
         cmd = "\t".join(["send", *(os.path.abspath(a) for a in sys.argv[2:])])
+    if cmd in ("scene", "sleep-timer"):            # `fling scene "Movie night"`, `fling sleep-timer 30`
+        cmd = "\t".join([cmd, " ".join(sys.argv[2:])])
     app = QApplication(sys.argv)
     app.setApplicationName("Fling")
     app.setDesktopFileName("fling")
@@ -7052,6 +7063,13 @@ def main():
             P.open_path(P.LOG)
         elif c == "install-extension":
             install_extension(None, state)
+        elif c.startswith("scene\t"):                        # Task Scheduler: wake the TV on a schedule
+            R.controller(state).run_scene_named(c.split("\t", 1)[1])
+        elif c.startswith("sleep-timer\t"):                  # minutes; 0 cancels
+            arg = c.split("\t", 1)[1].strip()
+            R.controller(state).set_sleep(int(arg) if arg.isdigit() else None)
+        elif c in ("tv-on", "tv-off"):
+            (R.controller(state).tv_on if c == "tv-on" else R.controller(state).tv_off)()
         elif c == "quit":
             app.quit()
 

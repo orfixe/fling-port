@@ -259,6 +259,7 @@ desktop/             shared by Windows and Linux (PyQt6)
   fling_bridge.py    local HTTP bridge for the browser extensions (127.0.0.1 only)
   fling_help.py      texts of the built-in "How to use" guide (EN + RU, Windows variants)
   sf_icons.py        line icons in SF-Symbols style
+  fling_remote.py    remote modes (touchpad, numbers, media), favourite apps, scenes, sleep timer
 windows/
   install.ps1        install from source / update / uninstall (install.cmd, uninstall.cmd)
   build.ps1          standalone Fling.exe + release zip (PyInstaller)
