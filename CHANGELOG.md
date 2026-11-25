@@ -12,6 +12,12 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ### Added
 
+- Desktop: a **Catalog** tab in the Tools window (`fling catalog`) — install free apps on the TV
+  over ADB (VLC, Kodi, Jellyfin, Moonlight, LocalSend, Tailscale, Material Files, F-Droid) and
+  FFmpeg on the computer, from official sources only. Every download is checked against the
+  publisher's checksum or F-Droid's signed index, and every APK against the developer's signing
+  key; the tab shows what is already on the TV and opens or removes it.
+
 - Android: cast **photos, videos and music from the phone** — Share → "Cast to TV" from Gallery or a
   file manager (several files play as a queue), "Open with", or "File from this phone" in the Link
   card. Fling serves them over Wi-Fi with seeking; photos are sent upright and sized for the TV
