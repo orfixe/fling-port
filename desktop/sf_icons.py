@@ -3,7 +3,7 @@
 # Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 # icons.py
 from PyQt6.QtGui import QPainter, QColor, QPainterPath, QPen, QFont, QImage
-from PyQt6.QtCore import QRectF, QPointF, Qt
+from PyQt6.QtCore import QRectF, Qt
 import sys
 import math
 

@@ -18,7 +18,7 @@ from PyQt6.QtCore import Qt, QRectF, QPointF, QSize, QUrl, QTimer, pyqtSignal
 from PyQt6.QtGui import (QColor, QConicalGradient, QDesktopServices, QFont, QGuiApplication,
                          QIcon, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap)
 from PyQt6.QtWidgets import (QAbstractButton, QApplication, QButtonGroup, QFrame, QGridLayout,
-                             QHBoxLayout, QLabel, QMenu, QPushButton, QScrollArea, QSizePolicy,
+                             QHBoxLayout, QLabel, QMenu, QPushButton, QScrollArea,
                              QStackedWidget, QToolButton, QVBoxLayout, QWidget)
 
 import fling_themes as TH

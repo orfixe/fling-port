@@ -20,7 +20,6 @@ import os
 import random
 import re
 import subprocess
-import sys
 import tempfile
 import threading
 import time
@@ -1289,7 +1288,8 @@ class Media(QObject):
                           env=F.P.CATT_ENV)
         except Exception as e:
             print("media start:", e, flush=True)
-            self._post(lambda: self._failed(gen, it, str(e)))
+            msg = str(e)                           # `e` is gone once the except block ends
+            self._post(lambda: self._failed(gen, it, msg))
             return
         with self.proc_lock:
             if gen != self.gen:                    # replaced while preparing

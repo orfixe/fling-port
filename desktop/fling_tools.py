@@ -618,7 +618,7 @@ def _download(rel: Release, j: Job) -> tuple[str, str]:
         total = (have + int(r.headers.get("Content-Length") or 0)) or rel.size
         if total > MAX_DOWNLOAD:
             raise ToolError("архив подозрительно большой — отменено")
-        done, t0, mark_t, mark_b = have, time.monotonic(), time.monotonic(), have
+        done, mark_t, mark_b = have, time.monotonic(), have
         _step(j, "download", done, total)
         with open(part, "ab" if have else "wb") as f:
             while True:
@@ -1140,7 +1140,7 @@ EN_PHRASES = [
     ("Каталог", "Catalog"),
     ("Источник:", "Source:"),
     ("МБ", "MB"),
-    ("Загружаю каталог F-Droid: {done} из {total} МБ", "Loading the F-Droid catalog: {done} of {total} MB"),
+    ("Загружаю каталог F-Droid: {done} из {total} МБ", "Loading the F-Droid catalogue: {done} of {total} MB"),
     ("Проверяю подпись приложения…", "Checking the app's signature…"),
     ("Устанавливаю на ТВ — это может занять пару минут…", "Installing on the TV — this can take a couple of minutes…"),
     ("Проверяю, что приложение появилось на ТВ…", "Checking that the app is on the TV…"),

@@ -266,7 +266,22 @@ class DevicePicker(QWidget):
         self._was_scanning = False
         self._added_ip = None
 
-        v = QVBoxLayout(self)
+        # Everything sits in a scroll area: with the tailnet group and its security note the
+        # window can be taller than a small or scaled screen, and must scroll, not overlap.
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.body = QWidget()
+        self.body.setObjectName("pickbody")
+        self.body.setStyleSheet("QWidget#pickbody{background:transparent}")
+        self.page = QScrollArea()
+        self.page.setWidget(self.body)
+        self.page.setWidgetResizable(True)
+        self.page.setFrameShape(QFrame.Shape.NoFrame)
+        self.page.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.page.setStyleSheet("QScrollArea{background:transparent}"
+                                "QWidget#qt_scrollarea_viewport{background:transparent}")
+        outer.addWidget(self.page)
+        v = QVBoxLayout(self.body)
         v.setContentsMargins(18, 16, 18, 16)
         v.setSpacing(12)
 
@@ -448,6 +463,26 @@ class DevicePicker(QWidget):
                 self.hint.setStyleSheet(f"color:{_css(T.fg_a(0.5))};background:transparent")
                 self._added_ip = None
         self.adjustSize()
+
+    def sizeHint(self):
+        """The whole content, but no taller than the screen (the rest scrolls)."""
+        w = self.width()
+        lay = self.body.layout()
+        # measured as if the scroll bar were there: once shown, it only goes away if the
+        # narrower text fits too
+        sbw = self.page.verticalScrollBar().sizeHint().width()
+        h = lay.totalHeightForWidth(w - sbw) if lay.hasHeightForWidth() else -1
+        if h <= 0:
+            h = self.body.sizeHint().height()
+        scr = self.screen()
+        if scr is not None:
+            h = min(h, scr.availableGeometry().height() - 60)
+        return QSize(w, max(h, 240))
+
+    def adjustSize(self):
+        """QWidget.adjustSize caps a window at 2/3 of the screen; fit the content instead
+        (also called by the tailnet group after it changes)."""
+        self.resize(self.sizeHint())
 
     def closeEvent(self, e):
         self.radar.stop()

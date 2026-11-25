@@ -58,7 +58,7 @@ PHRASES = [
     ("Скачать Tailscale", "Download Tailscale"),
     ("Как это работает", "How it works"),
     ("Tailscale выключен или не выполнен вход. Включите его в приложении Tailscale.",
-     "Tailscale is off or not signed in. Turn it on in the Tailscale app."),
+     "Tailscale is off or you aren't signed in. Turn it on in the Tailscale app."),
     ("Не удалось прочитать состояние Tailscale.", "Couldn't read the Tailscale status."),
     ("В сети Tailscale нет телевизоров.", "There are no TVs on your tailnet."),
     ("Установите Tailscale на ТВ и войдите в тот же аккаунт, что и на компьютере.",
@@ -124,7 +124,7 @@ PHRASES = [
     # adding
     ("Проверяю {ip} через Tailscale…", "Checking {ip} over Tailscale…"),
     ("По адресу {ip} не отвечают ни Cast, ни пульт, ни ADB. Включён ли Tailscale на ТВ?",
-     "Neither Cast, the remote nor ADB answers at {ip}. Is Tailscale on on the TV?"),
+     "Neither Cast, the remote nor ADB answers at {ip}. Is Tailscale running on the TV?"),
     ("Не нашёл «{name}» ни в сети Tailscale, ни в DNS.", "Couldn't find “{name}” on the tailnet or in DNS."),
     ("Этот ТВ добавлен через Tailscale, и порт Cast на нём не отвечает — трансляция недоступна. "
      "Пульт, приложения и ADB работают.",
@@ -390,10 +390,9 @@ def prefers_saver(state) -> bool:
 def install_tailscale_on_tv(state=None) -> bool:
     """Install the official Tailscale app on the selected TV over ADB.
 
-    The official-package catalog (fling_catalog, branch up/catalog) downloads the official APK
-    and installs it over ADB; progress shows in the Tools window under "tv:tailscale". Without
-    that module (this branch alone) it opens the Tools window and says how to do it by hand.
-    Returns True when an installer was started."""
+    The Catalog (fling_catalog) downloads the official APK, checks it and installs it over ADB;
+    the progress shows on the Tools window's Catalog tab. Without that module it opens the Tools
+    window and says how to do it by hand. Returns True when an installer was started."""
     import fling_tools
     try:
         import fling_catalog
@@ -405,7 +404,7 @@ def install_tailscale_on_tv(state=None) -> bool:
                 state.bridge.call.emit(lambda: state._set(last_error=None if ok else (message or None)))
         try:
             fling_catalog.install_on_tv("tailscale", state=state, on_done=done)
-            fling_tools.open_window()          # the job board shows the progress
+            fling_tools.open_window(tab="catalog")   # the Tailscale card shows the progress
             return True
         except Exception as e:
             if state is not None:

@@ -1108,7 +1108,7 @@ EN_PHRASES = [
      "каждый файл с контрольной суммой издателя или его подписанным каталогом, а у приложений для ТВ "
      "проверяет ещё и ключ разработчика.",
      "Extra modules, from official sources only. Before installing, Fling checks every file against "
-     "the publisher's checksum or signed catalog, and for TV apps also the developer's signing key."),
+     "the publisher's checksum or signed catalogue, and for TV apps also the developer's signing key."),
     ("Приложения для ТВ", "TV apps"),
     ("Программы для компьютера", "Programs for this computer"),
     ("Обновить", "Refresh"),
@@ -1136,7 +1136,7 @@ EN_PHRASES = [
     ("Телевизор не выбран.", "No TV is chosen."),
     ("Удалить {name} с телевизора?", "Remove {name} from the TV?"),
     ("Настройки и данные приложения на ТВ тоже удалятся.", "The app's settings and data on the TV are removed too."),
-    ("Fling — каталог", "Fling — catalog"),
+    ("Fling — каталог", "Fling — Catalog"),
     ("Установлено на ТВ: {name} {version}. Подпись разработчика проверена.",
      "Installed on the TV: {name} {version}. The developer's signature checked out."),
     ("Удалено с ТВ: {name}.", "Removed from the TV: {name}."),
@@ -1144,7 +1144,7 @@ EN_PHRASES = [
     ("Плеер, который откроет почти любой файл и поток — когда Cast не справляется с форматом.",
      "A player that opens almost any file or stream — for when Cast can't handle the format."),
     ("Медиацентр: фильмы, сериалы и музыка из домашней сети с обложками и описаниями.",
-     "A media center: films, series and music from your home network, with artwork and descriptions."),
+     "A media centre: films, series and music from your home network, with artwork and descriptions."),
     ("Клиент для своего медиасервера Jellyfin: библиотека фильмов и сериалов на ТВ.",
      "The client for your own Jellyfin media server: your film and series library on the TV."),
     ("Игры и рабочий стол компьютера на ТВ через Sunshine или NVIDIA GameStream.",
@@ -1171,11 +1171,11 @@ EN_PHRASES = [
     ("контрольные суммы издателя не совпадают — установка отменена",
      "the publisher's checksums don't match — install cancelled"),
     ("ссылка на загрузку ведёт не туда — отменено", "the download link points somewhere else — cancelled"),
-    ("подпись каталога F-Droid не сходится — отменено", "the F-Droid catalog signature doesn't match — cancelled"),
-    ("F-Droid прислал устаревший каталог — отменено", "F-Droid sent an outdated catalog — cancelled"),
+    ("подпись каталога F-Droid не сходится — отменено", "the F-Droid catalogue signature doesn't match — cancelled"),
+    ("F-Droid прислал устаревший каталог — отменено", "F-Droid sent an outdated catalogue — cancelled"),
     ("каталог F-Droid повреждён: контрольная сумма не сошлась",
-     "the F-Droid catalog is damaged: the checksum didn't match"),
-    ("в каталоге F-Droid нет этого приложения", "this app isn't in the F-Droid catalog"),
+     "the F-Droid catalogue is damaged: the checksum didn't match"),
+    ("в каталоге F-Droid нет этого приложения", "this app isn't in the F-Droid catalogue"),
     ("для этого компьютера нет готовой сборки — установите программу из пакетов",
      "there's no ready-made build for this computer — install the program from your packages"),
     ("в релизе нет сборки для этого компьютера", "the release has no build for this computer"),
@@ -1495,7 +1495,7 @@ class CatalogPage(QWidget):
         self.background(lambda: K._F.adb_state(ip, force=True), done)
 
     def render_all(self):
-        F, T, tv = K._F, K._F.T, self.tv
+        F, tv = K._F, self.tv
         if not tv.ip:
             text = _tr("Телевизор не выбран — приложения для ТВ можно будет установить, "
                        "когда Fling найдёт телевизор.")

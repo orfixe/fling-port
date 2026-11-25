@@ -30,8 +30,8 @@ P.prepare_qt_env()
 
 from PyQt6.QtCore import (QObject, Qt, QTimer, QRect, QRectF, QPoint, QPointF, QSize, QUrl,
                           QEvent, QPropertyAnimation, QEasingCurve,
-                          QSequentialAnimationGroup, QParallelAnimationGroup,
-                          pyqtSignal, pyqtProperty)
+                          QSequentialAnimationGroup,
+                          pyqtSignal)
 from PyQt6.QtGui import (QAction, QColor, QFont, QIcon, QLinearGradient, QPainter,
                          QPainterPath, QPen, QPixmap, QKeySequence, QShortcut,
                          QCursor, QGuiApplication, QKeyEvent)
@@ -1562,16 +1562,16 @@ class State(QObject):
                 raise RuntimeError(f"по адресу {ip} нет Chromecast / Google TV (порт 8009 закрыт)")
             finally:
                 c.close()
-            name = ip
+            tv_name = ip
             try:   # the TV's own name from its DIAL device description
                 import urllib.request
                 with urllib.request.urlopen(f"http://{ip}:8008/ssdp/device-desc.xml", timeout=4) as r:   # closes the connection
                     xml = r.read().decode("utf-8", "ignore")
                 m = re.search(r"<friendlyName>([^<]+)</friendlyName>", xml)
-                name = m[1].strip() if m else ip
+                tv_name = m[1].strip() if m else ip
             except Exception:
                 pass
-            return {"ip": ip, "name": name, "model": "", "manual": True}
+            return {"ip": ip, "name": tv_name, "model": "", "manual": True}
         def done(d, e):
             if e or not d:
                 self._set(last_error=f"Добавить ТВ: {e}")
@@ -3700,7 +3700,6 @@ def live_icon(name: str, size: int = 18, color=None) -> QIcon:
         pa.cubicTo(P_(18, 10.5), P_(20, 13), P_(20, 15.5)); pa.cubicTo(P_(20, 18), P_(18, 19.5), P_(15, 19.5))
         pa.lineTo(P_(11, 19.5)); p.drawPath(pa)
     elif name == "home":
-        from PyQt6.QtGui import QTransform
         p.translate(s * 3 / 24, s * 3 / 24)                  # the 18 px house centred in 24
         p.drawPath(home_path(s * 18 / 24))
     elif name == "playpause":
