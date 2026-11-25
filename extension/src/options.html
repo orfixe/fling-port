@@ -5,25 +5,81 @@
   <meta name="color-scheme" content="light dark">
   <title>Fling</title>
   <style>
-    body { font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; max-width: 560px; margin: 24px auto; padding: 0 18px; }
-    h1 { font-size: 18px; display: flex; align-items: center; gap: 10px; }
-    label { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0; }
-    .hint { opacity: .6; font-size: 12.5px; display: block; }
-    #state { margin-top: 18px; font-size: 13px; }
-    .ok { color: #28c840; } .bad { color: #e08600; }
-    a { color: #0a84ff; }
+    :root { --fg: #1d1d1f; --bg: #fff; --muted: rgba(29, 29, 31, .6); --line: rgba(29, 29, 31, .14);
+            --accent: #007aff; --green: #1f9d3a; --orange: #c46f00; --red: #d70015; --chip: rgba(29, 29, 31, .05); }
+    @media (prefers-color-scheme: dark) {
+      :root { --fg: #f5f5f7; --bg: #1e1e20; --muted: rgba(245, 245, 247, .6); --line: rgba(245, 245, 247, .14);
+              --accent: #0a84ff; --green: #30d158; --orange: #ff9f0a; --red: #ff6961; --chip: rgba(245, 245, 247, .07); }
+    }
+    * { box-sizing: border-box; }
+    body { font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; max-width: 600px; margin: 24px auto;
+           padding: 0 18px; color: var(--fg); background: var(--bg); }
+    h1 { font-size: 18px; display: flex; align-items: center; gap: 10px; margin: 0 0 6px; }
+    h2 { font-size: 12px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--muted);
+         margin: 26px 0 4px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+    label.check { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0; }
+    label.check input { margin: 3px 0 0; flex: none; }
+    .hint { color: var(--muted); font-size: 12.5px; display: block; }
+    #state { margin: 10px 0 0; font-size: 13px; }
+    .ok { color: var(--green); } .bad { color: var(--orange); } .err { color: var(--red); font-size: 12.5px; }
+    a, .linkbtn { color: var(--accent); }
+    .linkbtn { font: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+    .linkbtn:disabled { color: var(--muted); cursor: default; }
+    .field { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 14px 0 4px; }
+    .field input { width: 96px; font: inherit; color: var(--fg); background: var(--chip); border: 1px solid var(--line);
+                   border-radius: 6px; padding: 4px 8px; }
+    .field input:focus { outline: none; border-color: var(--accent); }
+    .field input.invalid { border-color: var(--red); }
+    .btn { font: inherit; font-size: 13px; color: var(--fg); background: var(--chip); border: 1px solid var(--line);
+           border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+    .btn:hover { border-color: var(--accent); }
+    table { border-collapse: collapse; width: 100%; margin: 8px 0 12px; font-size: 13px; }
+    td { padding: 6px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    td.key { text-align: right; white-space: nowrap; padding-left: 12px; color: var(--muted); }
+    kbd { font: 12px ui-monospace, Consolas, monospace; color: var(--fg); background: var(--chip);
+          border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; }
+    code { font: 12px ui-monospace, Consolas, monospace; background: var(--chip); border-radius: 4px; padding: 1px 4px;
+           user-select: all; word-break: break-all; }
+    #keysHint { margin-top: 8px; }
+    footer { margin-top: 28px; }
   </style>
 </head>
 <body>
   <h1><img src="icons/fling-48.png" width="32" height="32" alt=""> <span data-i18n="optionsTitle"></span></h1>
-  <label><input type="checkbox" id="shareTabs">
-    <span><span data-i18n="optShareTabs"></span><span class="hint" data-i18n="optShareTabsHint"></span></span></label>
-  <label><input type="checkbox" id="pauseAfterCast">
-    <span><span data-i18n="optPause"></span><span class="hint" data-i18n="optPauseHint"></span></span></label>
   <div id="state"></div>
-  <p class="hint"><span data-i18n="optShortcut"></span></p>
-  <p class="hint"><a href="https://github.com/orfixe/fling-port" target="_blank" rel="noopener">github.com/orfixe/fling-port</a> ·
-    <span data-i18n="credit"></span></p>
+
+  <h2 data-i18n="optCasting"></h2>
+  <label class="check"><input type="checkbox" id="pauseAfterCast">
+    <span><span data-i18n="optPause"></span><span class="hint" data-i18n="optPauseHint"></span></span></label>
+  <label class="check"><input type="checkbox" id="notify" disabled>
+    <span><span data-i18n="optNotify"></span><span class="hint" data-i18n="optNotifyHint"></span></span></label>
+  <label class="check"><input type="checkbox" id="keepRecent">
+    <span><span data-i18n="optRecent"></span><span class="hint"><span data-i18n="optRecentHint"></span>
+      <button class="linkbtn" id="clearRecent" data-i18n="clearRecent"></button></span></span></label>
+
+  <h2 data-i18n="optPrivacy"></h2>
+  <label class="check"><input type="checkbox" id="shareTabs">
+    <span><span data-i18n="optShareTabs"></span><span class="hint" data-i18n="optShareTabsHint"></span></span></label>
+
+  <h2 data-i18n="optShortcuts"></h2>
+  <table id="keys"></table>
+  <button class="btn" id="editKeys" data-i18n="optEditShortcuts"></button>
+  <span class="hint" id="keysHint" hidden></span>
+
+  <h2 data-i18n="optConnection"></h2>
+  <div class="field">
+    <label for="port" data-i18n="optPort"></label>
+    <input type="number" id="port" min="1024" max="65535" step="1" inputmode="numeric">
+    <button class="btn" id="check" data-i18n="optCheck"></button>
+    <span class="err" id="portErr" hidden></span>
+  </div>
+  <span class="hint" data-i18n="optPortHint"></span>
+  <p class="hint"><span data-i18n="optExtId"></span> <code id="extId"></code></p>
+
+  <footer>
+    <p class="hint"><a href="https://github.com/orfixe/fling-port" target="_blank" rel="noopener">github.com/orfixe/fling-port</a> ·
+      <span data-i18n="credit"></span></p>
+  </footer>
   <script src="options.js"></script>
 </body>
 </html>

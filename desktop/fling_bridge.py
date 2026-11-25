@@ -12,7 +12,10 @@ A tiny HTTP server on 127.0.0.1 only.  It accepts requests from browser
   (chrome-extension://, moz-extension://, safari-web-extension://);
 * POST needs the custom header ``X-Fling: 1`` and a JSON body, so a web page
   can't even send a "simple" cross-site request without a CORS preflight —
-  and preflights from web origins are refused.
+  and preflights from web origins are refused;
+* optionally (``allowed_ids`` on the handler, from ``bridge_extension_ids`` in
+  fling.json) only the listed extension IDs are accepted.  Chrome / Edge IDs are
+  fixed per store listing; Firefox and Safari use a random UUID per install.
 
 Requests are handled on the server thread; ``handler(path, body)`` is called
 on the Qt thread through ``run_on_ui`` and its dict result is sent back as JSON.
@@ -43,7 +46,14 @@ class _Handler(BaseHTTPRequestHandler):
             # No Origin: a local tool (curl, `fling` CLI).  A Safari/Firefox extension
             # background page may also omit it for same-host requests.
             return True, None
-        return origin.startswith(EXTENSION_SCHEMES), origin
+        if not origin.startswith(EXTENSION_SCHEMES):
+            return False, origin
+        allowed = getattr(self.server, "allowed_ids", ())
+        if allowed:
+            ext_id = origin.split("://", 1)[1].split("/", 1)[0].lower()
+            if ext_id not in allowed:
+                return False, origin
+        return True, origin
 
     def _host_ok(self) -> bool:
         host = (self.headers.get("Host") or "").lower()
@@ -187,6 +197,7 @@ class BrowserBridge:
             print("bridge:", self.error, flush=True)
             return False
         self.httpd.call = self._call
+        self.httpd.allowed_ids = tuple(getattr(self.handler, "allowed_ids", ()) or ())
         threading.Thread(target=self.httpd.serve_forever, daemon=True, name="fling-bridge").start()
         print(f"bridge: listening on 127.0.0.1:{self.port}", flush=True)
         return True

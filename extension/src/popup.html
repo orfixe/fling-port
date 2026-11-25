@@ -23,9 +23,11 @@
       <div class="art"><img id="art" alt=""></div>
       <div class="title" id="nowTitle"></div>
       <div class="muted small" id="nowSub"></div>
-      <div class="progress"><div id="bar"></div></div>
+      <div class="progress" id="progress" data-i18n-title="seekHint"><div class="track"><div id="bar"></div></div></div>
       <div class="times"><span id="el"></span><span id="rem"></span></div>
       <div class="transport">
+        <button class="key" data-act="prev" id="prev" data-i18n-title="prevVideo" hidden>
+          <svg viewBox="0 0 24 24"><path d="M6 6v12"/><path class="fill" d="M18 6v12l-9-6z"/></svg></button>
         <button class="key" data-act="seek" data-sec="-30" data-i18n-title="back30">
           <svg viewBox="0 0 24 24"><path d="M11 6 5 12l6 6M19 6l-6 6 6 6"/></svg></button>
         <button class="key big accent" id="playPause" data-act="play_pause" data-i18n-title="playPause">
@@ -33,6 +35,8 @@
           <svg viewBox="0 0 24 24" id="icoPlay" hidden><path class="fill" d="M8 5v14l11-7z"/></svg></button>
         <button class="key" data-act="seek" data-sec="30" data-i18n-title="fwd30">
           <svg viewBox="0 0 24 24"><path d="m13 6 6 6-6 6M5 6l6 6-6 6"/></svg></button>
+        <button class="key" data-act="next" id="next" data-i18n-title="nextVideo" hidden>
+          <svg viewBox="0 0 24 24"><path d="M18 6v12"/><path class="fill" d="M6 6v12l9-6z"/></svg></button>
         <button class="key" data-act="stop" data-i18n-title="stop">
           <svg viewBox="0 0 24 24"><rect class="fill" x="7" y="7" width="10" height="10" rx="1.5"/></svg></button>
       </div>
@@ -47,8 +51,22 @@
         <span id="castLabel" data-i18n="castTab"></span>
         <kbd id="castKey">Alt+Shift+C</kbd>
       </button>
+      <button class="row sub" id="castStart" hidden>
+        <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg>
+        <span data-i18n="castFromStart"></span>
+      </button>
       <div class="warn small" id="castWhy" hidden></div>
     </section>
+
+    <!-- recent casts from this browser -->
+    <details id="recentBox" hidden>
+      <summary>
+        <svg viewBox="0 0 24 24" class="chev"><path d="m9 6 6 6-6 6"/></svg>
+        <span data-i18n="recent"></span>
+        <button class="linkbtn" id="clearRecent" data-i18n="clear"></button>
+      </summary>
+      <div id="recentList"></div>
+    </details>
 
     <div class="vol">
       <svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/></svg>
