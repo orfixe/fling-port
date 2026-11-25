@@ -18,7 +18,7 @@ license; the full license texts come with each package (in the Windows setup: in
 | [pyytlounge](https://github.com/FabioGNR/pyytlounge) | YouTube on the TV | MIT |
 | [python-sounddevice](https://github.com/spatialaudio/python-sounddevice) / [PortAudio](http://www.portaudio.com/) | the microphone | MIT |
 | [python-lz4](https://github.com/python-lz4/python-lz4) | reading Firefox's session file | BSD-3-Clause |
-| [Android platform-tools](https://developer.android.com/tools/releases/platform-tools) (adb) | ADB | Apache-2.0 |
+| [Android platform-tools](https://developer.android.com/tools/releases/platform-tools) (adb) | ADB | [Android SDK License](https://developer.android.com/studio/terms) (the binaries; adb's source is Apache-2.0) |
 | [scrcpy](https://github.com/Genymobile/scrcpy) | LIVE: the TV screen and the mouse | Apache-2.0 |
 | [SDL 3](https://www.libsdl.org/) (inside scrcpy) | scrcpy's window | Zlib |
 | [FFmpeg](https://ffmpeg.org/) (inside scrcpy) | video decoding | LGPL-2.1-or-later |
@@ -29,6 +29,22 @@ license; the full license texts come with each package (in the Windows setup: in
 The Windows build bundles PyQt6 under GPL-3.0; the complete corresponding source of
 this port is this repository. scrcpy, SDL, FFmpeg and libusb are shipped unmodified, as
 released by the scrcpy project (scrcpy-win64 release zip, checked against its SHA256 sums).
+
+## Downloaded on request (Tools window)
+
+When a tool is missing, the Tools window (`desktop/fling_tools.py`) can download it for
+the current user into Fling's data folder (`%LOCALAPPDATA%\Fling`, `~/.local/share/fling`).
+Fling does not change these programs and does not redistribute them itself: each archive
+comes straight from its publisher over HTTPS and is checked before anything in it runs.
+
+| Software | From | Checked against | License |
+|---|---|---|---|
+| [Android platform-tools](https://developer.android.com/tools/releases/platform-tools) (adb) | dl.google.com (Google's SDK repository) | the SHA-1 Google lists in `repository2-3.xml` | [Android SDK License](https://developer.android.com/studio/terms) |
+| [scrcpy](https://github.com/Genymobile/scrcpy) (with SDL, FFmpeg, libusb and its own adb inside) | the GitHub release | the release's `SHA256SUMS.txt` (and GitHub's asset digest) | Apache-2.0 (scrcpy); see above for the parts inside |
+
+Copies found already installed (PATH, Android SDK, WinGet, Scoop, Chocolatey, Homebrew,
+system packages) are only run, or copied into Fling's folder when the user asks; their own
+licenses apply.
 
 ## Used by other parts
 
