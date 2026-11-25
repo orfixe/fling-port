@@ -893,10 +893,9 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
         // header
         LinearLayout header = ui.row();
-        header.setPadding(ui.dp(4), ui.dp(6), ui.dp(4), ui.dp(14));
-        header.addView(ui.logo(40));
+        header.setPadding(ui.dp(6), ui.dp(6), ui.dp(4), ui.dp(14));   // no in-app logo: the title lines up with the cards
         LinearLayout ht = ui.col();
-        ht.setPadding(ui.dp(12), 0, 0, 0);
+        ht.setPadding(0, 0, ui.dp(12), 0);
         TextView title = ui.text("Fling", 26, ui.fg, true);
         ht.addView(title);
         subtitleHeader = ui.text("", 13, ui.fgA(0.5f), false);

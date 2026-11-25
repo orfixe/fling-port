@@ -282,40 +282,6 @@ final class Ui {
         return r;
     }
 
-    // ------------------------------------------------------------ logo
-
-    static void drawLogo(Canvas c, float size, boolean casting) {
-        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        float k = size / 64f;
-        p.setShader(new LinearGradient(0, 0, size, size, 0xFF3E8BFF, 0xFF5B4DFF, Shader.TileMode.CLAMP));
-        c.drawRoundRect(new RectF(0, 0, size, size), 14 * k, 14 * k, p);
-        p.setShader(null);
-        p.setColor(0x24FFFFFF);
-        RectF scr = new RectF(13 * k, 26 * k, 51 * k, 51 * k);
-        c.drawRoundRect(scr, 6 * k, 6 * k, p);
-        p.setStyle(Paint.Style.STROKE);
-        p.setStrokeWidth(3.5f * k);
-        p.setColor(Color.WHITE);
-        c.drawRoundRect(scr, 6 * k, 6 * k, p);
-        p.setStyle(Paint.Style.FILL);
-        float[][] dots = {{16.5f, 12.5f, 2f, 140}, {23.5f, 16f, 2.75f, 190}, {30.5f, 21.5f, 3.5f, 230}};
-        for (float[] d : dots) {
-            p.setColor(Color.argb((int) d[3], 255, 255, 255));
-            c.drawCircle(d[0] * k, d[1] * k, d[2] * k, p);
-        }
-        p.setColor(casting ? 0xFF30D158 : Color.WHITE);
-        c.drawCircle(37.5f * k, 35 * k, 5.25f * k, p);
-    }
-
-    View logo(float sizeDp) {
-        final int s = dp(sizeDp);
-        View v = new View(ctx) {
-            @Override protected void onDraw(Canvas c) { drawLogo(c, s, false); }
-        };
-        v.setLayoutParams(lp(s, s));
-        return v;
-    }
-
     // ------------------------------------------------------------ drawn icons (SF-Symbols-like)
 
     static final class Glyph extends Drawable {
