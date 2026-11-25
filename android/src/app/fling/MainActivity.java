@@ -151,6 +151,15 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private TextView listening;
     private View devDot;
     private TextView devNameView;
+    private TextView liveKey, pathChip;
+
+    // path to the TV (header chip): measured with a TCP connect to the remote port
+    private volatile Boolean reachable;     // null until the first probe
+    private volatile boolean viaTailnet;
+    private volatile long pathMs = -1;
+    private long probeDelay = PROBE_OK;
+    private static final long PROBE_OK = 10000, PROBE_MIN = 2000, PROBE_MAX = 30000;
+    private android.net.ConnectivityManager.NetworkCallback netCb;
 
     private AudioRecord recorder;
     private volatile boolean recording;
@@ -210,6 +219,9 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         updater.checkDaily();                                          // quiet; speaks only if newer
         main.post(poll);
         main.post(tick);
+        probeDelay = PROBE_MIN;
+        main.post(probe);
+        watchNetwork(true);
     }
 
     @Override protected void onPause() {
@@ -217,6 +229,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         resumed = false;
         main.removeCallbacks(poll);
         main.removeCallbacks(tick);
+        main.removeCallbacks(probe);
+        watchNetwork(false);
         discovery.stop();
         if (voice) stopVoice();
     }
@@ -247,6 +261,85 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             main.postDelayed(this, 500);
         }
     };
+
+    // ================================================================ path to the TV (home Wi‑Fi or Tailscale)
+
+    /** TCP connect to the remote's port (6466; 8009 for a Cast-only device): reachable or not,
+     *  through the tailnet or not, and how long it took. On failure it retries with backoff
+     *  (2 → 4 → … → 30 s); when the TV comes back, the remote and Cast reconnect. */
+    private final Runnable probe = new Runnable() {
+        @Override public void run() {
+            main.removeCallbacks(this);
+            if (!resumed) return;
+            final String h = host;
+            if (h == null) { reachable = null; main.postDelayed(this, PROBE_OK); return; }
+            bg(() -> {
+                boolean tn = Tailnet.routedViaTailnet(h);
+                long ms = Tailnet.connectMs(h, 6466, 3000);
+                if (ms < 0) ms = Tailnet.connectMs(h, 8009, 3000);
+                final long m = ms;
+                main.post(() -> {
+                    if (!h.equals(host)) { main.post(probe); return; }
+                    boolean was = Boolean.TRUE.equals(reachable);
+                    reachable = m >= 0;
+                    viaTailnet = tn;
+                    pathMs = m;
+                    if (m >= 0) {
+                        probeDelay = PROBE_OK;
+                        if (!was) { connectDevice(); adbNext = 0; atv.adopt(h); }   // back: reconnect now
+                    } else probeDelay = Math.min(PROBE_MAX, Math.max(PROBE_MIN, probeDelay == PROBE_OK ? PROBE_MIN : probeDelay * 2));
+                    sync();
+                    main.postDelayed(probe, probeDelay);
+                });
+            });
+        }
+    };
+
+    /** Wi‑Fi ↔ mobile data, Tailscale on or off: probe again at once instead of waiting. */
+    private void watchNetwork(boolean on) {
+        android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (cm == null) return;
+        try {
+            if (on && netCb == null) {
+                netCb = new android.net.ConnectivityManager.NetworkCallback() {
+                    @Override public void onAvailable(android.net.Network n) { kick(); }
+                    @Override public void onLost(android.net.Network n) { kick(); }
+                    @Override public void onCapabilitiesChanged(android.net.Network n, android.net.NetworkCapabilities c) { kick(); }
+                    private void kick() { main.post(() -> { probeDelay = PROBE_MIN; main.removeCallbacks(probe); main.postDelayed(probe, 600); }); }
+                };
+                cm.registerDefaultNetworkCallback(netCb);
+            } else if (!on && netCb != null) {
+                cm.unregisterNetworkCallback(netCb);
+                netCb = null;
+            }
+        } catch (Exception ignored) { netCb = null; }
+    }
+
+    /** "Home" / "Tailscale · 38 ms" / "No connection". */
+    private String pathLabel() {
+        if (reachable == null) return null;
+        if (!reachable) return L.t("Нет связи с ТВ");
+        if (viaTailnet) return pathMs > 0 ? L.f("Через Tailscale · %d мс", pathMs) : L.t("Через Tailscale");
+        return L.t("Дома");
+    }
+
+    // ================================================================ LIVE
+
+    /** The TV screen on the phone (LiveActivity, scrcpy over ADB). Needs ADB on the TV. */
+    private void openLive() {
+        if (host == null) { showError(L.t("Устройство не выбрано")); return; }
+        if (!"ok".equals(Adb.lastState)) {
+            showError("unauthorized".equals(Adb.lastState)
+                    ? L.t("Подтвердите на ТВ «Разрешить отладку» и нажмите LIVE ещё раз.")
+                    : L.t("LIVE работает через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети»."));
+            adbNext = 0; pollAdb();                                    // maybe it's on by now
+            return;
+        }
+        try {
+            startActivity(new Intent().setClassName(this, "app.fling.LiveActivity")
+                    .putExtra("host", host).putExtra("port", 5555));
+        } catch (Exception e) { showError(e.getMessage()); }
+    }
 
     private final Map<String, String> arts = new HashMap<>();
 
@@ -611,7 +704,10 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         st = null; tvOn = null; tvApp = null; pairState = "idle";
         adbSt = null; adbNext = 0;   // now-playing came from the old TV; read the new one right away
         prefs.edit().putString("host", h).putString("name", name).apply();
+        reachable = null; pathMs = -1;
         connectDevice();
+        atv.adopt(h);                                                  // paired at home → paired here too
+        probeDelay = PROBE_MIN; main.removeCallbacks(probe); main.post(probe);
         if (pendingAutoCast && link != null) { pendingAutoCast = false; castLink(link, linkTitle); }
         if (pendingLocal != null) castLocal(pendingLocal, pendingLocalType);
         sync();
@@ -663,6 +759,13 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         return true;
     }
 
+    /** An IPv4 address or a host name such as a Tailscale MagicDNS name (tv.tail1234.ts.net). */
+    private static boolean validHost(String h) {
+        if (validIp(h)) return true;
+        if (h.matches("[\\d.]+")) return false;                        // a mistyped IPv4, not a name
+        return h.length() <= 253 && h.matches("(?i)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*");
+    }
+
     /** True when another TV in the list has exactly the same name. */
     private boolean nameClash(Discovery.Device d) {
         int n = 0;
@@ -680,7 +783,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         List<String> marks = new ArrayList<>();
         if (nameClash(d)) marks.add(d.host);                 // tell identical names apart
         if (atv.paired(d.host)) marks.add(L.t("пульт ✓"));   // network remote already paired
-        if (isManual(d)) marks.add(L.t("по IP"));            // not found by discovery
+        if (Tailnet.isTailnetHost(d.host)) marks.add("Tailscale");   // remote access address
+        else if (isManual(d)) marks.add(L.t("по IP"));       // not found by discovery
         return (d.host.equals(host) ? "✓  " : "") + d.name + (marks.isEmpty() ? "" : "  ·  " + String.join(", ", marks));
     }
 
@@ -690,6 +794,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         if (devices.isEmpty()) pm.getMenu().add(0, 999, 0, L.t("ТВ не найдены")).setEnabled(false);
         pm.getMenu().add(1, 1001, 1001, L.t("Найти ТВ заново"));
         pm.getMenu().add(1, 1000, 1000, L.t("Добавить ТВ по IP…"));
+        pm.getMenu().add(1, 1003, 1003, L.t("Удалённый доступ…"));
         List<Discovery.Device> manual = manualDevices();
         if (!manual.isEmpty()) {
             android.view.SubMenu sm = pm.getMenu().addSubMenu(1, 1002, 1002, L.t("Убрать добавленный вручную"));
@@ -698,6 +803,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         pm.setOnMenuItemClickListener(it -> {
             int id = it.getItemId();
             if (id == 1000) askIp();
+            else if (id == 1003) remoteAccess();
             else if (id == 1001) { discovery.stop(); discovery.start(); toast(L.t("Ищу ТВ…")); }   // restart mDNS search
             else if (id >= 2000) forgetManual(manual.get(id - 2000));
             else if (id < devices.size()) selectDevice(devices.get(id));
@@ -713,22 +819,23 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         f.setPadding(ui.dp(20), ui.dp(8), ui.dp(20), 0);
         f.addView(e);
         new AlertDialog.Builder(this)
-                .setTitle(L.t("IP-адрес телевизора"))
-                .setMessage(L.t("Найдите его на ТВ: Настройки → Сеть."))
+                .setTitle(L.t("Адрес телевизора"))
+                .setMessage(L.t("Дома — IP из настроек ТВ (Сеть). Через Tailscale — 100.x.y.z или имя MagicDNS."))
                 .setView(f)
                 .setPositiveButton(L.t("Добавить"), (dlg, w) -> addByIp(e.getText().toString().trim()))
                 .setNegativeButton(L.t("Отмена"), null)
                 .show();
     }
 
-    /** Checks there is a Cast device at the address, asks the TV its name, saves and selects it. */
-    private void addByIp(String ip) {
-        if (!validIp(ip)) { showError(L.t("Это не похоже на IP-адрес (пример: 192.168.1.50).")); return; }   // 4 numbers, each 0..255
+    /** Checks there is a Cast device or a Google TV remote at the address, asks the TV its
+     *  name, saves and selects it. Takes LAN and tailnet addresses and MagicDNS names. */
+    private void addByIp(String input) {
+        final String ip = input.toLowerCase(Locale.ROOT).replaceAll("\\.$", "");
+        if (!validHost(ip)) { showError(L.t("Это не похоже на адрес ТВ (пример: 192.168.1.50 или 100.101.102.103).")); return; }
         bg(() -> {
             String name = ip;
-            try (java.net.Socket s = new java.net.Socket()) {
-                s.connect(new java.net.InetSocketAddress(ip, 8009), 2500);   // 8009 = Google Cast port
-            } catch (Exception e) {
+            // 8009 = Google Cast; 6466 = the Android TV remote (a tailnet may reach only some ports)
+            if (Tailnet.connectMs(ip, 8009, 3000) < 0 && Tailnet.connectMs(ip, 6466, 3000) < 0) {
                 main.post(() -> showError(L.f("По адресу %s нет Chromecast / Google TV.", ip)));
                 return;
             }
@@ -771,6 +878,24 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             }
         }
         sync();
+    }
+
+    /** Tailscale: Fling has no VPN of its own; the official app puts the phone on the tailnet. */
+    private void remoteAccess() {
+        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle(L.t("Удалённый доступ"));
+        if (!Tailnet.installed(this)) {
+            b.setMessage(L.t("Чтобы управлять ТВ не из дома, поставьте Tailscale на телефон и на ТВ. На ТВ его ставит Fling для ПК — из «Каталога»."))
+                    .setPositiveButton(L.t("Установить Tailscale"), (d, w) -> Tailnet.openStore(this))
+                    .setNegativeButton(L.t("Отмена"), null);
+        } else {
+            b.setMessage(Tailnet.vpnActive(this)
+                            ? L.t("Tailscale включён. Добавьте ТВ по его адресу 100.x.y.z или имени MagicDNS.")
+                            : L.t("Tailscale выключен. Включите его, чтобы управлять ТВ не из дома."))
+                    .setPositiveButton(L.t("Добавить ТВ…"), (d, w) -> askIp())
+                    .setNeutralButton(L.t("Открыть Tailscale"), (d, w) -> Tailnet.open(this))
+                    .setNegativeButton(L.t("Отмена"), null);
+        }
+        b.show();
     }
 
     // ================================================================ playback actions
@@ -1006,7 +1131,24 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         subtitleHeader = ui.text("", 13, ui.fgA(0.5f), false);
         subtitleHeader.setPadding(0, ui.dp(3), 0, 0);
         ht.addView(subtitleHeader);
+        pathChip = ui.text("", 12, ui.fgA(0.6f), true);                // Home / Tailscale · 38 ms
+        pathChip.setSingleLine(true);
+        pathChip.setEllipsize(TextUtils.TruncateAt.END);
+        pathChip.setGravity(Gravity.CENTER_VERTICAL);
+        pathChip.setCompoundDrawablePadding(ui.dp(6));
+        pathChip.setPadding(ui.dp(8), ui.dp(4), ui.dp(10), ui.dp(4));
+        pathChip.setBackground(ui.round(ui.fgA(ui.dark ? 0.1f : 0.06f), 12));
+        LinearLayout.LayoutParams pc = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        pc.topMargin = ui.dp(8);
+        ht.addView(pathChip, pc);
         header.addView(ht, Ui.lpW(1));
+        liveKey = ui.text("● LIVE", 13, ui.red, true);                // same name as the desktop's LIVE
+        liveKey.setGravity(Gravity.CENTER);
+        liveKey.setPadding(ui.dp(12), 0, ui.dp(12), 0);
+        liveKey.setBackground(ui.rippleRound(Ui.alpha(ui.red, 0.12f), 18));
+        liveKey.setContentDescription(L.t("Экран ТВ на телефоне"));
+        liveKey.setOnClickListener(v -> openLive());
+        header.addView(liveKey, ui.margins(Ui.lp(-2, ui.dp(36)), 0, 0, 8, 0));
         TextView help = ui.text("?", 20, ui.accent, true);           // opens the "How to use" guide
         help.setGravity(Gravity.CENTER);
         help.setBackground(ui.round(Ui.alpha(ui.accent, 0.12f), 18));
@@ -1380,7 +1522,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         r.addView(sw);
         f.addView(r);
         root.addView(f, ui.margins(Ui.lp(-1, -2), 0, 0, 0, 8));
-        TextView hint = ui.text(L.t("Fling для Android · телефон и ТВ должны быть в одной сети Wi-Fi"), 12, ui.fgA(0.3f), false);
+        TextView hint = ui.text(L.t("Fling для Android · дома по Wi‑Fi, не из дома — через Tailscale"), 12, ui.fgA(0.3f), false);
         hint.setGravity(Gravity.CENTER);
         root.addView(hint, ui.margins(Ui.lp(-1, -2), 0, 6, 0, 0));
         // authorship: Fling is Damion Rashford's and Tatiana's app; this is an unofficial port by orfixe
@@ -1426,6 +1568,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         steps.add(new Tour.Step(nowCard, L.t("Что играет"),
                 L.t("Пауза, ±30 секунд и громкость того, что идёт на ТВ.")));
         steps.add(new Tour.Step(langRowView, L.t("Язык"), L.t("Русский или английский — переключается здесь.")));
+        steps.add(new Tour.Step(liveKey, "LIVE",
+                L.t("Экран ТВ на телефоне: смотрите и управляйте — дома и через Tailscale.")));
         steps.add(new Tour.Step(gearView, L.t("Настройки"),
                 L.t("Тема, цвет акцента, язык, уведомление с кнопками и кнопки громкости.")));
         steps.add(new Tour.Step(helpView, L.t("Подсказки"),
@@ -1465,6 +1609,17 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
         subtitleHeader.setText(host == null ? L.t("Ищу телевизор в сети…")
                 : st != null && st.hasMedia() ? L.f("Сейчас на «%s»", nz(devName, host)) : L.f("Пульт и трансляция на «%s»", nz(devName, host)));
+
+        String path = host == null ? null : pathLabel();
+        pathChip.setVisibility(path == null ? View.GONE : View.VISIBLE);
+        if (path != null) {
+            pathChip.setText(path);
+            int dot = !Boolean.TRUE.equals(reachable) ? ui.orange : viaTailnet ? ui.accent : ui.green;
+            android.graphics.drawable.GradientDrawable d = ui.oval(dot);
+            d.setSize(ui.dp(8), ui.dp(8));
+            pathChip.setCompoundDrawablesRelativeWithIntrinsicBounds(d, null, null, null);
+        }
+        liveKey.setAlpha(host != null && "ok".equals(Adb.lastState) ? 1f : 0.45f);
 
         errorView.setText(error == null ? "" : error);
         errorView.setVisibility(error == null ? View.GONE : View.VISIBLE);

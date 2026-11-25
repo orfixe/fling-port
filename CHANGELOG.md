@@ -10,6 +10,17 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+### Added
+
+- Android: **● LIVE** — the TV screen on the phone, with control, through scrcpy over Fling's
+  own ADB client (no adb, no port forwarding). The official scrcpy-server 5.0.1 is downloaded
+  once from its GitHub release and checked against a pinned SHA-256 before every use.
+- Android: **remote access over Tailscale** — add a TV by its 100.x.y.z address or MagicDNS
+  name (shown with a Tailscale label); "Remote access…" in the TV menu opens or installs the
+  official Tailscale app. A TV paired at home needs no new code. A chip under the title shows
+  the path: "At home" or "Via Tailscale · 38 ms"; the remote reconnects with backoff when the
+  path comes back or the network changes.
+
 ## [0.4.0] - 2026-11-25
 
 Settings and themes, a much bigger remote, playlists and slideshows, a Tools window for adb and
