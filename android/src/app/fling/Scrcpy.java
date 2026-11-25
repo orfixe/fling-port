@@ -150,14 +150,16 @@ final class Scrcpy {
             shell = link.open("shell:" + cmd, 5000);
             daemon(this::drainShell, "scrcpy-log");
             String sock = "localabstract:" + ScrcpyProto.socketName(scid);
-            video = connect(sock);                                  // sockets are accepted in this order:
-            byte[] one = new byte[1];                               // video, (audio,) control
-            video.readFully(one);                                   // dummy byte on the first socket
+            // The server accepts video, (audio,) control in this order, writes the dummy byte on
+            // the first right after accepting it, and the device meta only once all are accepted.
+            video = connect(sock);
+            byte[] one = new byte[1];
+            video.readFully(one);                                   // dummy byte: the server is there
+            control = connect(sock);
+            daemon(this::drainControl, "scrcpy-ctl");
             byte[] meta = new byte[ScrcpyProto.DEVICE_NAME_LENGTH];
             video.readFully(meta);
             header.deviceName = ScrcpyProto.deviceName(meta);
-            control = connect(sock);
-            daemon(this::drainControl, "scrcpy-ctl");
             byte[] id = new byte[4];
             video.readFully(id);
             header.codecId = ScrcpyProto.readU32(id, 0);
