@@ -149,7 +149,11 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     private AudioRecord recorder;
     private volatile boolean recording;
-    private final Map<String, Bitmap> images = new HashMap<>();
+    /** Artwork cache bounded by bytes (1/8 of the heap): a plain map grew with every cover ever shown. */
+    private final android.util.LruCache<String, Bitmap> images =
+            new android.util.LruCache<String, Bitmap>((int) Math.min(Integer.MAX_VALUE, Runtime.getRuntime().maxMemory() / 8)) {
+                @Override protected int sizeOf(String k, Bitmap b) { return b.getAllocationByteCount(); }
+            };
     private final Map<String, String> ytTitles = new HashMap<>();
     private int volPending = -1;
 
@@ -435,7 +439,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         if (raw == null) return null;
         Uri u = Uri.parse(raw);
         String h = u.getHost() == null ? "" : u.getHost().toLowerCase(Locale.ROOT);
-        if (!(h.equals("youtu.be") || h.endsWith("youtube.com"))) return null;
+        if (!(h.equals("youtu.be") || h.equals("youtube.com") || h.endsWith(".youtube.com"))) return null;   // not "notyoutube.com"
         List<String> seg = u.getPathSegments();
         if (h.equals("youtu.be") && !seg.isEmpty()) return seg.get(0);
         if (seg.size() >= 2 && (seg.get(0).equals("shorts") || seg.get(0).equals("embed") || seg.get(0).equals("live"))) return seg.get(1);
@@ -765,28 +769,32 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         }
         recording = true;
         final AudioRecord r = recorder;
+        // The mic thread owns the recorder: it stops and releases it after its last read(),
+        // so release() never races a read() still running on this thread.
         Thread t = new Thread(() -> {
             byte[] buf = new byte[8192];
-            while (recording) {
-                int off = 0;
-                while (recording && off < buf.length) {
-                    int n = r.read(buf, off, buf.length - off);
-                    if (n <= 0) break;
-                    off += n;
+            try {
+                while (recording) {
+                    int off = 0;
+                    while (recording && off < buf.length) {
+                        int n = r.read(buf, off, buf.length - off);
+                        if (n < 0) { recording = false; break; }   // recorder error: stop, don't spin
+                        if (n == 0) break;
+                        off += n;
+                    }
+                    if (off > 0) atv.voiceChunk(buf, off);
                 }
-                if (off > 0) atv.voiceChunk(buf, off);
+            } finally {
+                try { r.stop(); } catch (Exception ignored) {}
+                r.release();
             }
         }, "mic");
         t.start();
     }
 
     private void stopRecording() {
-        recording = false;
-        if (recorder != null) {
-            try { recorder.stop(); } catch (Exception ignored) {}
-            recorder.release();
-            recorder = null;
-        }
+        recording = false;   // the mic thread sees this, sends its last chunk and releases the recorder
+        recorder = null;
     }
 
     private void stopVoice() {
