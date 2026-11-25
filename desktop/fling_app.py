@@ -2316,6 +2316,8 @@ EN_PHRASES += [   # keyboard captured strip
     ("Светлое", "Light"), ("Цвет акцента", "Accent colour"), ("Системный", "System"),
     ("Синий", "Blue"), ("Фиолетовый", "Purple"), ("Зелёный", "Green"), ("Оранжевый", "Orange"),
     ("Отключить", "Release"), ("Захватить", "Capture"),
+    ("Настройки Fling", "Fling settings"), ("Настройки…", "Settings…"),
+    ("О программе Fling", "About Fling"),
     ("Пока панель открыта, стрелки, Enter, Пробел, Backspace, Home и +/− управляют ТВ, "
      "а не программой, в которой вы были.\nEsc закрывает панель.\n"
      "Нужна клавиатура в другой программе — нажмите «Отключить»: пульт останется "
@@ -2411,10 +2413,11 @@ toggle_login = P.toggle_login
 
 # ---------------------------------------------------------------- theme
 
-# conf "accent": preset → (on dark, on light). "auto" = the system accent colour.
-ACCENTS = {"blue": ("#0a84ff", "#007aff"), "purple": ("#bf5af2", "#8e44ad"),
-           "green": ("#30d158", "#1e8e3e"), "orange": ("#ff9f0a", "#c25e00")}
-THEMES = ("auto", "dark", "light")
+# Themes, accent colours and "as the system" live in fling_themes; the Settings window
+# (themes with a live preview, About) in fling_settings.
+import fling_themes
+ACCENTS = fling_themes.ACCENTS
+THEMES = ("auto", *fling_themes.PRESETS)
 
 
 def system_dark(app) -> bool:
@@ -2444,22 +2447,12 @@ def system_accent() -> QColor | None:
     return c if c.isValid() else None
 
 
-def _readable(c: QColor, dark: bool) -> QColor:
-    """Keep an accent legible on the panel: light enough on dark, dark enough on light."""
-    h, sat, l, a = c.getHsl()
-    if dark and l < 150:
-        l = 150
-    elif not dark and l > 115:
-        l = 115
-    return QColor.fromHsl(max(h, 0), sat, l, 255)
-
-
 def apply_color_scheme(app, conf: dict) -> None:
-    """Dark / Light chosen in Fling: make Qt's own widgets (menus, fields, dialogs) match."""
-    mode = conf.get("theme", "auto")
+    """The theme chosen in Fling: make Qt's own widgets (menus, fields, dialogs) match."""
+    dark = fling_themes.scheme_dark(conf)
     try:
-        app.styleHints().setColorScheme({"dark": Qt.ColorScheme.Dark, "light": Qt.ColorScheme.Light}
-                                        .get(mode, Qt.ColorScheme.Unknown))
+        app.styleHints().setColorScheme({True: Qt.ColorScheme.Dark, False: Qt.ColorScheme.Light}
+                                        .get(dark, Qt.ColorScheme.Unknown))
     except Exception:
         pass
 
@@ -2467,20 +2460,11 @@ def apply_color_scheme(app, conf: dict) -> None:
 class Theme:
     def __init__(self, app, conf: dict | None = None):
         conf = load_conf() if conf is None else conf
-        mode, acc = conf.get("theme", "auto"), conf.get("accent", "auto")
-        pal = app.palette()
-        self.dark = {"dark": True, "light": False}.get(mode, pal.window().color().lightness() < 128)
-        pal_dark = pal.window().color().lightness() < 128
-        # the palette's text colour only when it matches the chosen light/dark
-        self.fg = QColor(pal.windowText().color()) if pal_dark == self.dark else \
-            (QColor("#f2f2f7") if self.dark else QColor("#1c1c1e"))
-        self.bg = QColor("#2a2a2c") if self.dark else QColor("#f6f6f6")
-        sysacc = system_accent() if acc == "auto" else None
-        if sysacc is not None:
-            self.accent = _readable(sysacc, self.dark)
-        else:
-            d, l = ACCENTS.get(acc, ACCENTS["blue"])
-            self.accent = QColor(d if self.dark else l)
+        sys_dark = app.palette().window().color().lightness() < 128
+        r = fling_themes.resolve(conf, sys_dark,
+                                 system_accent() if conf.get("accent", "auto") == "auto" else None)
+        self.id = r["id"]
+        self.dark, self.bg, self.fg, self.accent = r["dark"], r["bg"], r["fg"], r["accent"]
         self.green = QColor("#30d158") if self.dark else QColor("#28c840")
         self.orange = QColor("#ff9f0a") if self.dark else QColor("#e08600")
         self.red = QColor("#ff453a") if self.dark else QColor("#ff3b30")
@@ -2778,7 +2762,16 @@ class CornerBar(QWidget):
         self.help.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.help.setStyleSheet(self.compact.styleSheet())
         self.help.clicked.connect(lambda: (panel.hide(), open_help(panel)))
+        self.gear = QToolButton()                       # Settings: appearance, options, About
+        import fling_settings
+        self.gear.setIcon(fling_settings.icon("gear", 15, T.fg_a(0.6))); self.gear.setIconSize(QSize(15, 15))
+        self.gear.setToolTip("Настройки Fling")
+        self.gear.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.gear.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.gear.setStyleSheet(self.compact.styleSheet())
+        self.gear.clicked.connect(lambda: (panel.hide(), open_settings(panel)))
         lay.addWidget(self.help)
+        lay.addWidget(self.gear)
         lay.addWidget(self.compact)
 
     def sync(self, compact):
@@ -2788,10 +2781,17 @@ class CornerBar(QWidget):
 
 def tray_icon(casting=False):
     """Fling logo: rounded blue→violet square with a screen and cast dots."""
-    pm = QPixmap(64, 64)
+    return QIcon(logo_pixmap(64, casting))
+
+
+def logo_pixmap(size=64, casting=False, dpr=1.0):
+    """The logo at any size (drawn on a 64-unit grid, so it stays sharp when large)."""
+    pm = QPixmap(int(round(size * dpr)), int(round(size * dpr)))
+    pm.setDevicePixelRatio(dpr)
     pm.fill(Qt.GlobalColor.transparent)
     p = QPainter(pm)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    p.scale(size / 64, size / 64)
     g = QLinearGradient(0, 0, 64, 64)
     g.setColorAt(0, QColor("#3E8BFF")); g.setColorAt(1, QColor("#5B4DFF"))
     p.setBrush(g); p.setPen(Qt.PenStyle.NoPen)
@@ -2805,7 +2805,7 @@ def tray_icon(casting=False):
     p.setBrush(QColor("#30d158") if casting else QColor("white"))
     p.drawEllipse(QRectF(37.5 - 5.25, 35 - 5.25, 10.5, 10.5))
     p.end()
-    return QIcon(pm)
+    return pm
 
 # ---------------------------------------------------------------- widgets (PanelRows.swift / RemoteView.swift)
 
@@ -6725,33 +6725,6 @@ class Tray(QObject):
         sub = st.get("subtitle") or st.get("app") or ""
         notify_send(f"Сейчас на ТВ: {title}" + (f" — {sub}" if sub else ""))
 
-    def _appearance_menu(self, m):
-        """Оформление: light/dark (or as the system), and the accent colour."""
-        from PyQt6.QtGui import QActionGroup
-        am = m.addMenu("Оформление")
-        conf = self.state.conf
-        g = QActionGroup(am)
-        for key, title in (("auto", "Как в системе"), ("dark", "Тёмное"), ("light", "Светлое")):
-            a = am.addAction(title, lambda k=key: self.set_look(theme=k))
-            a.setCheckable(True); a.setChecked(conf.get("theme", "auto") == key); g.addAction(a)
-        am.addSeparator()
-        cm = am.addMenu("Цвет акцента")
-        g2 = QActionGroup(cm)
-        for key, title in (("auto", "Системный"), ("blue", "Синий"), ("purple", "Фиолетовый"),
-                           ("green", "Зелёный"), ("orange", "Оранжевый")):
-            a = cm.addAction(glyph("dot", 12, QColor(ACCENTS[key][0 if T.dark else 1])) if key in ACCENTS
-                             else QIcon(), title, lambda k=key: self.set_look(accent=k))
-            a.setCheckable(True); a.setChecked(conf.get("accent", "auto") == key); g2.addAction(a)
-
-    def set_look(self, **kw):
-        """Save the choice and restart the UI with it (like the language switch)."""
-        s = self.state
-        if all(s.conf.get(k, "auto") == v for k, v in kw.items()):
-            return
-        s.conf.update(kw)
-        save_conf(s.conf)
-        restart_ui()
-
     def toggle_notify(self):
         s = self.state
         s.conf["notify_track"] = not s.conf.get("notify_track", True)
@@ -6784,7 +6757,6 @@ class Tray(QObject):
         na.setCheckable(True); na.setChecked(s.conf.get("notify_track", True))
         la = m.addAction("Запускать при входе", toggle_login)
         la.setCheckable(True); la.setChecked(login_enabled())
-        self._appearance_menu(m)
         m.addAction("Как пользоваться", lambda: open_help(self.panel))   # guide from the tray menu
         m.addAction("Сделать снимок", s.tv_screenshot)
         tm = m.addMenu("ADB")
@@ -6795,6 +6767,9 @@ class Tray(QObject):
         tm.addAction("ADB-консоль…", lambda: open_adb_console(self.panel, s))
         tm.addAction("Журнал Fling", lambda: P.open_path(P.LOG))
         m.addAction("Подключение ТВ…", self.panel.open_setup)
+        m.addAction("Настройки…", lambda: open_settings(self.panel))
+        m.addAction("О программе Fling", lambda: open_settings(self.panel, "about"))
+        m.addSeparator()
         m.addAction("Выйти из Fling", QApplication.quit)
 
 
@@ -6812,25 +6787,17 @@ def restart_ui():
 
 
 def follow_system_scheme(app):
-    """Appearance "as the system": restart when Windows / KDE switches light ↔ dark —
-    but never under the user's hands: wait until no Fling window is open."""
-    pending = QTimer(app, interval=15000)
+    """Appearance "as the system": restart when Windows / KDE switches light ↔ dark or the
+    accent colour — once no Fling window is open (see fling_themes.SystemWatch)."""
+    app._fling_watch = fling_themes.SystemWatch(app, load_conf, restart_ui,
+                                                lambda: system_dark(app), system_accent)
 
-    def try_now():
-        if load_conf().get("theme", "auto") != "auto":
-            pending.stop(); return
-        if any(w.isVisible() for w in QApplication.topLevelWidgets() if w.isWindow()):
-            if not pending.isActive():
-                pending.start()
-            return
-        pending.stop()
-        restart_ui()
 
-    pending.timeout.connect(try_now)
-    try:
-        app.styleHints().colorSchemeChanged.connect(lambda *_: QTimer.singleShot(500, try_now))
-    except Exception:
-        pass
+def open_settings(holder, page=None):
+    """Open (or raise) the Settings window; `page` = "appearance", "general", "remote",
+    "cast" or "about"."""
+    import fling_settings
+    fling_settings.open_settings(sys.modules[__name__], holder, page)
 
 
 # ---------------------------------------------------------------- single instance + commands
@@ -7007,7 +6974,7 @@ def main():
     app.setQuitOnLastWindowClosed(False)
     app.setWindowIcon(tray_icon())
     if cmd == "--make-icon":                       # installer: write fling.ico
-        tray_icon().pixmap(256, 256).save(sys.argv[2])
+        logo_pixmap(256).save(sys.argv[2])
         return 0
     if send_to_running(cmd):
         return 0
@@ -7022,8 +6989,14 @@ def main():
     state._panel_ref = panel
     state.panel_visible = panel.isVisible
     tray = Tray(state, panel)
-    if conf0.get("theme", "auto") == "auto":
+    if "auto" in (conf0.get("theme", "auto"), conf0.get("accent", "auto")):
         follow_system_scheme(app)
+    reopen = conf0.get("reopen_settings")         # restarted by Settings: come back to it
+    if reopen:
+        c = load_conf(); c.pop("reopen_settings", None); save_conf(c)
+        state.conf.pop("reopen_settings", None)
+        if cmd == "show":
+            cmd = "settings:" + str(reopen)
 
     def handle(c):
         c = c.strip()
@@ -7044,6 +7017,10 @@ def main():
             state.tv_install_apk(files) if files else pick_apk(state)
         elif c == "setup":
             panel.open_setup()
+        elif c == "settings" or c.startswith("settings:"):   # `fling settings`
+            open_settings(panel, c.partition(":")[2] or None)
+        elif c == "about":                                   # `fling about`
+            open_settings(panel, "about")
         elif c in ("screen", "mouse"):                       # `fling screen` / `fling mouse`
             state.screen.toggle(c)
         elif c == "adb":                                     # `fling adb`: the ADB console

@@ -62,6 +62,7 @@ Exec $Py -m PyInstaller --noconfirm --clean --windowed --name Fling `
   --distpath (Join-Path $Work 'out') --workpath (Join-Path $Work 'tmp') --specpath $Work `
   --paths $D `
   --hidden-import fling_platform --hidden-import fling_bridge --hidden-import fling_help --hidden-import sf_icons `
+  --hidden-import fling_themes --hidden-import fling_settings `
   --collect-submodules catt --collect-submodules pychromecast --collect-submodules yt_dlp `
   --collect-submodules androidtvremote2 --collect-data androidtvremote2 `
   --collect-submodules pyytlounge --collect-submodules zeroconf `
