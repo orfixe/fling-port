@@ -167,7 +167,7 @@ macOS-Fling своя связка с Safari, расширение ему не н
 | Инструкция, компактный вид | кнопки **?** и ⤡ в правом верхнем углу панели. В компактном виде остаются обложка и кнопки ⏪ ⏯ ⏩ ⏹ — подписи видны при наведении |
 | Язык | маленький флажок внизу справа: нажмите — язык переключится |
 | Автозапуск с Windows | «Запускать при входе» |
-| Команды | `fling`, `fling setup`, `fling cast-tab`, `fling clip`, `fling screenshot`, `fling install-apk app.apk`, `fling help`, `fling quit` (в новом окне PowerShell / cmd) |
+| Команды | `fling`, `fling setup`, `fling cast-tab`, `fling clip`, `fling screenshot`, `fling install-apk app.apk`, `fling send файл…`, `fling play файл/папка/плейлист…`, `fling slideshow папка`, `fling next` / `fling prev`, `fling help`, `fling quit` (в новом окне PowerShell / cmd) |
 
 Что можно отправить: YouTube, прямые ссылки на файлы (mp4, mkv, webm, mp3, m3u8…) и
 большинство видеосайтов. Обычные страницы и сервисы с защитой (Netflix и т. п.) — нет;

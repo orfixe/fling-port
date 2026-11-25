@@ -29,6 +29,36 @@ autostart (KDE autostart file / `HKCU\…\Run`), the system-wide shortcut (KDE k
 | Pairing, venv, adb | `~/.local/share/fling/` | `%LOCALAPPDATA%\Fling\` |
 | Log | `~/.cache/fling/app.log` | `%LOCALAPPDATA%\Fling\logs\app.log` |
 
+## Media: files, queues, slideshows
+
+`desktop/fling_media.py` decides what can be cast and how; `fling_app.py` only calls into it.
+
+- **Formats.** Played as they are: mp4, m4v, mov, webm, mkv; mp3, m4a, aac, flac, wav, ogg, opus;
+  jpg, png, gif, bmp. Re-encoded to JPEG first: webp, tiff, heic/avif (when Qt can read them)
+  and photos larger than 4K. Chromecast can't play avi, wmv, flv, mpg, ts and similar: a single
+  such file is copied to the TV over ADB and opened in the TV's own player.
+- **Queue.** Several files, a folder (natural order, three levels deep, up to 1000 files) or an
+  m3u / m3u8 / pls playlist play one after another, with shuffle and repeat (all / one).
+  Each item is one lasting `catt cast` process: catt serves a local file over HTTP only while
+  the TV plays it, `-b` keeps it alive for web links. When the process ends, the media status
+  pushed over the in-process Cast link says why the TV went idle: `FINISHED` moves to the next
+  item, anything else (stopped on the TV, another app took over) pauses the queue.
+- **Slideshow.** Pictures change every N seconds (3–60, 7 by default); play/pause pauses the timer.
+- **Subtitles.** `film.srt`, `film.ru.srt`, `Subs/film.srt` next to a video are found
+  automatically (the interface language wins) or chosen in the ⋯ menu. They are converted to
+  UTF-8 WebVTT first: catt reads SRT only as UTF-8 or Latin-1 (Windows-1251 subtitles turned
+  into mojibake) and can't read ASS/SSA.
+- **Start position.** A browser's position, then `?t=` / `#t=` in the link (YouTube, Twitch,
+  Vimeo, media fragments), then the remembered position: for anything 10 minutes or longer
+  Fling remembers where it was stopped (`positions` in `fling.json`, 150 entries) and forgets
+  it once watched to the end.
+- **Recent.** The last 25 casts (links, files, folders, playlists, slideshows) are in
+  *Open on TV…* in the panel and the tray menu.
+- **Speed.** 0.5×–2× for media in the Default Media Receiver (`SET_PLAYBACK_RATE`).
+- **Safety.** Only `http(s)` links come from outside. Network paths (`\\server\share`,
+  `//server/share`, `file://host/…`) are refused before any file call, also inside playlists
+  and dropped folders, because touching them sends the Windows login hash to that server.
+
 ## Browser bridge
 
 `desktop/fling_bridge.py` serves `http://127.0.0.1:47613` (`"bridge_port"` in `fling.json`,

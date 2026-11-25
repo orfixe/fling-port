@@ -14,6 +14,8 @@ the Android app implements each one itself.
 - **Flow:** connect to `receiver-0` → receiver status gives the running app and its
   transport id → connect to that transport → media status / commands.
   Direct media files are loaded into the Default Media Receiver (`CC1AD845`).
+  Media status carries `idleReason` (`FINISHED`, `CANCELLED`, `INTERRUPTED`, `ERROR`), which
+  tells a queue whether to move on; `SET_PLAYBACK_RATE` changes the speed.
 - **Linux** uses [catt](https://github.com/skorokithakis/catt), which also handles
   YouTube and sites supported by yt-dlp.
 
