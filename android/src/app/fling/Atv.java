@@ -286,6 +286,21 @@ final class Atv {
         command(host, () -> send(new Proto.W().msg(10, new Proto.W().varint(1, code).varint(2, 3)).out()));
     }
 
+    /** Sleep timer: turns the TV off only if it is on (POWER toggles, so a sleeping TV must not get it).
+     *  Runs done() in every case, on the remote's thread. */
+    void powerOff(String host, Runnable done) {
+        io.execute(() -> {
+            try {
+                connectNow(host);   // returns after the TV has reported its power state
+                if (Boolean.TRUE.equals(isOn)) send(new Proto.W().msg(10, new Proto.W().varint(1, POWER).varint(2, 3)).out());
+            } catch (Exception e) {
+                disconnectNow();
+            } finally {
+                done.run();
+            }
+        });
+    }
+
     void launch(String host, String link) {
         command(host, () -> send(new Proto.W().msg(90, new Proto.W().str(1, link)).out()));
     }

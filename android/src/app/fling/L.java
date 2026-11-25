@@ -118,7 +118,7 @@ final class L {
         e("IP-адрес телевизора", "TV IP address");
         e("Подключить", "Connect");
         e("Отмена", "Cancel");
-        e("Телевизор игнорирует паузу по Chromecast (так ведёт себя YouTube на ТВ). Нажмите «Связать с ТВ» ниже — пауза уйдёт как кнопка пульта.",
+        e("Телевизор игнорирует паузу по Chromecast (так ведёт себя YouTube на ТВ). Нажмите «Связать с ТВ» ниже — пауза будет работать как кнопка пульта.",
           "The TV ignores pause over Chromecast (YouTube on the TV does that). Tap “Pair with TV” below — pause is sent as a remote button.");
         e("Перемотка этого видео работает только после «Связать с ТВ» — кнопка ниже.", "To skip around in this video, tap “Pair with TV” below.");
         e("Без доступа к микрофону голосовой поиск не работает.", "Voice search needs microphone access.");
@@ -177,7 +177,7 @@ final class L {
         e("Сейчас на «%s»", "Now on “%s”");
         e("Пульт и трансляция на «%s»", "Remote and casting for “%s”");
         e("Воспроизводится", "Playing");
-        e("ТВ не принимает команды по Chromecast для этого видео. Нажмите «Связать с ТВ» ниже — пауза и перемотка уйдут как кнопки пульта.",
+        e("ТВ не принимает команды по Chromecast для этого видео. Нажмите «Связать с ТВ» ниже — пауза и перемотка будут работать как кнопки пульта.",
           "The TV ignores Chromecast commands for this video. Tap “Pair with TV” below — pause and skip are sent as remote buttons.");
         e("видеофайл · Chromecast", "video file · Chromecast");
         e("откроется в YouTube на ТВ", "opens in YouTube on the TV");
@@ -197,5 +197,65 @@ final class L {
         e("Свайп — навигация · тап — OK", "Swipe to move · tap for OK");
         e("долгое нажатие — назад", "long press for Back");
         e("Язык", "Language");
+
+        // 0.4: phone files, playback notification, sleep timer, settings
+        e("Сейчас на ТВ", "Now on TV");
+        e("Не удалось открыть файл.", "Couldn’t open the file.");
+        e("Пропущено файлов: %d — %s", "Files skipped: %d — %s");
+        e("Назад на 30 с", "Back 30 s");
+        e("Вперёд на 30 с", "Forward 30 s");
+        e("Закрыть", "Close");
+        e("На «%s»", "On “%s”");
+        e("На телевизоре", "On the TV");
+        e("Предыдущий", "Previous");
+        e("Следующий", "Next");
+        e("Пауза", "Pause");
+        e("Воспроизвести", "Play");
+        e("Отправляю на ТВ…", "Sending to the TV…");
+        e("Отправляю файлы на ТВ (%d)…", "Sending %d files to the TV…");
+        e("На телефоне нет приложения для выбора файлов.", "This phone has no app for picking files.");
+        e("Файл с телефона", "File from this phone");
+        e("Этот файл не видео, не музыка и не фото.", "This file is not a video, music or a photo.");
+        e("Телефон не в той же сети, что и ТВ.", "The phone is not on the same network as the TV.");
+        e("Не удалось прочитать фото.", "Couldn’t read the photo.");
+        e("Таймер сна", "Sleep timer");
+        e("Выключить таймер", "Cancel the timer");
+        e("Таймер сна выключен", "Sleep timer cancelled");
+        e("ТВ выключится в %s", "The TV will turn off at %s");
+        e("Через %d мин", "In %d min");
+        e("Через 1 час", "In 1 hour");
+        e("Через 1,5 часа", "In 1.5 hours");
+        e("Через %d часа", "In %d hours");
+        e("в %s", "at %s");
+        e("выкл.", "off");
+        e("Настройки", "Settings");
+        e("Тема, цвет акцента, язык, уведомление с кнопками и кнопки громкости.", "Theme, accent colour, language, the playback notification and the volume keys.");
+        e("Назад", "Back");
+        e("Оформление", "Appearance");
+        e("Как в системе", "System default");
+        e("Светлая", "Light");
+        e("Тёмная", "Dark");
+        e("Чёрная (AMOLED)", "Black (AMOLED)");
+        e("Пример видео", "Sample video");
+        e("Так будет выглядеть Fling", "This is how Fling will look");
+        e("Цвет акцента", "Accent colour");
+        e("Цвета обоев (Material You)", "Wallpaper colours (Material You)");
+        e("Цвета обоев (Material You) доступны с Android 12.", "Wallpaper colours (Material You) need Android 12 or later.");
+        e("Синий", "Blue");
+        e("Индиго", "Indigo");
+        e("Фиолетовый", "Purple");
+        e("Розовый", "Pink");
+        e("Бирюзовый", "Teal");
+        e("Зелёный", "Green");
+        e("Графит", "Graphite");
+        e("Пульт и трансляция", "Remote and casting");
+        e("Уведомление с кнопками", "Playback notification");
+        e("Пока на ТВ что-то играет: пауза, перемотка и громкость с экрана блокировки.", "While something plays on the TV: pause, skip and volume from the lock screen.");
+        e("Кнопки громкости управляют ТВ", "Volume keys control the TV");
+        e("Пока Fling открыт, кнопки громкости телефона меняют громкость ТВ.", "While Fling is open, the phone’s volume keys change the TV volume.");
+        e("Не гасить экран", "Keep the screen on");
+        e("Экран телефона не гаснет, пока открыт Fling.", "The phone screen stays on while Fling is open.");
+        e("О приложении", "About");
+        e("Проверить обновления", "Check for updates");
     }
 }

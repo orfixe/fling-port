@@ -288,12 +288,19 @@ final class Updater {
 
     /** "0.3.10" > "0.3.9": compare number by number. */
     static boolean newer(String remote, String local) {
+        if (remote == null || local == null) return false;
         String[] r = remote.split("[^0-9]+"), l = local.split("[^0-9]+");
         for (int k = 0; k < Math.max(r.length, l.length); k++) {
-            int x = k < r.length && !r[k].isEmpty() ? Integer.parseInt(r[k]) : 0;
-            int y = k < l.length && !l[k].isEmpty() ? Integer.parseInt(l[k]) : 0;
-            if (x != y) return x > y;
+            int c = cmpNum(k < r.length ? r[k] : "", k < l.length ? l[k] : "");
+            if (c != 0) return c > 0;
         }
         return false;
+    }
+
+    /** Compares two digit strings of any length (no parseInt: "20261125000000" overflowed). */
+    private static int cmpNum(String a, String b) {
+        a = a.replaceFirst("^0+", ""); b = b.replaceFirst("^0+", "");
+        if (a.length() != b.length()) return Integer.compare(a.length(), b.length());
+        return a.compareTo(b);
     }
 }

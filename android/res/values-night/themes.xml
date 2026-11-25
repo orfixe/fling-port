@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="FlingTheme" parent="@android:style/Theme.Material.NoActionBar">
-        <item name="android:colorAccent">#0A84FF</item>
+        <item name="android:colorAccent">@color/acc_blue</item>
         <item name="android:colorPrimary">#000000</item>
         <item name="android:windowBackground">@color/page</item>
         <item name="android:statusBarColor">@android:color/transparent</item>

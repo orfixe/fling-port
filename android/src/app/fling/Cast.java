@@ -90,8 +90,16 @@ final class Cast {
     private long mediaSessionId = -1;
     private final Status st = new Status();
 
+    /** One thing to play on the Default Media Receiver. */
+    static final class Media {
+        final String url, title, mime;
+        String subtitle, image;
+        Media(String url, String title, String mime) { this.url = url; this.title = title; this.mime = mime; }
+    }
+
     // pending LOAD waiting for the default receiver to come up
-    private String pendingUrl, pendingTitle;
+    private String pendingUrl;
+    private java.util.List<Media> pendingItems;
 
     Cast(Context ctx, Listener l) {
         this.ctx = ctx;
@@ -448,9 +456,18 @@ final class Cast {
     }
 
     void load(String url, String title) {
+        java.util.List<Media> one = new java.util.ArrayList<>();
+        one.add(new Media(url, title, contentType(url)));
+        load(one);
+    }
+
+    /** Plays the items in order (a queue when there are several). */
+    void load(java.util.List<Media> items) {
+        if (items == null || items.isEmpty()) return;
+        final String url = items.get(0).url;
         command(() -> {
             pendingUrl = url;
-            pendingTitle = title;
+            pendingItems = items;
             String appId;
             synchronized (st) { appId = st.appId; }
             if (DEFAULT_RECEIVER.equals(appId) && transportId != null) {
@@ -471,21 +488,47 @@ final class Cast {
     /** Writer thread only. */
     private void doLoad() throws Exception {
         String url = pendingUrl;
-        if (url == null || transportId == null) return;
+        java.util.List<Media> list = pendingItems;
+        if (url == null || list == null || transportId == null) return;
         pendingUrl = null;
-        JSONObject meta = new JSONObject().put("metadataType", 0);
-        String t = pendingTitle;
+        pendingItems = null;
+        if (list.size() == 1) {
+            sendNow(transportId, NS_MEDIA, req("LOAD").put("media", mediaJson(list.get(0))).put("autoplay", true).put("currentTime", 0));
+            return;
+        }
+        JSONArray q = new JSONArray();
+        for (Media m : list) q.put(new JSONObject().put("media", mediaJson(m)).put("autoplay", true).put("preloadTime", 10));
+        sendNow(transportId, NS_MEDIA, req("QUEUE_LOAD").put("items", q).put("startIndex", 0).put("repeatMode", "REPEAT_OFF"));
+    }
+
+    private static JSONObject mediaJson(Media m) throws Exception {
+        String t = m.title;
         if (t == null || t.isEmpty()) {
-            String p = url.replaceAll("[?#].*$", "");
+            String p = m.url.replaceAll("[?#].*$", "");
             t = p.substring(p.lastIndexOf('/') + 1);
         }
-        meta.put("title", t);
-        JSONObject media = new JSONObject()
-                .put("contentId", url)
-                .put("contentType", contentType(url))
+        String mime = m.mime == null ? contentType(m.url) : m.mime;
+        // 0 generic, 3 music track, 4 photo: the receiver lays the screen out by type
+        int type = mime.startsWith("image/") ? 4 : mime.startsWith("audio/") ? 3 : 0;
+        JSONObject meta = new JSONObject().put("metadataType", type).put("title", t);
+        if (m.subtitle != null) meta.put(type == 3 ? "artist" : "subtitle", m.subtitle);
+        if (m.image != null) meta.put("images", new JSONArray().put(new JSONObject().put("url", m.image)));
+        return new JSONObject()
+                .put("contentId", m.url)
+                .put("contentType", mime)
                 .put("streamType", "BUFFERED")
                 .put("metadata", meta);
-        sendNow(transportId, NS_MEDIA, req("LOAD").put("media", media).put("autoplay", true).put("currentTime", 0));
+    }
+
+    /** Next (+1) or previous (-1) item of a queue loaded by load(list). */
+    void queueJump(int by) {
+        try { mediaCmd("QUEUE_UPDATE", new JSONObject().put("jump", by)); } catch (Exception ignored) {}
+    }
+
+    void seekTo(double seconds) {
+        try {
+            mediaCmd("SEEK", new JSONObject().put("currentTime", Math.max(0, seconds)).put("resumeState", "PLAYBACK_START"));
+        } catch (Exception ignored) {}
     }
 
     static String contentType(String url) {
