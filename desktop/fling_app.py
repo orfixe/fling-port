@@ -6871,6 +6871,7 @@ def bridge_handler(state: "State", panel: "Panel"):
             "remote": {"paired": state.tv_paired, "on": state.tv_on, "app": app_name(state.tv_app),
                        "pairing": state.tv_pairing, "voice": state.tv_voice},
             "youtube_linked": state.lounge.is_linked,
+            "yt_live": state.yt_live,              # YouTube via the TV link: previous / next work
             "notify_track": state.conf.get("notify_track", True),
             "apps": [name for name, _, _ in TV_APPS],
             "error": tr(state.last_error) if state.last_error else None,
@@ -6917,6 +6918,10 @@ def bridge_handler(state: "State", panel: "Panel"):
             state.seek(max(-3600, min(3600, int(body.get("seconds") or SEEK))))   # bounded: see seek()
         elif a == "stop":
             state.stop()
+        elif a == "next":
+            state.yt_next()
+        elif a == "prev":
+            state.yt_prev()
         elif a == "volume":
             state.set_volume(int(body.get("level", state.volume)))
         elif a == "key":
@@ -6955,6 +6960,8 @@ def bridge_handler(state: "State", panel: "Panel"):
         else:
             raise ValueError(f"unknown action {a!r}")
         return snapshot()
+    # optional pin: "bridge_extension_ids": ["<chrome id>", "<firefox uuid>"] in fling.json
+    handle.allowed_ids = tuple(str(x).lower() for x in state.conf.get("bridge_extension_ids") or () if x)
     return handle
 
 
