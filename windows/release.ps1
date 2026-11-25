@@ -21,6 +21,16 @@ $Repo = Split-Path -Parent $PSScriptRoot
 $Ver  = (Select-String -Path (Join-Path $Repo 'desktop\fling_app.py') -Pattern '^VERSION = "(.+)"').Matches[0].Groups[1].Value
 $Bin  = Join-Path $Repo 'guard\target\release'
 
+# A release is built from a committed tree only: the tag must match the signed files.
+$dirty = git -C $Repo status --porcelain --untracked-files=no
+if ($dirty) { throw "uncommitted changes - commit them first:`n$($dirty -join "`n")" }
+$apk = Join-Path $Repo 'android\Fling.apk'
+$newest = Get-ChildItem (Join-Path $Repo 'android') -Recurse -File -Include *.java, *.xml |
+  Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not (Test-Path $apk) -or $newest.LastWriteTime -gt (Get-Item $apk).LastWriteTime) {
+  throw "android\Fling.apk is older than $($newest.Name): rebuild it with android/build.sh first"
+}
+
 $secure = Read-Host "Fling $Ver - release key password" -AsSecureString
 $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
 $env:FLING_SIGN_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
@@ -36,7 +46,7 @@ try {
   New-Item -ItemType Directory -Force -Path $Rel | Out-Null
   Copy-Item (Join-Path $Repo "dist\Fling-Setup-$Ver.exe") $Rel
   Copy-Item (Join-Path $Repo 'android\Fling.apk') $Rel
-  Get-ChildItem (Join-Path $Repo 'dist') -Filter *.zip | Copy-Item -Destination $Rel
+  Get-ChildItem (Join-Path $Repo 'dist') -Filter "*-$Ver.zip" | Copy-Item -Destination $Rel   # this version only
   # macOS: built by CI; macos/install.sh downloads them from the latest release
   if (-not $MacFrom) { $MacFrom = (gh release view --repo orfixe/fling-port --json tagName -q .tagName) }
   gh release download $MacFrom --repo orfixe/fling-port --dir $Rel `
