@@ -45,6 +45,7 @@ import fling_media as M                      # formats, queues, slideshows, resu
 M.F = sys.modules[__name__]
 
 import fling_tools                     # adb / scrcpy: find, choose, install (the Tools window)
+import fling_devices as D              # the TV chooser window (search animation, cards, add by IP)
 
 HOME = P.HOME
 CATT = P.find_catt()
@@ -2316,6 +2317,7 @@ EN_PHRASES += [   # installing an APK on the TV
 ]
 EN_PHRASES += fling_tools.EN_PHRASES   # the Tools window keeps its texts next to its code
 EN_PHRASES += M.PHRASES          # formats, queues, slideshows (fling_media.py)
+EN_PHRASES += D.PHRASES + [("Найти ТВ…", "Find TVs…")]   # the TV chooser (fling_devices.py)
 EN_PHRASES.sort(key=lambda kv: -len(kv[0]))
 EN_REGEX = [(re.compile(r"(\d+) с\b"), r"\1s")]
 R.bind(sys.modules[__name__])     # fling_remote reuses the helpers below and adds its phrases
@@ -3387,7 +3389,10 @@ def fill_device_menu(menu: QMenu, s: "State", parent=None):
     if not s.devices:
         a = menu.addAction("ТВ не найдены"); a.setEnabled(False)
     menu.addSeparator()
-    menu.addAction("Ищу…" if s.scanning else "Найти ТВ заново", s.scan).setEnabled(not s.scanning)
+    def find():                                    # the chooser window: animation + cards
+        holder = getattr(s, "_panel_ref", None)
+        D.open_picker(sys.modules[__name__], holder) if holder is not None else s.scan()
+    menu.addAction("Найти ТВ…", find)
     def ask_ip():
         from PyQt6.QtWidgets import QInputDialog
         ip, ok = QInputDialog.getText(parent, tr("Добавить ТВ по IP"),
@@ -5218,12 +5223,11 @@ class Panel(QWidget):
         self.switch = QToolButton()
         self.switch.setText("Сменить")
         self.switch.setFont(font(11))
-        self.switch.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.switch.setCursor(Qt.CursorShape.PointingHandCursor)
         self.switch.setStyleSheet(f"QToolButton{{border:none;color:{Theme.css(T.accent)};background:transparent}}"
                                   "QToolButton::menu-indicator{image:none}")
-        self.switch_menu = QMenu(self.switch)
-        self.switch_menu.aboutToShow.connect(lambda: fill_device_menu(self.switch_menu, self.state, None))
-        self.switch.setMenu(self.switch_menu)
+        # the TV chooser window: searches at once, with an animation and a card per TV
+        self.switch.clicked.connect(lambda: D.open_picker(sys.modules[__name__], self))
         ft.addWidget(self.dot)
         ft.addWidget(self.dev_name, 1)
         ft.addWidget(self.adb_badge, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -6168,10 +6172,8 @@ class SetupWindow(QWidget):
         self.rows[key] = {"mark": mark, "btn": btn, "info": info, "extra": extra, "el": el}
         if key == "find":
             btn.clicked.connect(self.find)
-            choose = small_button("Выбрать ТВ…", lambda: None)
-            self.dev_menu = QMenu(choose)
-            self.dev_menu.aboutToShow.connect(lambda: fill_device_menu(self.dev_menu, self.state, self))
-            choose.setMenu(self.dev_menu)
+            choose = small_button("Выбрать ТВ…", lambda: D.open_picker(
+                sys.modules[__name__], getattr(self.state, "_panel_ref", None) or self))
             top.insertWidget(top.count() - 1, choose)
         elif key == "remote":
             btn.clicked.connect(self.state.start_pairing)
