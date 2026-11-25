@@ -2481,7 +2481,19 @@ def padded(w, l=14, t=0, r=14, b=0):
 # ---------------------------------------------------------------- icons (drawn, SF-Symbols-like)
 
 _SF = {"up": "chevron.up", "down": "chevron.down", "left": "chevron.left", "right": "chevron.right",
-       "home": "house", "tv": "tv", "mic_fill": "mic.fill"}
+       "tv": "tv", "mic_fill": "mic.fill"}
+
+
+def home_path(s: float) -> QPainterPath:
+    """Home: a roof over walls with a door opening, on an 18 px grid. Wide enough that
+    the door never merges with the walls at 100 % (the SF house turned into a blot)."""
+    k = s / 18
+    pa = QPainterPath()
+    pa.moveTo(2.2 * k, 8.6 * k); pa.lineTo(9 * k, 2.8 * k); pa.lineTo(15.8 * k, 8.6 * k)      # roof
+    pa.moveTo(4.2 * k, 7.4 * k); pa.lineTo(4.2 * k, 15.3 * k); pa.lineTo(7.4 * k, 15.3 * k)  # left wall
+    pa.lineTo(7.4 * k, 11.3 * k); pa.lineTo(10.6 * k, 11.3 * k); pa.lineTo(10.6 * k, 15.3 * k)  # door
+    pa.lineTo(13.8 * k, 15.3 * k); pa.lineTo(13.8 * k, 7.4 * k)                              # right wall
+    return pa
 
 
 def glyph(name, size=14, color=None, weight=1.7):
@@ -2532,9 +2544,9 @@ def glyph(name, size=14, color=None, weight=1.7):
         p.drawArc(QRectF(s*.2, s*.22, s*.6, s*.6), 120 * 16, 300 * 16)
         p.drawLine(QPoint(int(c), int(s*.14)), QPoint(int(c), int(s*.5)))
     elif name == "home":
-        path((s*.15, s*.46), (c, s*.17), (s*.85, s*.46))
-        path((s*.25, s*.38), (s*.25, s*.83), (s*.75, s*.83), (s*.75, s*.38))
-        path((s*.42, s*.83), (s*.42, s*.66), (s*.58, s*.66), (s*.58, s*.83))
+        p.setPen(QPen(pen.color(), 1.4 * s / 18, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
+                      Qt.PenJoinStyle.RoundJoin))
+        p.drawPath(home_path(s))
     elif name == "back":
         pa = QPainterPath(); pa.moveTo(s*.3, s*.38); pa.lineTo(s*.62, s*.38)
         pa.arcTo(QRectF(s*.44, s*.38, s*.36, s*.36), 90, -180); pa.lineTo(s*.4, s*.74)
@@ -2566,21 +2578,21 @@ def glyph(name, size=14, color=None, weight=1.7):
         p.setPen(Qt.PenStyle.NoPen); p.setBrush(color or T.fg)
         p.drawEllipse(QRectF(s*.15, s*.15, s*.7, s*.7))
     elif name == "keyboard":
-        # Keyboard — opens the “type on TV” field: a thin outline, two rows of round keys
-        # and a space bar. Keys are dots with clear gaps: square keys merged into one
-        # white block at 20 px.
-        thin = QPen(pen)
-        thin.setWidthF(max(1.0, pen.widthF() * 0.7))
+        # Keyboard — opens the “type on TV” field. Drawn on a 20 px grid in whole pixels
+        # (1 px outline, 2 px keys 2 px apart, a space bar) so it stays crisp at 100 %:
+        # smaller anti-aliased keys merged into one white block.
+        k = s / 20
+        thin = QPen(color or T.fg, 1.0 * k)
+        thin.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         p.setPen(thin)
-        p.drawRoundedRect(QRectF(s*.08, s*.24, s*.84, s*.52), s*.1, s*.1)
+        p.drawRoundedRect(QRectF(2.5 * k, 5.5 * k, 15 * k, 10 * k), 2 * k, 2 * k)
         p.save()
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(color or T.fg)
-        for y in (.39, .52):
-            for x in (.26, .42, .58, .74):
-                p.drawEllipse(QPointF(s*x, s*y), s*.045, s*.045)
+        for x in (5, 9, 13):
+            p.drawRect(QRectF(x * k, 8 * k, 2 * k, 2 * k))
+        p.drawRect(QRectF(6 * k, 12 * k, 8 * k, 1.2 * k))
         p.restore()
-        p.drawLine(QPointF(s*.36, s*.65), QPointF(s*.64, s*.65))
     elif name == "play_on_tv":
         p.drawRoundedRect(QRectF(s*.12, s*.22, s*.76, s*.52), s*.08, s*.08)
         p.setBrush(color or T.fg)
@@ -3663,9 +3675,9 @@ def live_icon(name: str, size: int = 18, color=None) -> QIcon:
         pa.cubicTo(P_(18, 10.5), P_(20, 13), P_(20, 15.5)); pa.cubicTo(P_(20, 18), P_(18, 19.5), P_(15, 19.5))
         pa.lineTo(P_(11, 19.5)); p.drawPath(pa)
     elif name == "home":
-        import sf_icons
         from PyQt6.QtGui import QTransform
-        p.drawPath(QTransform.fromScale(u, u).map(sf_icons._house_path()))   # scale the shape, not the pen
+        p.translate(s * 3 / 24, s * 3 / 24)                  # the 18 px house centred in 24
+        p.drawPath(home_path(s * 18 / 24))
     elif name == "playpause":
         path((4, 6), (4, 18), (11, 12), close=True, fill=True)
         p.save(); pb = QPen(col, s * 0.11); pb.setCapStyle(Qt.PenCapStyle.RoundCap); p.setPen(pb)
@@ -5169,10 +5181,9 @@ class Panel(QWidget):
         self.kb_btn.setIcon(glyph("keyboard", 20, T.fg, weight=1.5))
         self.kb_btn.setIconSize(QSize(20, 20))
         self.kb_btn.setToolTip("Клавиатура — печать на ТВ")
-        self.kb_btn.setStyleSheet(
-            f"QPushButton{{border:1px solid {Theme.css(T.fg_a(0.18))};border-radius:6px;"
-            f"background:{Theme.css(T.fg_a(0.10))}}}"
-            f"QPushButton:hover{{background:{Theme.css(T.acc_a(0.25))}}}")
+        self.kb_btn.setStyleSheet(                    # same soft look as the mic button next to it
+            f"QPushButton{{border:none;border-radius:5px;background:{Theme.css(T.fg_a(0.07))}}}"
+            f"QPushButton:hover{{background:{Theme.css(T.acc_a(0.2))}}}")
         self.kb_btn.clicked.connect(self._toggle_type)
         self.type_edit = field("Печать на ТВ")
         self.type_edit.setToolTip("Текст попадёт в активное поле ввода на телевизоре")
