@@ -114,7 +114,7 @@ Fling in Safari → Settings → Extensions.
 | Guide, compact view | the **?** and ⤡ buttons in the panel's top-right corner. Compact view keeps the artwork and ⏪ ⏯ ⏩ ⏹ keys — labels show on hover |
 | Language | the small flag at the bottom right: click it to switch |
 | Start with Windows | "Start at login" |
-| Commands | `fling`, `fling setup`, `fling cast-tab`, `fling clip`, `fling screenshot`, `fling install-apk app.apk`, `fling help`, `fling quit` |
+| Commands | `fling`, `fling setup`, `fling cast-tab`, `fling clip`, `fling screenshot`, `fling install-apk app.apk`, `fling send file…`, `fling play file/folder/playlist…`, `fling slideshow folder`, `fling next` / `fling prev`, `fling help`, `fling quit` |
 
 ## Troubleshooting
 

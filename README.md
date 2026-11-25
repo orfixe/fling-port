@@ -176,6 +176,10 @@ fling screenshot  save a TV screenshot (needs ADB)
 fling install-apk app.apk   install an APK on the TV (needs ADB; no file = choose one)
 fling cast-tab    cast the current browser tab
 fling clip        cast the link from the clipboard
+fling send file…  to the TV: APKs install, media play, the rest goes to Download
+fling play [file|folder|playlist|link…]   play on the TV as a queue (no argument = choose files)
+fling slideshow [folder] [seconds]       photo slideshow (default 7 s per photo)
+fling next / fling prev                  next / previous item of the queue
 fling quit        exit
 fling tui         terminal remote (Linux)
 ```

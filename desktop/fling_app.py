@@ -41,6 +41,8 @@ from PyQt6.QtWidgets import (QApplication, QGraphicsOpacityEffect, QGridLayout, 
                              QLineEdit, QMenu, QPushButton, QSizePolicy,
                              QSystemTrayIcon, QVBoxLayout, QWidget, QFrame,
                              QSlider, QToolButton)
+import fling_media as M                      # formats, queues, slideshows, resume, recent casts
+M.F = sys.modules[__name__]
 
 import fling_tools                     # adb / scrcpy: find, choose, install (the Tools window)
 
@@ -92,7 +94,7 @@ def save_conf(c: dict) -> None:
 # ---------------------------------------------------------------- URL classifier (URLClassifier.swift)
 
 MEDIA_EXT = {"mp4", "m4v", "webm", "ts", "mp3", "m4a", "aac", "ogg", "oga", "wav",
-             "flac", "m3u8", "mpd", "mkv"}
+             "flac", "m3u8", "mpd", "mkv", "mov", "opus", "jpg", "jpeg", "png", "gif"}
 YOUTUBE = {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"}
 EXTRACTABLE = {"vimeo.com", "player.vimeo.com", "twitch.tv", "www.twitch.tv",
                "dailymotion.com", "www.dailymotion.com", "twitter.com", "x.com",
@@ -118,32 +120,8 @@ def classify(raw: str | None) -> tuple[str, str | None]:
     # Fling blocks these; yt-dlp knows ~1800 sites, so let the user try.
     return "maybe", None
 
-# files dropped on Fling / `fling send`: what goes where
-SEND_CAST_EXT = {"mp4", "mkv", "webm", "mov", "avi", "m4v", "mp3", "m4a", "flac", "wav", "ogg",
-                 "jpg", "jpeg", "png", "gif", "webp"}
-SEND_MAX = 4 * 1024 ** 3                     # adb push of bigger files is slow and /sdcard may be FAT
-
-
-def route_files(paths) -> dict:
-    """→ {"apk": [...], "cast": [...], "push": [...], "skip": [(path, why)]}.
-    APKs install, the first video / audio / picture plays on the TV (catt serves it),
-    everything else is copied to the TV's Download folder over ADB."""
-    out = {"apk": [], "cast": [], "push": [], "skip": []}
-    for raw in paths:
-        f = os.path.abspath(raw) if raw else ""
-        if not raw or not os.path.isfile(f):
-            out["skip"].append((raw, "это не файл"))
-            continue
-        ext = os.path.splitext(f)[1].lstrip(".").lower()
-        if ext == "apk":
-            out["apk"].append(f)
-        elif ext in SEND_CAST_EXT and not out["cast"]:
-            out["cast"].append(f)               # one thing plays; more media get copied
-        elif os.path.getsize(f) > SEND_MAX:
-            out["skip"].append((f, "файл больше 4 ГБ"))
-        else:
-            out["push"].append(f)
-    return out
+# files dropped on Fling / `fling send`: what goes where — see fling_media.route()
+SEND_MAX = M.F_SEND_MAX                      # adb push of bigger files is slow and /sdcard may be FAT
 
 
 def youtube_id(raw: str) -> str | None:
@@ -1054,6 +1032,7 @@ class State(QObject):
         self.lounge.update.connect(self._on_yt)
         self.lounge.linked.connect(self._on_yt_linked)
         self.lounge.start()
+        self.media = M.Media(self)       # queue / slideshow / resume / recent (fling_media.py)
 
     # --- YouTube lounge
     def _on_yt(self, d):
@@ -1143,70 +1122,12 @@ class State(QObject):
     }
 
     def send_files(self, paths: list[str]):
-        """Files dropped on Fling or `fling send`: install, play or copy them to the TV."""
-        r = route_files(paths)
-        for f, why in r["skip"]:
-            notify_send(f"Не отправлю {os.path.basename(f) or f}: {why}")
-        if not (r["apk"] or r["cast"] or r["push"]):
-            if not r["skip"]:
-                self._set(last_error="Нечего отправить")
-            return
-        if not self.ip:
-            self._set(last_error="Устройство не выбрано")
-            return
-        if r["apk"]:
-            self.tv_install_apk(r["apk"])
-        for f in r["cast"]:
-            self.cast_local(f)
-        for f in r["push"]:
-            self.adb_push(f)
+        """Files / folders dropped on Fling or `fling send`: install, play (a queue for several
+        videos, songs or photos; playlists and folders too) or copy them to the TV."""
+        self.media.send(paths)
 
-    def cast_local(self, path: str):
-        """Play a file from this computer on the TV. catt serves it over HTTP for as long
-        as it plays, so it runs as its own lasting process (not in the 2-minute pool).
-        If the TV can't fetch it (firewall, other network) the file is copied over ADB."""
-        ip, name = self.ip, os.path.basename(path)
-        old = getattr(self, "_local_cast", None)
-        if old is not None and old.poll() is None:
-            old.kill()                              # the TV switches to the new file anyway
-        try:
-            p = P.popen(P.catt_cmd(CATT, ["-d", ip, "cast", path]), stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT, env=P.CATT_ENV)
-        except Exception as ex:
-            print("cast file:", ex, flush=True)
-            self.adb_push(path)
-            return
-        self._local_cast = p
-        notify_send(f"Отправляю на ТВ: {name}…")
-
-        def watch():
-            try:
-                out, _ = p.communicate(timeout=45)  # pictures and failures end quickly
-                code = p.returncode
-            except subprocess.TimeoutExpired:       # still serving: the TV is playing it
-                code, out = None, b""
-                threading.Thread(target=p.communicate, daemon=True).start()   # keep the pipe drained
-            text = (out or b"").decode("utf-8", errors="replace")
-            self.bridge.call.emit(lambda: done(code, text))
-
-        def done(code, text):
-            print(f"cast file {name}: exit {code}\n{text[-800:]}", flush=True)
-            if code in (None, 0):                   # playing (or a picture was shown)
-                self._set(last_error=None)
-                notify_send(f"На ТВ: {name}")
-                QTimer.singleShot(1500, lambda: self.refresh(with_tab=False))
-                return
-            if p is not getattr(self, "_local_cast", None):
-                return                              # stopped on purpose: a newer file replaced it
-            err = next((l[6:].strip() for l in reversed(text.splitlines()) if l.startswith("Error:")), "")
-            print("cast file failed, copying over ADB instead:", err, flush=True)
-            notify_send(f"Не получилось показать {name} — копирую файл на ТВ")
-            self.adb_push(path, why=err)
-
-        threading.Thread(target=watch, daemon=True, name="fling-cast-file").start()
-
-    def adb_push(self, path: str, why: str = ""):
-        """Copy a file to the TV's Download folder (ADB), in its own thread."""
+    def adb_push(self, path: str, why: str = "", then=None):
+        """Copy a file to the TV's Download folder (ADB), in its own thread; then() after success."""
         ip, name = self.ip, os.path.basename(path)
         if not ip:
             self._set(last_error="Устройство не выбрано")
@@ -1243,6 +1164,8 @@ class State(QObject):
             else:
                 self._set(last_error=None)
                 notify_send(f"Файл на ТВ: Download/{name}")
+                if then:
+                    then()
 
         notify_send(f"Копирую на ТВ: {name}…")
         threading.Thread(target=run, daemon=True, name="fling-push").start()
@@ -1555,6 +1478,7 @@ class State(QObject):
                     self.tab = tab
                 if st is not None and ip == self.ip:
                     self.status = st
+                    self.media.observe(st)
                     if st.get("volume") is not None and not self._vol_timer.isActive():
                         self.volume = st["volume"]
             self.changed.emit()
@@ -1588,6 +1512,7 @@ class State(QObject):
     def select_device(self, d):
         if self.device and d["ip"] == self.device["ip"]:   # already on this TV: nothing to do
             return
+        self.media.stop(quiet=True)       # the old TV's file server and queue end here
         self.device = d
         self.status = {}
         self.tvm = {}                      # now-playing, remote state and screenshots belong to the old TV
@@ -1681,6 +1606,9 @@ class State(QObject):
         self.bg(lambda: catt_run(["-d", ip, *args], timeout=timeout), done)
 
     def cast(self, url, notify=False, start=None, title=None):
+        if M.is_unc(url):     # never touch \\host\share: Windows would hand it the login hash (NTLM)
+            self._set(last_error=M.UNC_ERROR)
+            return
         kind, reason = classify(url)
         if kind == "none":
             self._set(last_error=reason)
@@ -1693,15 +1621,22 @@ class State(QObject):
         if not self.ip:
             self._set(last_error="Устройство не выбрано")
             return
+        if os.path.isfile(url):                       # a file: played (and served) by fling_media
+            self.media.send([url])
+            return
+        self.media.before_cast()
+        start = self.media.start_for(url, start)      # browser position, ?t= in the link, or resume
         self.cast_in_flight = True
         self.changed.emit()
-        opts = ["-f"] if kind == "direct" and not os.path.isfile(url) else []
+        opts = ["-f"] if kind == "direct" else []
         if start and start > 3:                       # "Resume on TV at 12:34"
             opts += ["-t", str(int(start))]
         if title and kind == "direct":
             opts += ["-l", title[:200]]
         def after():
             self.cast_in_flight = False
+            if not self.last_error:
+                self.media.url_started(url, title)
             if notify:
                 notify_send(self.last_error or f"На ТВ: {url[:100]}")
         self._catt(["cast", *opts, url], timeout=120, after=after)
@@ -1741,6 +1676,8 @@ class State(QObject):
         return self.status.get("state") == "BUFFERING" and not self.status.get("elapsed")
 
     def toggle_play(self):
+        if self.media.toggle_slideshow():   # a slideshow pauses its timer, not the TV
+            return
         if self.yt_live:
             playing = self.yt.get("state") == "PLAYING"
             if self.lounge.command("pause" if playing else "play"):
@@ -1781,6 +1718,7 @@ class State(QObject):
         self._catt(["ffwd" if s > 0 else "rewind", str(abs(s))])
 
     def stop(self):
+        self.media.stop()                    # ends Fling's own file server / queue item
         if self.yt_live and self.lounge.command("pause"):
             self._on_yt({"state": "PAUSED"})
             return
@@ -2012,8 +1950,9 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Установить расширение…", "Install the extension…"),
     # files sent to the TV
     ("Отпустите — отправлю на ТВ", "Drop — I'll send it to the TV"),
-    ("APK — установка, видео и фото — на экран, остальное — в папку Download",
-     "APK installs, videos and pictures play, the rest goes to the Download folder"),
+    ("APK — установка; видео, музыка, фото, папки и плейлисты — на экран; остальное — в папку Download",
+     "APKs install; videos, music, photos, folders and playlists play on the screen; "
+     "everything else goes to the Download folder"),
     ("Не отправлю ", "Not sending "), ("это не файл", "not a file"), ("файл больше 4 ГБ", "the file is over 4 GB"),
     ("Нечего отправить", "Nothing to send"), ("Отправляю на ТВ: ", "Sending to the TV: "),
     ("Не получилось показать ", "Couldn't play "), (" — копирую файл на ТВ", " — copying the file to the TV"),
@@ -2376,6 +2315,7 @@ EN_PHRASES += [   # installing an APK on the TV
     ("нет ответа", "no answer"),
 ]
 EN_PHRASES += fling_tools.EN_PHRASES   # the Tools window keeps its texts next to its code
+EN_PHRASES += M.PHRASES          # formats, queues, slideshows (fling_media.py)
 EN_PHRASES.sort(key=lambda kv: -len(kv[0]))
 EN_REGEX = [(re.compile(r"(\d+) с\b"), r"\1s")]
 R.bind(sys.modules[__name__])     # fling_remote reuses the helpers below and adds its phrases
@@ -4786,7 +4726,8 @@ class DropHint(QWidget):
         p.setPen(T.fg_a(0.6))
         p.setFont(font(11))
         p.drawText(r.adjusted(16, 40, -16, 0), Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
-                   tr("APK — установка, видео и фото — на экран, остальное — в папку Download"))
+                   tr("APK — установка; видео, музыка, фото, папки и плейлисты — на экран; "
+                      "остальное — в папку Download"))
 
 
 class _FileDrop(QObject):
@@ -4801,7 +4742,9 @@ class _FileDrop(QObject):
         md = e.mimeData()
         if md is None or not md.hasUrls():
             return []
-        return [u.toLocalFile() for u in md.urls() if u.isLocalFile() and os.path.isfile(u.toLocalFile())]
+        # files and folders on this computer; never \\server\share (NTLM), see fling_media.is_unc
+        return [u.toLocalFile() for u in md.urls() if u.isLocalFile() and not M.is_unc(u.toLocalFile())
+                and os.path.exists(u.toLocalFile())]
 
     def eventFilter(self, obj, e):
         t = e.type()
@@ -5032,6 +4975,7 @@ class Panel(QWidget):
         tl = QHBoxLayout(); tl.addWidget(self.c_el); tl.addStretch(1); tl.addWidget(self.c_rem)
         pl.addLayout(tl)
         cl.addWidget(pw)
+        cl.addWidget(M.QueueStrip(state, "casting"))     # queue / slideshow / subtitles / speed
         # compact view: one row of icon keys, the words live in the tooltips
         self.c_bar = key_bar(
             ("prev", "Предыдущее видео", state.yt_prev, 28, False),
@@ -5081,6 +5025,7 @@ class Panel(QWidget):
         hl.setSpacing(4); hl.addWidget(self.i_host); hl.addWidget(label("·", 11, T.fg_a(0.55))); hl.addWidget(self.i_kind); hl.addStretch(1)
         bl.addWidget(self.i_host_row)
         il.addWidget(box)
+        il.addWidget(M.QueueStrip(state, "idle"))        # a stopped queue, a slideshow between photos
         self.i_bar = key_bar(
             ("play_on_tv", f"Отправить эту вкладку  ({SHORTCUT_LABEL})", state.cast_tab, 40, True),
             ("clipboard", "Отправить скопированную ссылку", state.cast_clipboard, 32, False))
@@ -5108,6 +5053,7 @@ class Panel(QWidget):
         il.addWidget(self.i_ext)
         self.i_clip = MenuRow("Отправить скопированную ссылку", icon="clipboard", on=state.cast_clipboard)
         il.addWidget(self.i_clip)
+        il.addWidget(M.OpenRow(state, self))             # files, folders, slideshow, recent casts
         self.i_vol_sep = Separator()
         il.addWidget(self.i_vol_sep)
         self.i_vol = VolumeRow(state)
@@ -6700,7 +6646,7 @@ class Tray(QObject):
         prev, self._track = getattr(self, "_track", None), key
         if not key or key == prev or prev is None or prev[0] != key[0]:
             return                       # nothing playing, same track, first sight, or another TV
-        if not s.conf.get("notify_track", True) or self.state.panel_visible():
+        if not s.conf.get("notify_track", True) or self.state.panel_visible() or s.media.quiet_track:
             return                       # switched off, or the panel already shows it
         sub = st.get("subtitle") or st.get("app") or ""
         notify_send(f"Сейчас на ТВ: {title}" + (f" — {sub}" if sub else ""))
@@ -6719,6 +6665,7 @@ class Tray(QObject):
         a = m.addAction("Отправить эту вкладку вместо" if casting else "Отправить эту вкладку", s.cast_tab)
         a.setShortcut(QKeySequence(GLOBAL_SHORTCUT)); a.setEnabled(castable)
         m.addAction("Отправить скопированную ссылку", s.cast_clipboard)
+        M.fill_tray_menu(m.addMenu("Открыть на ТВ"), s)
         m.addSeparator()
         dm = m.addMenu("Телевизор" + (f" — {s.device['name']}" if s.device else ""))
         fill_device_menu(dm, s, None)
@@ -6962,6 +6909,8 @@ def main():
         cmd = "\t".join(["send", *(os.path.abspath(a) for a in sys.argv[2:])])
     if cmd in ("scene", "sleep-timer"):            # `fling scene "Movie night"`, `fling sleep-timer 30`
         cmd = "\t".join([cmd, " ".join(sys.argv[2:])])
+    if cmd in ("play", "slideshow"):               # `fling play file|folder|playlist|link…`, `fling slideshow folder [s]`
+        cmd = "\t".join([cmd, *M.cli_args(sys.argv[2:])])
     app = QApplication(sys.argv)
     app.setApplicationName("Fling")
     app.setDesktopFileName("fling")
@@ -7012,6 +6961,8 @@ def main():
             state.tv_screenshot()
         elif c.startswith("send\t"):
             state.send_files([f for f in c.split("\t")[1:] if f])
+        elif c.split("\t")[0] in ("play", "slideshow", "next", "prev"):   # fling_media verbs
+            M.cli(state, c.split("\t"), panel)
         elif c.startswith("install-apk"):
             files = [f for f in c.split("\t")[1:] if f]
             state.tv_install_apk(files) if files else pick_apk(state)
@@ -7041,6 +6992,7 @@ def main():
         elif c == "quit":
             app.quit()
 
+    app.aboutToQuit.connect(state.media.shutdown)        # stop serving files to the LAN
     app.aboutToQuit.connect(CAST.close)
     app.aboutToQuit.connect(state.screen.stop)
     QLocalServer.removeServer(SOCKET)
