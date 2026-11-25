@@ -44,6 +44,7 @@ PHRASES = [
     ("Проверяю {ip}…", "Checking {ip}…"),
     ("Найдено: {n}", "Found: {n}"),
     ("Выбрать ТВ…", "Choose TV…"),
+    ("через Tailscale", "via Tailscale"),
 ]
 
 
@@ -172,7 +173,9 @@ class TvCard(QFrame):
         bits = [b for b in (d.get("model"), d["ip"]) if b and b != d.get("name")]
         if paired:
             bits.append(F.tr("пульт связан"))
-        if d.get("manual"):
+        if d.get("via") == "tailscale":
+            bits.append(F.tr("через Tailscale"))
+        elif d.get("manual"):
             bits.append(F.tr("добавлен по IP"))
         sub = F.label(" · ".join(bits), 10.5, T.fg_a(0.55))
         sub.setStyleSheet(sub.styleSheet() + ";border:none")
@@ -363,6 +366,14 @@ class DevicePicker(QWidget):
         self.hint = F.label("IP-адрес есть на ТВ: Настройки → Сеть.", 10.5, T.fg_a(0.5), wrap=True)
         v.addWidget(self.hint)
 
+        # TVs on the tailnet (fling_tailscale): remote control away from home
+        line = QFrame()
+        line.setFixedHeight(1)
+        line.setStyleSheet(f"background:{_css(T.fg_a(0.08))}")
+        v.addWidget(line)
+        self.tailnet = F.TS.TailnetSection(state)
+        v.addWidget(self.tailnet)
+
         state.changed.connect(self.sync)
         self.sync()
 
@@ -370,6 +381,7 @@ class DevicePicker(QWidget):
     def search(self):
         if not self.state.scanning:
             self.state.scan()
+        self.tailnet.refresh()
 
     def add_ip(self):
         ip = self.ip.text().strip()
@@ -378,8 +390,12 @@ class DevicePicker(QWidget):
             return
         self.state.last_error = None
         self._added_ip = ip
-        self.state.add_device_ip(ip)
-        self.hint.setText(F.tr("Проверяю {ip}…").replace("{ip}", ip))
+        if F.TS.wants(ip):                     # a tailnet IP or a MagicDNS name
+            F.TS.add(self.state, ip, on_ip=lambda real: setattr(self, "_added_ip", real))
+            self.hint.setText(F.tr("Проверяю {ip} через Tailscale…").replace("{ip}", ip))
+        else:
+            self.state.add_device_ip(ip)
+            self.hint.setText(F.tr("Проверяю {ip}…").replace("{ip}", ip))
         self.hint.setStyleSheet(f"color:{_css(F.T.fg_a(0.6))};background:transparent")
 
     def pick(self, d):

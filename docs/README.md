@@ -6,6 +6,7 @@ live in the [root README](../README.md).
 | Document | What it covers |
 |---|---|
 | [Windows install guide](install-windows.md) · [RU](install-windows.ru.md) | Installing the Windows app and the browser extensions, step by step |
+| [Remote access over Tailscale](tailscale.md) · [RU](tailscale.ru.md) | Controlling the TV away from home: setup, ACLs, what works remotely |
 | [Architecture](architecture.md) | Desktop app, extension bridge, Android app, where now-playing comes from |
 | [Protocols](protocols.md) | Cast v2, Android TV Remote v2, ADB over TCP, YouTube Lounge, Bluetooth LE HID |
 | [Development](development.md) | Building, checking, testing on a real TV, translations, releases |

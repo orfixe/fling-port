@@ -43,6 +43,7 @@ PAGES = (   # key, sidebar title, icon, tile colour
     ("general", "Основные", "gear", "#8e8e93"),
     ("remote", "Пульт", "remote", "#0a84ff"),
     ("cast", "Трансляция", "cast", "#30b158"),
+    ("tailscale", "Удалённый доступ", "globe", "#5e5ce6"),   # fling_tailscale.settings_page
     ("about", "О программе", "info", None),          # None: the Fling logo
 )
 
@@ -211,6 +212,10 @@ def paint_icon(p: QPainter, name, r: QRectF, color: QColor, weight=1.6):
         tri = QPainterPath(); tri.moveTo(at(.42, .35)); tri.lineTo(at(.42, .61)); tri.lineTo(at(.63, .48))
         tri.closeSubpath(); p.drawPath(tri)
         p.setPen(pen); p.drawLine(at(.34, .88), at(.66, .88))
+    elif name == "globe":                                  # remote access: a globe
+        p.drawEllipse(c, s * .38, s * .38)
+        p.drawEllipse(c, s * .16, s * .38)
+        p.drawLine(at(.13, .5), at(.87, .5))
     elif name == "info":
         p.drawEllipse(c, s * .38, s * .38)
         p.drawLine(at(.5, .46), at(.5, .7))
@@ -731,6 +736,8 @@ class SettingsWindow(QWidget):
         self.stack.setCurrentIndex([k for k, *_ in PAGES].index(key))
         if key == "remote":
             self._sync_remote()
+        elif key == "tailscale":
+            self.pages[key]._tailnet.refresh()
 
     def _save(self, **kw):
         conf = self.state.conf
@@ -1118,6 +1125,11 @@ class SettingsWindow(QWidget):
         v.addLayout(row)
         v.addStretch(1)
         return w
+
+    # ----------------------------------------------------------- Remote access (Tailscale)
+    def _page_tailscale(self):
+        import fling_tailscale
+        return fling_tailscale.settings_page(self)
 
     # ----------------------------------------------------------- About
     def _page_about(self):
