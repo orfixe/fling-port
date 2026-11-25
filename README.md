@@ -299,6 +299,7 @@ desktop/             shared by Windows and Linux (PyQt6)
   fling_settings.py  Settings window (Appearance, General, Remote, Casting, About)
   fling_themes.py    theme presets and the "As the system" resolution
   fling_devices.py   TV chooser window (search, cards, add by IP)
+  fling_tailscale.py remote access over Tailscale: tailnet TVs, keep-alive, Settings page
   fling_tools.py     Tools window: find / install / update adb and scrcpy
 guard/               fling-guard and fling-sign (Rust): signed file list, process allowlist, CPU watchdog
 security/            the release public key (fling-release.pub)
@@ -328,6 +329,7 @@ docs/                guides, architecture, protocols, screenshots
 | Document | What it covers |
 |---|---|
 | [Windows install guide](docs/install-windows.md) · [RU](docs/install-windows.ru.md) | Step by step: app, browser extension, first start, troubleshooting |
+| [Remote access over Tailscale](docs/tailscale.md) · [RU](docs/tailscale.ru.md) | Control the TV away from home: setup, ACLs, what works remotely |
 | [Architecture](docs/architecture.md) | Components, threading, the browser bridge, now-playing sources, files |
 | [Protocols](docs/protocols.md) | Cast v2, Android TV Remote v2, ADB, YouTube Lounge, Bluetooth LE HID, the bridge API |
 | [Development](docs/development.md) | Building, checks, testing on a real TV, translations, releases |

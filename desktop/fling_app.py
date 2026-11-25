@@ -46,6 +46,8 @@ M.F = sys.modules[__name__]
 
 import fling_tools                     # adb / scrcpy: find, choose, install (the Tools window)
 import fling_devices as D              # the TV chooser window (search animation, cards, add by IP)
+import fling_tailscale as TS           # remote access over Tailscale: tailnet TVs, keep-alive, settings page
+TS.F = sys.modules[__name__]
 
 HOME = P.HOME
 CATT = P.find_catt()
@@ -1034,6 +1036,7 @@ class State(QObject):
         self.lounge.linked.connect(self._on_yt_linked)
         self.lounge.start()
         self.media = M.Media(self)       # queue / slideshow / resume / recent (fling_media.py)
+        self.tailnet = TS.KeepAlive(self)  # a TV on the tailnet: ping, reconnect, footer latency
 
     # --- YouTube lounge
     def _on_yt(self, d):
@@ -1533,18 +1536,23 @@ class State(QObject):
             marks.append(d["ip"])          # identical names: tell them apart by address
         if self.atv.paired(d["ip"]):               # network remote already paired with this TV
             marks.append("пульт ✓")
-        if d.get("manual"):                        # added by hand, not found by discovery
+        if TS.is_tailscale(d):                     # reached over the tailnet
+            marks.append("Tailscale")
+        elif d.get("manual"):                      # added by hand, not found by discovery
             marks.append("по IP")
         return d["name"] + (f"  ·  {', '.join(marks)}" if marks else "")
 
-    def add_device_ip(self, ip):
-        """Add a TV that discovery can't see (other subnet, mDNS blocked) by its IP address."""
+    def add_device_ip(self, ip, via=None, name=None):
+        """Add a TV that discovery can't see (other subnet, mDNS blocked) by its IP address.
+        via="tailscale": a tailnet address (fling_tailscale.add) — Cast, remote or ADB answering is enough."""
         ip = ip.strip()
         parts = ip.split(".")                      # IPv4: 4 numbers, each 0..255
         if len(parts) != 4 or not all(x.isascii() and x.isdigit() and int(x) <= 255 for x in parts):
             self._set(last_error="Это не похоже на IP-адрес (пример: 192.168.1.50).")
             return
         def work():
+            if via == "tailscale":
+                return TS.probe_tv(ip, name)
             import socket as _s
             c = _s.socket(_s.AF_INET, _s.SOCK_STREAM); c.settimeout(2)  # IPv4 only
             try:
@@ -1621,6 +1629,9 @@ class State(QObject):
             return
         if not self.ip:
             self._set(last_error="Устройство не выбрано")
+            return
+        if TS.cast_blocked(self.device):              # a tailnet TV whose Cast port doesn't answer
+            self._set(last_error=TS.cast_blocked(self.device))
             return
         if os.path.isfile(url):                       # a file: played (and served) by fling_media
             self.media.send([url])
@@ -2328,6 +2339,7 @@ EN_PHRASES += [   # installing an APK on the TV
 EN_PHRASES += fling_tools.EN_PHRASES   # the Tools window keeps its texts next to its code
 EN_PHRASES += M.PHRASES          # formats, queues, slideshows (fling_media.py)
 EN_PHRASES += D.PHRASES + [("Найти ТВ…", "Find TVs…")]   # the TV chooser (fling_devices.py)
+EN_PHRASES += TS.PHRASES   # remote access over Tailscale (fling_tailscale.py)
 EN_PHRASES.sort(key=lambda kv: -len(kv[0]))
 EN_REGEX = [(re.compile(r"(\d+) с\b"), r"\1s")]
 R.bind(sys.modules[__name__])     # fling_remote reuses the helpers below and adds its phrases
@@ -3576,7 +3588,8 @@ class TvScreen(QObject):
         if not audio:
             args.append("--no-audio")
         if mode in ("screen", "live"):
-            q = QUALITY.get(self.live_quality if mode == "live" else "auto", QUALITY["auto"])
+            q = QUALITY.get(self.live_quality if mode == "live" else
+                            ("saver" if TS.prefers_saver(self.state) else "auto"), QUALITY["auto"])
             # no extra buffering anywhere: --video-buffer=0 shows each frame as soon as it's decoded
             args += [f"--max-size={q[0]}", f"--max-fps={q[1]}", f"--video-bit-rate={q[2]}", "--video-buffer=0"]
         if mode == "live":
@@ -4376,7 +4389,8 @@ class LiveWindow(QWidget):
         sc.live_mouse = self.state.conf.get("live_mouse", "uhid")
         sc.live_kb = self.state.conf.get("live_kb", "on")
         q = self._quality()
-        sc.live_quality = "saver" if q == "auto" and getattr(self, "_auto_saver", False) else q
+        sc.live_quality = ("saver" if q == "auto" and (getattr(self, "_auto_saver", False)
+                                                       or TS.prefers_saver(self.state)) else q)   # tailnet: start light
         self._pings, self._fps, self._fps_seen, self._bad = [], [], 0, 0
         self._health_details = ""
         self.health.setIcon(QIcon()); self.health.setText(tr("Качество: авто") if q == "auto" else
@@ -4411,8 +4425,11 @@ class LiveWindow(QWidget):
                                                ctypes.c_void_p(int(self.winId())))
         self.container = int(hwnd)
         self.msg.hide()                           # it was born in place: no move needed now
-        self._status(tr("Сеть не успевала — включил «Экономно». Качество можно выбрать справа вверху.")
-                     if self.state.screen.live_quality == "saver" and self._quality() == "auto" else "")
+        saver_auto = self.state.screen.live_quality == "saver" and self._quality() == "auto"
+        self._status("" if not saver_auto else
+                     tr("Через Tailscale — качество «Экономно». Другое можно выбрать справа вверху.")
+                     if TS.prefers_saver(self.state) and not getattr(self, "_auto_saver", False) else
+                     tr("Сеть не успевала — включил «Экономно». Качество можно выбрать справа вверху."))
         self.health_timer.start()
         QTimer.singleShot(300, self._check_health)
         if self.state.screen.live_mouse == "uhid":   # the mouse comes back by itself at the picture's edge
@@ -5249,8 +5266,11 @@ class Panel(QWidget):
                                   "QToolButton::menu-indicator{image:none}")
         # the TV chooser window: searches at once, with an animation and a card per TV
         self.switch.clicked.connect(lambda: D.open_picker(sys.modules[__name__], self))
+        self.ts_note = label("", 10.5, T.fg_a(0.5))   # "via Tailscale · 38 ms" for a tailnet TV
+        self.ts_note.hide()
         ft.addWidget(self.dot)
         ft.addWidget(self.dev_name, 1)
+        ft.addWidget(self.ts_note)
         ft.addWidget(self.adb_badge, 0, Qt.AlignmentFlag.AlignVCenter)
         ft.addWidget(self.switch)
         fw = QWidget(); fw.setLayout(ft)
@@ -5848,6 +5868,12 @@ class Panel(QWidget):
         dup = bool(s.device) and sum(1 for x in s.devices if x["name"] == s.device["name"]) > 1
         self.dev_name.setText((s.device["name"] + (f" ({s.device['ip']})" if dup else "")) if s.device
                               else ("Ищу ТВ…" if s.scanning else "Устройство не найдено"))
+        ts_text = s.tailnet.footer_text()
+        self.ts_note.setText(ts_text)
+        self.ts_note.setToolTip(s.tailnet.footer_tip())
+        self.ts_note.setVisible(bool(ts_text))
+        if ts_text and s.tailnet.online is False:
+            self.dot.setStyleSheet(f"background:{Theme.css(T.orange)};border-radius:3px")
         self.switch.setVisible(True)                   # always available: rescan / add by IP even with one TV
         self.switch.setText("Выбрать")                 # short: the TV's name is right next to it
         # Keep the footer Android in sync (don't restart the Connected! animation every tick)

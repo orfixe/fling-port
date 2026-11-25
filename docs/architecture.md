@@ -36,6 +36,7 @@ Larger features live in their own modules; `fling_app.py` only calls into them t
 | `fling_settings.py` | Settings window (Appearance, General, Remote, Casting, About) |
 | `fling_themes.py` | Theme presets and accents; "As the system" follows the system's light / dark and accent colour |
 | `fling_devices.py` | TV chooser window: discovery, cards, add by IP |
+| `fling_tailscale.py` | Remote access over Tailscale: tailnet TVs (read-only `tailscale status`), keep-alive, Settings page |
 | `fling_remote.py` | Remote modes, favourite apps, scenes, sleep timer, system-wide keys |
 | `fling_media.py` | Formats, queues, playlists, slideshows, subtitles, resume and recent casts |
 | `fling_tools.py` | Registry of outside tools (adb, scrcpy): detection, choice in `tools.json`, verified install |
