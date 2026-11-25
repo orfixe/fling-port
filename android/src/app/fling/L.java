@@ -258,5 +258,13 @@ final class L {
         e("О приложении", "About");
         e("Проверить обновления", "Check for updates");
 
+        // LIVE: scrcpy session (Scrcpy)
+        e("Файл scrcpy-server не совпал с контрольной суммой, поэтому он не запущен.", "The scrcpy-server file didn't match its checksum, so it wasn't started.");
+        e("Подтвердите на ТВ «Разрешить отладку» и нажмите LIVE ещё раз.", "Accept “Allow debugging” on the TV, then tap LIVE again.");
+        e("LIVE работает через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети».", "LIVE works over ADB — on the TV, turn on Developer options → Network debugging.");
+        e("ТВ отключил видео.", "The TV turned the video off.");
+        e("ТВ не смог настроить видео.", "The TV couldn't set up the video.");
+        e("ТВ не запустил scrcpy: %s", "The TV didn't start scrcpy: %s");
+        e("Не удалось скачать scrcpy-server: ", "Couldn't download scrcpy-server: ");
     }
 }

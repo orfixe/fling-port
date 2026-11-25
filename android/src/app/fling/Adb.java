@@ -36,9 +36,10 @@ import java.util.regex.Pattern;
 import javax.crypto.Cipher;
 
 /** Minimal ADB-over-TCP client (port 5555): RSA auth + one shell command.
- *  Used to read what the TV is really playing (`dumpsys media_session`). */
+ *  Used to read what the TV is really playing (`dumpsys media_session`); AdbLink keeps a
+ *  connection open with several streams for LIVE. */
 final class Adb {
-    private static final int CNXN = 0x4e584e43, AUTH = 0x48545541, OPEN = 0x4e45504f,
+    static final int CNXN = 0x4e584e43, AUTH = 0x48545541, OPEN = 0x4e45504f,
             OKAY = 0x59414b4f, CLSE = 0x45534c43, WRTE = 0x45545257;
     private static final int VERSION = 0x01000001, MAX_PAYLOAD = 256 * 1024;
     private static final byte[] SHA1_PREFIX = {0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a,
@@ -92,7 +93,7 @@ final class Adb {
 
     // ------------------------------------------------------------ wire
 
-    private static void send(OutputStream o, int cmd, int a0, int a1, byte[] data) throws IOException {
+    static void send(OutputStream o, int cmd, int a0, int a1, byte[] data) throws IOException {
         if (data == null) data = new byte[0];
         int sum = 0;
         for (byte x : data) sum += x & 0xFF;
@@ -103,9 +104,9 @@ final class Adb {
         o.flush();
     }
 
-    private static final class Msg { int cmd, a0, a1; byte[] data; }
+    static final class Msg { int cmd, a0, a1; byte[] data; }
 
-    private static Msg read(DataInputStream in) throws IOException {
+    static Msg read(DataInputStream in) throws IOException {
         byte[] h = new byte[24];
         in.readFully(h);
         ByteBuffer b = ByteBuffer.wrap(h).order(ByteOrder.LITTLE_ENDIAN);
@@ -126,8 +127,21 @@ final class Adb {
         return new String(shellBytes(host, command), StandardCharsets.UTF_8);
     }
 
-    /** Raw shell output (binary-safe, e.g. `screencap -p`). */
-    synchronized byte[] shellBytes(String host, String command) throws Exception {
+    /** An authenticated ADB transport: what CNXN returned, ready for OPEN. */
+    static final class Session {
+        final Socket sock; final DataInputStream in; final OutputStream out;
+        final int maxData;   // the TV's largest payload per WRTE
+        Session(Socket sock, DataInputStream in, OutputStream out, int maxData) {
+            this.sock = sock; this.in = in; this.out = out; this.maxData = maxData;
+        }
+    }
+
+    /** Connects to adbd on host:5555 and authenticates with this phone's key (the TV shows
+     *  "Allow debugging?" the first time). The caller owns the socket. */
+    Session connect(String host) throws Exception { return connect(host, 5555); }
+
+    /** Same, on another adbd port (wireless debugging, a Tailscale port map). */
+    synchronized Session connect(String host, int port) throws Exception {
         if (host != null && host.indexOf(':') >= 0) {
             lastState = "closed";
             throw new IOException("IPv6 ADB is not used");
@@ -139,21 +153,24 @@ final class Adb {
             else noPubkeyUntil.remove(host);
         }
         keys();
-        try (Socket s = new Socket()) {
+        Socket s = new Socket();
+        boolean ok = false;
+        try {
             try {
                 // Numeric IPv4 host → IPv4 socket; never open an IPv6 path here
-                s.connect(new InetSocketAddress(java.net.InetAddress.getByName(host), 5555), 2500);
+                s.connect(new InetSocketAddress(java.net.InetAddress.getByName(host), port), 2500);
             } catch (IOException e) {
                 lastState = "closed";
                 throw new IOException("ADB is off on the TV");
             }
+            s.setTcpNoDelay(true);   // keys and touches must not wait for Nagle
             s.setSoTimeout(8000);
-            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataInputStream in = new DataInputStream(new java.io.BufferedInputStream(s.getInputStream(), 64 * 1024));
             OutputStream o = s.getOutputStream();
             send(o, CNXN, VERSION, MAX_PAYLOAD, "host::fling\0".getBytes(StandardCharsets.UTF_8));
             boolean sentSig = false, sentKey = false;
+            Msg m;
             while (true) {
-                Msg m;
                 try { m = read(in); } catch (java.net.SocketTimeoutException e) {
                     lastState = "unauthorized";
                     noPubkeyUntil.put(host, SystemClock.elapsedRealtime() + 300_000L);
@@ -183,6 +200,19 @@ final class Adb {
             noPubkeyUntil.remove(host);
             s.setSoTimeout(8000);
             lastState = "ok";
+            ok = true;
+            return new Session(s, in, o, Math.max(4096, Math.min(m.a1, MAX_PAYLOAD)));
+        } finally {
+            if (!ok) try { s.close(); } catch (IOException ignored) {}
+        }
+    }
+
+    /** Raw shell output (binary-safe, e.g. `screencap -p`). */
+    synchronized byte[] shellBytes(String host, String command) throws Exception {
+        Session ss = connect(host);
+        try (Socket s = ss.sock) {
+            DataInputStream in = ss.in;
+            OutputStream o = ss.out;
             int local = 1;
             // "exec:" is raw (no PTY newline mangling) — needed for binary output like PNGs
             String service = command.startsWith("exec:") ? command : "shell:" + command;
