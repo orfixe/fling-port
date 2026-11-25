@@ -366,11 +366,11 @@ final class Atv {
 
     private static byte[] hex(String s) throws IOException {
         s = s.trim();
-        if (s.length() != 6) throw new IOException(L.t("Код должен быть из 6 символов"));
+        if (s.length() != 6) throw new IOException(L.t("Код должен состоять из 6 символов"));
         byte[] b = new byte[3];
         try {
             for (int i = 0; i < 3; i++) b[i] = (byte) Integer.parseInt(s.substring(2 * i, 2 * i + 2), 16);
-        } catch (NumberFormatException e) { throw new IOException(L.t("Код состоит из цифр 0-9 и букв A-F")); }
+        } catch (NumberFormatException e) { throw new IOException(L.t("Код состоит из цифр 0–9 и букв A–F")); }
         return b;
     }
 

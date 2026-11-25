@@ -1131,7 +1131,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         linkKind = ui.text("", 13, ui.green, false);
         hk.addView(linkHost); hk.addView(dot); hk.addView(linkKind);
         linkCard.addView(hk, ui.margins(Ui.lp(-1, -2), 10, 4, 10, 4));
-        linkEmpty = ui.text(L.t("Поделитесь ссылкой из YouTube или браузера → «На телевизор» — и видео сразу пойдёт на телевизор. Или скопируйте ссылку и вставьте её здесь."),
+        linkEmpty = ui.text(L.t("Поделитесь ссылкой из YouTube или браузера → «На телевизор» — и видео сразу начнётся на ТВ. Или скопируйте ссылку и вставьте её здесь."),
                 14, ui.fgA(0.55f), false);
         linkEmpty.setLineSpacing(0, 1.2f);
         linkCard.addView(linkEmpty, ui.margins(Ui.lp(-1, -2), 10, 0, 10, 6));
@@ -1218,7 +1218,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         setupBox = ui.col();
         TextView lbl = ui.label(L.t("Телевизор"));
         setupBox.addView(lbl, ui.margins(Ui.lp(-1, -2), 10, 0, 10, 8));
-        TextView sx = ui.text(L.t("Свяжите один раз с ТВ, чтобы открыть приложения, стрелки, ввод текста, голосовой поиск и отправку YouTube-ссылок."), 14, ui.fgA(0.55f), false);
+        TextView sx = ui.text(L.t("Один раз свяжите телефон с ТВ, чтобы открыть приложения, стрелки, ввод текста, голосовой поиск и отправку YouTube-ссылок."), 14, ui.fgA(0.55f), false);
         sx.setLineSpacing(0, 1.2f);
         setupBox.addView(sx, ui.margins(Ui.lp(-1, -2), 10, 0, 10, 6));
         Ui.Row pairRow = ui.row(L.t("Связать с ТВ"), "tv_plus", null, true, v -> {
@@ -1384,7 +1384,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         hint.setGravity(Gravity.CENTER);
         root.addView(hint, ui.margins(Ui.lp(-1, -2), 0, 6, 0, 0));
         // authorship: Fling is Damion Rashford's and Tatiana's app; this is an unofficial port by orfixe
-        TextView credit = ui.text(L.t("Fling создан Damion Rashford и Tatiana · неофициальный порт от orfixe"), 12, ui.fgA(0.45f), false);
+        TextView credit = ui.text(L.t("Оригинальный Fling создали Damion Rashford и Tatiana · неофициальный порт — orfixe"), 12, ui.fgA(0.45f), false);
         credit.setGravity(Gravity.CENTER);
         credit.setPadding(0, ui.dp(6), 0, ui.dp(6));
         credit.setOnClickListener(v -> {

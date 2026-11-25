@@ -293,7 +293,7 @@ public class SettingsActivity extends Activity {
         LinearLayout c = card();
         c.addView(ui.row(L.t("Проверить обновления"), "refresh", Updater.installedVersion(this), false, v -> updater.check(true)));   // trailing: the version, short enough for 320 dp
         c.addView(ui.row(L.t("Как пользоваться"), "help", null, false, v -> Help.show(this, ui)));
-        TextView credit = ui.text(L.t("Fling создан Damion Rashford и Tatiana · неофициальный порт от orfixe"), 12, ui.fgA(0.45f), false);
+        TextView credit = ui.text(L.t("Оригинальный Fling создали Damion Rashford и Tatiana · неофициальный порт — orfixe"), 12, ui.fgA(0.45f), false);
         credit.setGravity(Gravity.CENTER);
         credit.setLineSpacing(0, 1.2f);
         root.addView(credit, ui.margins(Ui.lp(-1, -2), 12, 0, 12, 0));

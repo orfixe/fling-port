@@ -84,7 +84,7 @@ final class L {
         e("Снимок экрана: подтвердите на ТВ «Разрешить отладку».", "Screenshot: accept “Allow debugging” on the TV.");
         e("Снимок экрана работает через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети».", "Screenshots need ADB — on the TV enable Developer options → Network debugging.");
         e("Снимок экрана не получился: ", "Screenshot failed: ");
-        e("Fling создан Damion Rashford и Tatiana · неофициальный порт от orfixe", "Fling by Damion Rashford & Tatiana · unofficial port by orfixe");
+        e("Оригинальный Fling создали Damion Rashford и Tatiana · неофициальный порт — orfixe", "Original Fling by Damion Rashford & Tatiana · unofficial port by orfixe");
         e("%s на ТВ", "%s on the TV");
         e("ТВ не сообщает, что сейчас играет — показываю только приложение.", "The TV doesn't report what's playing — showing the app only.");
         // errors: Cast / Atv
@@ -103,8 +103,8 @@ final class L {
         e("Телевизор отклонил код (статус %s). Начните заново.", "The TV rejected the code (status %s). Start over.");
         e("Этот ТВ не принимает голос — напечатайте запрос.", "This TV doesn't take voice input — type your search instead.");
         e("Телевизор не открыл голосовой поиск.", "The TV didn't open voice search.");
-        e("Код должен быть из 6 символов", "The code must be 6 characters");
-        e("Код состоит из цифр 0-9 и букв A-F", "The code uses digits 0-9 and letters A-F");
+        e("Код должен состоять из 6 символов", "The code must be 6 characters");
+        e("Код состоит из цифр 0–9 и букв A–F", "The code uses digits 0–9 and letters A–F");
         e("Телевизор больше не доверяет этому телефону — свяжите его с ТВ заново.", "The TV no longer trusts this phone — pair with the TV again.");
         // main screen
         e("В отправленном нет ссылки.", "There's no link in what was shared.");
@@ -125,7 +125,7 @@ final class L {
         e("Микрофон недоступен.", "The microphone is unavailable.");
         e("Остановить трансляцию", "Stop casting");
         e("Ссылка", "Link");
-        e("Поделитесь ссылкой из YouTube или браузера → «На телевизор» — и видео сразу пойдёт на телевизор. Или скопируйте ссылку и вставьте её здесь.",
+        e("Поделитесь ссылкой из YouTube или браузера → «На телевизор» — и видео сразу начнётся на ТВ. Или скопируйте ссылку и вставьте её здесь.",
           "Share a link from YouTube or a browser → “Cast to TV”, and it plays on the TV. Or copy a link and paste it here.");
         e("Отправить на ТВ", "Cast to TV");
         e("Вставить ссылку из буфера", "Paste copied link");
@@ -134,7 +134,7 @@ final class L {
         e("Введите код с экрана телевизора", "Enter the code from the TV screen");
         e("Связать", "Pair");
         e("Телевизор", "TV");
-        e("Свяжите один раз с ТВ, чтобы открыть приложения, стрелки, ввод текста, голосовой поиск и отправку YouTube-ссылок.",
+        e("Один раз свяжите телефон с ТВ, чтобы открыть приложения, стрелки, ввод текста, голосовой поиск и отправку YouTube-ссылок.",
           "Pair once with the TV to unlock apps, the d-pad, typing, voice search and sending YouTube links.");
         e("Связать с ТВ", "Pair with TV");
         // Updater

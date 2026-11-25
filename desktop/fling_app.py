@@ -1871,11 +1871,11 @@ class State(QObject):
 # ---------------------------------------------------------------- language (ru / en)
 
 EN_PHRASES = [  # longest first is applied automatically
-    ("⏳  Связываюсь с ТВ…", "⏳  Contacting TV…"),
+    ("⏳  Связываюсь с ТВ…", "⏳  Contacting the TV…"),
     (" Без звука", " Mute"), (" Громк +", " Vol +"), (" Громк −", " Vol −"),
     ("Буфер обмена пуст", "Clipboard is empty"),
     ("Введите 12 цифр с экрана:", "Enter the 12 digits shown on screen:"),
-    ("Введите код с экрана телевизора", "Enter the code on the TV screen"),
+    ("Введите код с экрана телевизора", "Enter the code from the TV screen"),
     ("Вкл/выкл ТВ", "Toggle TV power"), ("Включить ТВ", "Turn on the TV"), ("Выключить ТВ", "Turn off the TV"),
     ("Воспроизводится", "Playing"), ("Выйти из Fling", "Quit Fling"),
     ("Остановить голосовой поиск", "Stop voice search"),
@@ -1922,7 +1922,7 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Экран выключен", "Screen off"),
     ("Открыл настройки ТВ", "Opened TV settings"),
     ("Открыл список приложений", "Opened app list"),
-    ("Не вижу активного приложения", "No foreground app seen"),
+    ("Не вижу активного приложения", "No foreground app found"),
     ("Закрыл ", "Closed "),
     ("Connected!", "Connected!"),
     ("С ТВ: Беспроводная отладка → «IP-адрес и порт». Клик по Android — запрос ADB.",
@@ -1930,7 +1930,7 @@ EN_PHRASES = [  # longest first is applied automatically
 
     ("и тут появятся настоящие обложка, название и время.", "and the real artwork, title and time will show here."),
     ("код не подошёл", "the code didn't work"),
-    ("Код не совпадает — посмотрите на экран ТВ ещё раз.", "That code doesn't match — read it off the TV again."),
+    ("Код не совпадает — посмотрите на экран ТВ ещё раз.", "That code doesn't match — check the TV screen again."),
     ("Код YouTube — это 12 цифр с экрана ТВ.", "The YouTube code is the 12 digits on the TV screen."),
     ("можно отправить", "castable"), ("можно попробовать", "worth a try"),
     ("Нажмите «Связать с ТВ» ниже — тогда пауза пойдёт как кнопка пульта.",
@@ -1986,13 +1986,13 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Касания", "Taps"), ("Только смотреть", "Just watch"),
     ("Качество: авто", "Quality: auto"), ("Чётко", "Sharp"), ("Плавно", "Smooth"), ("Экономно", "Saver"),
     ("Начинает с хорошего и само снижается, если сеть не успевает",
-     "Starts good and steps down by itself when the network can't keep up"),
+     "Starts at high quality and steps down by itself when the network can't keep up"),
     ("1920 px, 8 Мбит/с — для быстрой сети", "1920 px, 8 Mbit/s — for a fast network"),
     ("60 кадров/с — для игр и прокрутки", "60 frames/s — for games and scrolling"),
     ("960 px, 2 Мбит/с — когда картинка запаздывает", "960 px, 2 Mbit/s — when the picture lags"),
     ("Проверяю связь с ТВ…", "Checking the link to the TV…"),
     ("ТВ не отвечает по сети", "the TV doesn't answer on the network"),
-    ("сеть теряет пакеты", "the network loses packets"), ("большая задержка сети", "a long network delay"),
+    ("сеть теряет пакеты", "the network is losing packets"), ("большая задержка сети", "high network latency"),
     ("кадры не успевают", "frames can't keep up"), ("Сеть до ТВ", "Network to the TV"), ("нет ответа", "no answer"),
     ("потеряно", "lost"), ("Кадров", "Frames"), ("пропущено", "skipped"),
     ("(экран ТВ не меняется — это нормально)", "(the TV screen isn't changing — that's fine)"),
@@ -2086,8 +2086,8 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Отправляю…", "Casting…"), ("Пауза / Играть", "Play / Pause"), ("Пауза на ТВ", "Pause on TV"),
     ("Предыдущее видео", "Previous video"), ("Следующее видео", "Next video"), ("Пробел", "Space"),
     ("Проверьте код — он действует несколько минут.", "Check the code — it's valid for a few minutes."),
-    ("Свяжите один раз с ТВ, чтобы открыть приложения, стрелки и ввод текста.",
-     "Pair once with the TV to unlock apps, the d-pad, and typing."),
+    ("Один раз свяжите Fling с ТВ, чтобы открыть приложения, стрелки и ввод текста.",
+     "Pair once with the TV to unlock apps, the d-pad and typing."),
     ("Связать с YouTube на ТВ — видеть, что играет", "Link YouTube on the TV — see what's playing"),
     ("Связать с YouTube — видеть, что играет", "Link YouTube — see what's playing"),
     ("Включить", "Turn on"),
@@ -2104,7 +2104,7 @@ EN_PHRASES = [  # longest first is applied automatically
      "The TV ignores pause over Chromecast (YouTube on the TV does that). "),
     ("Телевизор не ответил. Убедитесь, что он включён, и попробуйте снова.",
      "The TV did not respond. Make sure it is awake, then try again."),
-    ("Телевизор не ответил.", "The TV didn't answer."),
+    ("Телевизор не ответил.", "The TV didn't respond."),
     ("Устройство не выбрано", "No device selected"), ("Уже отправляю…", "Already sending…"),
     ("Уже отправляю…", "Already sending…"), ("Устройство не найдено", "No device found"),
     ("Устройство", "Device"), ("Это не веб-страница", "Not a web page"),
@@ -2138,8 +2138,10 @@ EN_PHRASES += [   # rows that had no English text yet
     ("Уведомления включены", "Notifications on"), ("Уведомления выключены", "Notifications off"),
     ("Запускать при входе", "Start at login"), ("Связать с ТВ", "Pair with TV"),
     ("Отправить скопированную ссылку", "Cast copied link"), ("Ищу ТВ…", "Looking for TVs…"), ("Телевизор", "TV"), ("ТВ…", "TV…"),
-    ("Fling создан Damion Rashford и Tatiana<br>неофициальный порт от orfixe",
-     "Fling by Damion Rashford and Tatiana<br>unofficial port by orfixe"),
+    ("Оригинальный Fling создали Damion Rashford и Tatiana<br>неофициальный порт — orfixe",
+     "Original Fling by Damion Rashford and Tatiana<br>unofficial port by orfixe"),
+    ("Оригинальный Fling создали Damion Rashford и Tatiana · неофициальный порт — orfixe",
+     "Original Fling by Damion Rashford and Tatiana · unofficial port by orfixe"),
     ("Пульт", "Remote"),
 ]
 EN_PHRASES += [   # Connect TV window, TV menu, screenshots
@@ -2166,7 +2168,7 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
      'The TV is asking for permission — choose “Allow” (ideally with “Always”). Until you do, Fling will not ask again on its own.'),
     ('ADB не найден на этом компьютере. Скачайте Android platform-tools ', 'ADB was not found on this computer. Download Android platform-tools '),
     ('zip для этой ОС', 'zip for this OS'),
-    ('страница Google', 'Google’s page'),
+    ('страница Google', "Google's page"),
     ('распакуйте папку platform-tools в ', 'unzip the platform-tools folder into '),
     (' или положите ', ' or put '),
     (' в PATH — затем нажмите «Проверить».', ' on your PATH — then press “Check”.'),
@@ -2216,7 +2218,7 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
     ('YouTube на ТВ (по коду)', 'YouTube on the TV (code)'),
     ('Bluetooth-пульт (запасной)', 'Bluetooth remote (backup)'),
     ('Ищу Chromecast / Google TV в сети… (до 10 с)', 'Looking for Chromecast / Google TV… (up to 10 s)'),
-    ('Ничего не нашлось. Ноутбук и ТВ в одной сети Wi-Fi? ', 'Nothing found. Are the computer and the TV on the same network? '),
+    ('Ничего не нашлось. Компьютер и ТВ в одной сети Wi-Fi? ', 'Nothing found. Are the computer and the TV on the same network? '),
     ('Искать снова', 'Search again'),
     ('Искать', 'Search'),
     ('Выбран: ', 'Selected: '),
@@ -2228,7 +2230,7 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
     ('Введите код, который показал ТВ (A–F и цифры; русская раскладка подойдёт).', 'Enter the code shown on the TV (A–F and digits; a Russian layout works too).'),
     ('Код с экрана ТВ, 6 символов', 'Code on the TV, 6 characters'),
     ('Не вышло.', "That didn't work."),
-    ('Не вышло: ', "That didn't work: "),
+    ('Не вышло: ', "Failed: "),
     ('Попробовать снова', 'Try again'),
     ('Не связан.', 'Not paired.'),
     ('Не проверено.', 'Not checked yet.'),
@@ -2243,6 +2245,14 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
     ('код из 6 цифр', '6-digit code'),
     ('Введите порт и 6-значный код из «Беспроводной отладки» на ТВ.', 'Enter the port and 6-digit code from “Wireless debugging” on the TV.'),
     ('Связано. Подключаюсь…', 'Paired. Connecting…'),
+    ('Введите порт сопряжения и 6-значный код из «Беспроводной отладки» на ТВ.',
+     'Enter the pairing port and 6-digit code from “Wireless debugging” on the TV.'),
+    ('На экране ТВ — «Разрешить» (лучше с «Всегда»), затем снова нажмите Android.',
+     'On the TV screen, choose “Allow” (ideally with “Always”), then click the Android again.'),
+    ('Нет ответа ADB. Проверьте IP/порт или сопряжение ниже (Беспроводная отладка → «IP-адрес и порт»).',
+     'No answer from ADB. Check the IP/port or the pairing below (Wireless debugging → “IP address & port”).'),
+    ('Неизвестное действие: ', 'Unknown action: '),
+    ('ошибка', 'error'),
     ('Связан: видно точное видео и время в YouTube.', 'Linked: the exact YouTube video and time are visible.'),
     ('Связываю…', 'Linking…'),
     ('Ввести код', 'Enter code'),
@@ -2265,7 +2275,7 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
 EN_PHRASES += [   # guard
     ("Файлы Fling изменены после установки, поэтому Fling не запущен. "
      "Установите Fling заново со страницы релизов на GitHub и проверьте компьютер антивирусом.",
-     "Fling's files were changed after the install, so Fling was not started. "
+     "Fling's files were changed after installation, so Fling was not started. "
      "Install Fling again from the GitHub releases page and scan the computer for malware."),
 ]
 EN_PHRASES += [   # keyboard captured strip
@@ -2281,7 +2291,7 @@ EN_PHRASES += [   # keyboard captured strip
      "а не программой, в которой вы были.\nEsc закрывает панель.\n"
      "Нужна клавиатура в другой программе — нажмите «Отключить»: пульт останется "
      "на кнопках панели. Fling запомнит выбор.",
-     "While the panel is open, the arrows, Enter, Space, Backspace, Home and +/− drive the TV, "
+     "While the panel is open, the arrows, Enter, Space, Backspace, Home and +/− control the TV, "
      "not the app you were in.\nEsc closes the panel.\n"
      "Need the keyboard in another app? Click “Release”: the remote stays on the panel's buttons. "
      "Fling remembers it."),
@@ -2296,7 +2306,7 @@ EN_PHRASES += [   # installing an APK on the TV
     ("Установка APK работает через ADB — включите его: «Подключение ТВ…» → ADB.",
      "Installing an APK works over ADB — turn it on: “Connect TV…” → ADB."),
     ("Установка APK: ADB не подключён — откройте «Подключение ТВ…».", "Installing an APK: ADB isn't connected — open “Connect TV…”."),
-    ("Установка APK: ТВ не ответил за 10 минут.", "Installing an APK: the TV didn't answer for 10 minutes."),
+    ("Установка APK: ТВ не ответил за 10 минут.", "Installing an APK: the TV didn't respond within 10 minutes."),
     ("Установка APK не удалась: ", "The APK didn't install: "),
     ("Установка APK: ", "Installing an APK: "),
     ("Устанавливаю на ТВ: ", "Installing on the TV: "),
@@ -5108,7 +5118,7 @@ class Panel(QWidget):
 
         self.r_setup = QWidget()
         sl = QVBoxLayout(self.r_setup); sl.setContentsMargins(0, 0, 0, 4); sl.setSpacing(0)
-        sl.addWidget(padded(label("Свяжите один раз с ТВ, чтобы открыть приложения, стрелки и ввод текста.",
+        sl.addWidget(padded(label("Один раз свяжите Fling с ТВ, чтобы открыть приложения, стрелки и ввод текста.",
                                   11, T.fg_a(0.55), wrap=True), 14, 10, 14, 6))
         sl.addWidget(MenuRow("Включить", icon="power", on=state.wake))
         pair = MenuRow("Связать с ТВ", icon="tv_plus", accented=True, on=state.start_pairing)
@@ -5247,7 +5257,7 @@ class Panel(QWidget):
         v.addWidget(fw)
         # authorship: Fling is Damion Rashford's and Tatiana's app; this is an unofficial port by orfixe
         credit = label(f'<a href="https://github.com/tatianathevisionary/fling" style="color:{Theme.css(T.fg_a(0.45))};text-decoration:none">'
-                       'Fling создан Damion Rashford и Tatiana<br>неофициальный порт от orfixe</a>', 10, T.fg_a(0.4),
+                       'Оригинальный Fling создали Damion Rashford и Tatiana<br>неофициальный порт — orfixe</a>', 10, T.fg_a(0.4),
                        wrap=True)
         credit.setOpenExternalLinks(True)
         credit.setToolTip("github.com/tatianathevisionary/fling")
@@ -6140,7 +6150,7 @@ class SetupWindow(QWidget):
         v.addWidget(label("Подключение ТВ", 17, weight=QFont.Weight.Bold))
         v.addWidget(label("Одна кнопка находит ТВ в сети и подключает пульт и ADB. "
                           "Шаги, где нужно ваше действие на ТВ, подскажут, что нажать.", 11.5, T.fg_a(0.6), wrap=True))
-        self.go = QPushButton("Найти и подключить всё")
+        self.go = QPushButton(tr("Найти и подключить всё"))
         self.go.setFixedHeight(34); self.go.setFont(font(13, QFont.Weight.DemiBold))
         self.go.setCursor(Qt.CursorShape.PointingHandCursor)
         self.go.setStyleSheet(f"QPushButton{{border:none;border-radius:8px;background:{Theme.css(T.accent)};color:white}}"
@@ -6154,7 +6164,7 @@ class SetupWindow(QWidget):
             v.addWidget(self._row(key, title))
         v.addStretch(1)
         c2 = label(f'<a href="https://github.com/tatianathevisionary/fling" style="color:{Theme.css(T.fg_a(0.55))}">'
-                   'Fling создан Damion Rashford и Tatiana · неофициальный порт от orfixe</a>', 10.5, T.fg_a(0.45))
+                   'Оригинальный Fling создали Damion Rashford и Tatiana · неофициальный порт — orfixe</a>', 10.5, T.fg_a(0.45))
         c2.setOpenExternalLinks(True)
         v.addWidget(c2)
         area.setWidget(body)
@@ -6285,7 +6295,7 @@ class SetupWindow(QWidget):
         self._set("find", "run", "Ищу Chromecast / Google TV в сети… (до 10 с)", None)
         def done(found, e):
             if e or not found:
-                self._set("find", "fail", f"Ничего не нашлось. Ноутбук и ТВ в одной сети Wi-Fi? {e or ''}", "Искать снова")
+                self._set("find", "fail", f"Ничего не нашлось. Компьютер и ТВ в одной сети Wi-Fi? {e or ''}", "Искать снова")
                 self.auto = False
                 return
             self.found = found
