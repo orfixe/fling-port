@@ -586,9 +586,9 @@ PHRASES = [
     ("{name} лежит на ТВ в папке Download, но открыть его не удалось. Откройте файл в плеере на ТВ (например, VLC).",
      "{name} is in the TV's Download folder, but it couldn't be opened. Open it in a player app on the TV (VLC, for example)."),
     ("ТВ не поддерживает смену скорости для этого видео", "The TV doesn't support changing the speed of this video"),
-    ("Скорость: не получилось — {why}", "Speed: didn't work — {why}"),
-    ("Субтитры не прочитались: {why}", "Couldn't read the subtitles: {why}"),
-    ("Картинка не открылась: {name}", "Couldn't open the picture: {name}"),
+    ("Не удалось изменить скорость: {why}", "Couldn't change the speed: {why}"),
+    ("Не удалось прочитать субтитры: {why}", "Couldn't read the subtitles: {why}"),
+    ("Не удалось открыть изображение: {name}", "Couldn't open the image: {name}"),
     ("Нечего воспроизвести", "Nothing to play"), ("В папке нет фото", "The folder has no photos"),
     ("обычная", "normal"), ("папка", "folder"), ("плейлист", "playlist"), ("слайд-шоу", "slideshow"),
     ("Перемешивать", "Shuffle"), ("Выключен", "Off"), ("Вся очередь", "All"), ("Один файл", "One"),
@@ -1012,7 +1012,7 @@ class Media(QObject):
             if e or not ok:
                 print("speed:", r, e, flush=True)
                 self.state._set(last_error=_t("ТВ не поддерживает смену скорости для этого видео") if not e
-                                else _t("Скорость: не получилось — {why}", why=e))
+                                else _t("Не удалось изменить скорость: {why}", why=e))
                 return
             self.speed = r
             self.state._set(last_error=None)
@@ -1255,7 +1255,7 @@ class Media(QObject):
             if kind == "image":
                 img = prepare_image(src)
                 if not img:
-                    self._post(lambda: self._failed(gen, it, _t("Картинка не открылась: {name}",
+                    self._post(lambda: self._failed(gen, it, _t("Не удалось открыть изображение: {name}",
                                                                  name=os.path.basename(src)), image=True))
                     return
                 src = img
@@ -1276,7 +1276,7 @@ class Media(QObject):
                                 args += ["-s", prepare_subtitles(sub)]
                             except Exception as e:
                                 print("subtitles:", sub, e, flush=True)
-                                F.notify_send(_t("Субтитры не прочитались: {why}", why=e))
+                                F.notify_send(_t("Не удалось прочитать субтитры: {why}", why=e))
                                 args += ["--no-subs"]
                         else:
                             args += ["--no-subs"]

@@ -163,7 +163,7 @@ def _open(url: str, timeout: float = 30, headers: dict | None = None):
     except urllib.error.HTTPError as e:
         if e.code == 416:
             raise
-        raise ToolError(f"сервер ответил {e.code}") from e
+        raise ToolError(f"сервер ответил кодом {e.code}") from e
     except urllib.error.URLError as e:
         raise ToolError("нет связи с сервером загрузки") from e
 
@@ -1052,12 +1052,12 @@ EN_PHRASES = [
     ("Указать файл…", "Choose file…"),
     ("Удалить", "Remove"),
     ("Отмена", "Cancel"),
-    ("Лицензия", "License"),
+    ("Лицензия", "Licence"),
     ("Сайт проекта", "Project website"),
     ("Папка Fling", "Fling's folder"),
     ("В комплекте Fling", "Bundled with Fling"),
     ("Пакет системы", "System package"),
-    ("Выбран вручную", "Chosen by hand"),
+    ("Выбран вручную", "Chosen manually"),
     ("версия ?", "version ?"),
     ("Узнаю последнюю версию…", "Checking the latest version…"),
     ("Скачиваю: {done} из {total} МБ · {speed} МБ/с", "Downloading: {done} of {total} MB · {speed} MB/s"),
@@ -1074,7 +1074,7 @@ EN_PHRASES = [
     ("Не вышло: ", "Failed: "),
     ("Точно удалить?", "Really remove?"),
     ("Удалить {name} из папки Fling? Копии в других папках останутся.",
-     "Remove {name} from Fling's folder? Copies in other folders stay."),
+     "Remove {name} from Fling's folder? Copies in other folders are kept."),
     ("Выберите программу {name}", "Choose the {name} program"),
     ("Программы (*.exe);;Все файлы (*)", "Programs (*.exe);;All files (*)"),
     ("Этот файл не похож на {name}: он не назвал свою версию.",
@@ -1082,26 +1082,26 @@ EN_PHRASES = [
     ("ADB не найден на этом компьютере.", "ADB was not found on this computer."),
     ("Установить автоматически", "Install automatically"),
     ("Fling скачает Android platform-tools с сайта Google (~10 МБ) и проверит контрольную сумму.",
-     "Fling downloads Android platform-tools from Google (~10 MB) and checks the checksum."),
-    ("Или поставьте platform-tools сами (", "Or install platform-tools yourself ("),
+     "Fling downloads Android platform-tools from Google (~10 MB) and verifies the checksum."),
+    ("Или установите platform-tools сами (", "Or install platform-tools yourself ("),
     ("zip для этой ОС", "zip for this OS"),
-    ("страница Google", "Google’s page"),
+    ("страница Google", "Google's page"),
     (") — Fling найдёт их сам.", ") — Fling finds them by itself."),
     ("Скачиваю scrcpy — ход загрузки в окне «Инструменты»…", "Downloading scrcpy — progress is in the “Tools” window…"),
     # errors raised above
     ("сервер перенаправил загрузку не на HTTPS — отменено", "the server redirected the download away from HTTPS — cancelled"),
     ("загрузка возможна только по HTTPS", "downloads are allowed over HTTPS only"),
     ("нет связи с сервером загрузки", "can't reach the download server"),
-    ("сервер ответил ", "the server answered "),
-    ("ответ сервера слишком большой", "the server's answer is too large"),
-    ("программы из сетевых папок не запускаются", "programs from network folders are not run"),
+    ("сервер ответил кодом ", "the server responded with code "),
+    ("ответ сервера слишком большой", "the server's response is too large"),
+    ("программы из сетевых папок не запускаются", "programs on network folders can't be run"),
     ("издатель не дал контрольную сумму — устанавливать не буду",
-     "the publisher gave no checksum — not installing"),
+     "the publisher provides no checksum — not installing"),
     ("архив подозрительно большой — отменено", "the archive is suspiciously large — cancelled"),
     ("загрузка оборвалась — нажмите ещё раз, она продолжится",
-     "the download broke off — press again and it will resume"),
+     "the download was interrupted — press again to resume"),
     ("архив повреждён: контрольная сумма не сошлась", "the archive is damaged: the checksum didn't match"),
-    ("в архиве опасные пути — установка отменена", "the archive has unsafe paths — install cancelled"),
+    ("в архиве опасные пути — установка отменена", "the archive has unsafe paths — installation cancelled"),
     ("в архиве нет программы ", "the archive has no program "),
     ("новая копия не запускается на этом компьютере", "the new copy doesn't run on this computer"),
     ("папка занята — закройте то, что её использует (например, экран ТВ), и повторите",
@@ -1112,7 +1112,7 @@ EN_PHRASES = [
      "this folder has too many files — use the copy where it is"),
     ("Google не опубликовал platform-tools для этой системы", "Google hasn't published platform-tools for this system"),
     ("контрольные суммы scrcpy не совпадают — установка отменена",
-     "scrcpy's checksums don't match — install cancelled"),
+     "scrcpy's checksums don't match — installation cancelled"),
     ("не вышло", "it didn't work"),
 ]
 
@@ -1687,7 +1687,7 @@ def missing_adb_html() -> str:
     col = _css(_F.T.accent)
     return (f'{_tr("ADB не найден на этом компьютере.")} '
             f'<a href="fling:tools-install-adb" style="color:{col}">{_tr("Установить автоматически")}</a>. '
-            f'{_tr("Или поставьте platform-tools сами (")}'
+            f'{_tr("Или установите platform-tools сами (")}'
             f'<a href="{P.platform_tools_zip_url()}" style="color:{col}">{_tr("zip для этой ОС")}</a> · '
             f'<a href="{P.PLATFORM_TOOLS_PAGE}" style="color:{col}">{_tr("страница Google")}</a>'
             f'{_tr(") — Fling найдёт их сам.")}')

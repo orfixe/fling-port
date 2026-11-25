@@ -70,7 +70,7 @@ EN = [
     ("Настройки ТВ", "TV settings"), ("Субтитры", "Subtitles"), ("Звуковая дорожка", "Audio track"),
     ("Предыдущий трек", "Previous track"), ("Следующий трек", "Next track"),
     ("Перемотка назад", "Rewind"), ("Перемотка вперёд", "Fast-forward"),
-    ("Пауза / Играть", "Pause / Play"), ("Стоп", "Stop"),
+    ("Пауза / Играть", "Play / Pause"), ("Стоп", "Stop"),
     ("Красная кнопка", "Red button"), ("Зелёная кнопка", "Green button"),
     ("Жёлтая кнопка", "Yellow button"), ("Синяя кнопка", "Blue button"),
     ("Цветные кнопки — для телеканалов и телетекста", "Colour buttons — for TV channels and teletext"),
@@ -107,7 +107,7 @@ EN = [
     ("Клавиши пульта в любой программе", "Remote keys in any app"),
     ("Ctrl+Alt+Shift и стрелки, Enter, Backspace, Home — пульт; Page Up / Page Down — громкость; "
      "Пробел — пауза; End — без звука. Работает, даже когда панель закрыта.",
-     "Ctrl+Alt+Shift with the arrows, Enter, Backspace or Home drives the TV; Page Up / Page Down set the volume; "
+     "Ctrl+Alt+Shift with the arrows, Enter, Backspace or Home control the TV; Page Up / Page Down set the volume; "
      "Space pauses; End mutes. Works even with the panel closed."),
     ("Медиаклавиши клавиатуры управляют ТВ", "Keyboard media keys control the TV"),
     ("Клавиши «Играть/Пауза», «Следующий», «Предыдущий» и «Стоп» на клавиатуре управляют ТВ, "

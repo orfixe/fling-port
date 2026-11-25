@@ -21,7 +21,7 @@
     "message": "Not a web page"
   },
   "offlineTitle": {
-    "message": "Fling app isn't running"
+    "message": "The Fling app isn't running"
   },
   "offlineBody": {
     "message": "This extension talks to the Fling app. Start Fling on this computer and it connects on its own."
@@ -66,7 +66,7 @@
     "message": "Fling needs catt — open the Fling panel."
   },
   "pairHint": {
-    "message": "Pair once with the TV to unlock apps, the d-pad, and typing."
+    "message": "Pair once with the TV to unlock apps, the d-pad and typing."
   },
   "turnOn": {
     "message": "Turn on the TV"
@@ -108,7 +108,7 @@
     "message": "Type on TV ↵"
   },
   "openPanel": {
-    "message": "Open Fling panel"
+    "message": "Open the Fling panel"
   },
   "settings": {
     "message": "Settings"
@@ -129,7 +129,7 @@
     "message": "Let Fling see which tab is open"
   },
   "optShareTabsHint": {
-    "message": "Lets the panel's “Cast this tab” and the system-wide shortcut work with this browser. The address goes only to the Fling app on this computer (127.0.0.1), never to the internet. Private windows are never shared."
+    "message": "Lets the panel's “Cast this tab” and the system-wide shortcut work with this browser. The address goes only to the Fling app on this computer (127.0.0.1), never to the internet. Tabs from private windows are never shared."
   },
   "optPause": {
     "message": "Pause the video here after casting"
@@ -147,7 +147,7 @@
     "message": "✓ Connected to Fling $1 on $2 · TV: $3"
   },
   "credit": {
-    "message": "Fling by Damion Rashford and Tatiana · unofficial port by orfixe"
+    "message": "Original Fling by Damion Rashford and Tatiana · unofficial port by orfixe"
   },
   "optNotify": {
     "message": "Notify when the video changes"

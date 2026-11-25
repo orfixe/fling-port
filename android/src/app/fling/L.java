@@ -56,10 +56,10 @@ final class L {
         e("Нажмите, и на ТВ появится код из 6 символов. После этого работают пауза, приложения и стрелки.", "Tap it and the TV shows a 6‑character code. Then pause, apps and the d‑pad work.");
         e("Пульт", "Remote");
         e("Приложения, стрелки или тачпад, громкость, текст и голос. Кнопки громкости телефона тоже управляют ТВ.", "Apps, d‑pad or touchpad, volume, typing and voice. The phone's volume keys control the TV too.");
-        e("Отправить видео", "Send a video");
+        e("Отправить видео", "Cast a video");
         e("В YouTube или браузере: «Поделиться» → «На телевизор». Или скопируйте ссылку и вставьте её здесь.", "In YouTube or a browser: Share → “Cast to TV”. Or copy a link and paste it here.");
         e("Что играет", "Now playing");
-        e("Пауза, ±30 секунд и громкость того, что идёт на ТВ.", "Pause, ±30 seconds and volume for whatever plays on the TV.");
+        e("Пауза, ±30 секунд и громкость того, что идёт на ТВ.", "Pause, ±30 seconds and volume for whatever is playing on the TV.");
         e("Язык", "Language");
         e("Русский или английский — переключается здесь.", "Russian or English — switch it here.");
         e("Подсказки", "Tips");
@@ -89,7 +89,7 @@ final class L {
         e("ТВ не сообщает, что сейчас играет — показываю только приложение.", "The TV doesn't report what's playing — showing the app only.");
         // errors: Cast / Atv
         e("Устройство не выбрано", "No device selected");
-        e("Телевизор не ответил.", "The TV didn't answer.");
+        e("Телевизор не ответил.", "The TV didn't respond.");
         e("Не удалось связаться с ТВ. Телефон и ТВ в одной сети Wi-Fi?", "Couldn't reach the TV. Are the phone and TV on the same Wi-Fi?");
         e("Соединение с ТВ потеряно.", "Lost the connection to the TV.");
         e("Нет соединения с ТВ", "Not connected to the TV");
@@ -98,24 +98,24 @@ final class L {
         e("На ТВ сейчас ничего не играет.", "Nothing is playing on the TV.");
         e("Телевизор не запустил проигрыватель вовремя.", "The TV didn't start the player in time.");
         e("Сначала нажмите «Связать с ТВ»", "Tap “Pair with TV” first");
-        e("Код не совпадает — посмотрите на экран ТВ ещё раз.", "That code doesn't match — read it off the TV again.");
+        e("Код не совпадает — посмотрите на экран ТВ ещё раз.", "That code doesn't match — check the TV screen again.");
         e("Телевизор закрыл соединение.", "The TV closed the connection.");
         e("Телевизор отклонил код (статус %s). Начните заново.", "The TV rejected the code (status %s). Start over.");
-        e("Этот ТВ не принимает голос — напечатайте запрос.", "This TV doesn’t do voice — type it instead.");
+        e("Этот ТВ не принимает голос — напечатайте запрос.", "This TV doesn't take voice input — type your search instead.");
         e("Телевизор не открыл голосовой поиск.", "The TV didn't open voice search.");
         e("Код должен быть из 6 символов", "The code must be 6 characters");
         e("Код состоит из цифр 0-9 и букв A-F", "The code uses digits 0-9 and letters A-F");
         e("Телевизор больше не доверяет этому телефону — свяжите его с ТВ заново.", "The TV no longer trusts this phone — pair with the TV again.");
         // main screen
-        e("В отправленном нет ссылки.", "No link in that share.");
+        e("В отправленном нет ссылки.", "There's no link in what was shared.");
         e("Ищу телевизор…", "Looking for the TV…");
         e("Чтобы открыть YouTube на ТВ, один раз нажмите «Связать с ТВ» ниже.", "To open YouTube on the TV, tap “Pair with TV” below once.");
         e("Эту страницу можно открыть на ТВ после того, как вы нажмёте «Связать с ТВ» ниже.", "This page opens on the TV once you tap “Pair with TV” below.");
         e("Отправлено на ТВ", "Sent to the TV");
         e("Указать IP вручную…", "Enter IP manually…");
-        e("Искать заново", "Scan again");
+        e("Искать заново", "Search again");
         e("Ищу ТВ…", "Looking for TVs…");
-        e("IP-адрес телевизора", "TV IP address");
+        e("IP-адрес телевизора", "The TV's IP address");
         e("Подключить", "Connect");
         e("Отмена", "Cancel");
         e("Телевизор игнорирует паузу по Chromecast (так ведёт себя YouTube на ТВ). Нажмите «Связать с ТВ» ниже — пауза будет работать как кнопка пульта.",
@@ -130,8 +130,8 @@ final class L {
         e("Отправить на ТВ", "Cast to TV");
         e("Вставить ссылку из буфера", "Paste copied link");
         e("В буфере обмена нет ссылки.", "There's no link on the clipboard.");
-        e("Связываюсь с ТВ…", "Contacting TV…");
-        e("Введите код с экрана телевизора", "Enter the code on the TV screen");
+        e("Связываюсь с ТВ…", "Contacting the TV…");
+        e("Введите код с экрана телевизора", "Enter the code from the TV screen");
         e("Связать", "Pair");
         e("Телевизор", "TV");
         e("Свяжите один раз с ТВ, чтобы открыть приложения, стрелки, ввод текста, голосовой поиск и отправку YouTube-ссылок.",
@@ -143,14 +143,14 @@ final class L {
         e("Не удалось проверить обновления: ", "Couldn't check for updates: ");
         e("В версии %s нет файла Fling.apk.", "Version %s has no Fling.apk file.");
         e("Доступна версия %s", "Version %s is available");
-        e("У вас %s. Скачать и установить обновление? Связь с ТВ и настройки сохранятся.", "You have %s. Download and install the update? TV pairing and settings stay.");
+        e("У вас %s. Скачать и установить обновление? Связь с ТВ и настройки сохранятся.", "You have %s. Download and install the update? TV pairing and settings are kept.");
         e("Позже", "Later");
         e("Токен не подошёл", "The token didn't work");
         e("Нужен токен GitHub", "A GitHub token is needed");
         e("Репозиторий Fling приватный, поэтому GitHub отдаёт обновления только по токену. github.com → Settings → Developer settings → Fine-grained tokens → Generate: Repository access — только fling-port, Permissions → Contents — Read-only. Токен хранится только на этом телефоне.", "The Fling repository is private, so GitHub hands out updates only with a token. github.com → Settings → Developer settings → Fine-grained tokens → Generate: Repository access — only fling-port, Permissions → Contents — Read-only. The token is kept on this phone only.");
         e("Сохранить и проверить", "Save and check");
         e("Открыть GitHub", "Open GitHub");
-        e("Разрешите установку", "Allow installing");
+        e("Разрешите установку", "Allow installation");
         e("Чтобы Fling мог поставить своё обновление, разрешите ему «Установку неизвестных приложений» и нажмите «Обновить» ещё раз.", "To let Fling install its update, allow it to “Install unknown apps”, then tap “Update” again.");
         e("Открыть настройки", "Open settings");
         e("Обновление до %s", "Updating to %s");
@@ -159,7 +159,7 @@ final class L {
         e("Открываю установку…", "Opening the installer…");
         e("Обновление не скачалось: ", "The update didn't download: ");
         e("файл скачался не полностью", "the file didn't download completely");
-        e("подпись нового APK не совпадает с установленным — удалите старый Fling и поставьте новый вручную.", "the new APK's signature doesn't match the installed one — uninstall the old Fling and install the new one by hand.");
+        e("подпись нового APK не совпадает с установленным — удалите старый Fling и поставьте новый вручную.", "the new APK's signature doesn't match the installed one — uninstall the old Fling and install the new one manually.");
         e("Обновление не установилось: ", "The update didn't install: ");
         e("Телевизор ещё не найден.", "No TV found yet.");
         e("На телевизоре", "On the TV");
@@ -200,7 +200,7 @@ final class L {
 
         // 0.4: phone files, playback notification, sleep timer, settings
         e("Сейчас на ТВ", "Now on TV");
-        e("Не удалось открыть файл.", "Couldn’t open the file.");
+        e("Не удалось открыть файл.", "Couldn't open the file.");
         e("Пропущено файлов: %d — %s", "Files skipped: %d — %s");
         e("Назад на 30 с", "Back 30 s");
         e("Вперёд на 30 с", "Forward 30 s");
@@ -215,9 +215,9 @@ final class L {
         e("Отправляю файлы на ТВ (%d)…", "Sending %d files to the TV…");
         e("На телефоне нет приложения для выбора файлов.", "This phone has no app for picking files.");
         e("Файл с телефона", "File from this phone");
-        e("Этот файл не видео, не музыка и не фото.", "This file is not a video, music or a photo.");
-        e("Телефон не в той же сети, что и ТВ.", "The phone is not on the same network as the TV.");
-        e("Не удалось прочитать фото.", "Couldn’t read the photo.");
+        e("Этот файл не видео, не музыка и не фото.", "This file isn't a video, music or a photo.");
+        e("Телефон не в той же сети, что и ТВ.", "The phone isn't on the same network as the TV.");
+        e("Не удалось прочитать фото.", "Couldn't read the photo.");
         e("Таймер сна", "Sleep timer");
         e("Выключить таймер", "Cancel the timer");
         e("Таймер сна выключен", "Sleep timer cancelled");
@@ -252,7 +252,7 @@ final class L {
         e("Уведомление с кнопками", "Playback notification");
         e("Пока на ТВ что-то играет: пауза, перемотка и громкость с экрана блокировки.", "While something plays on the TV: pause, skip and volume from the lock screen.");
         e("Кнопки громкости управляют ТВ", "Volume keys control the TV");
-        e("Пока Fling открыт, кнопки громкости телефона меняют громкость ТВ.", "While Fling is open, the phone’s volume keys change the TV volume.");
+        e("Пока Fling открыт, кнопки громкости телефона меняют громкость ТВ.", "While Fling is open, the phone's volume keys change the TV volume.");
         e("Не гасить экран", "Keep the screen on");
         e("Экран телефона не гаснет, пока открыт Fling.", "The phone screen stays on while Fling is open.");
         e("О приложении", "About");

@@ -32,7 +32,7 @@ PHRASES = [
      "Если ТВ в другой подсети, добавьте его по IP-адресу.",
      "Make sure the TV is on and connected to the same Wi‑Fi network as this computer. "
      "If the TV is on another subnet, add it by its IP address."),
-    ("Найден ещё раз только что", "Seen on the network just now"),
+    ("Только что найден в сети", "Seen on the network just now"),
     ("Сейчас выбран", "Selected"),
     ("пульт связан", "remote paired"),
     ("добавлен по IP", "added by IP"),
@@ -182,7 +182,7 @@ class TvCard(QFrame):
         if fresh and not current:
             dot = QLabel()
             dot.setFixedSize(7, 7)
-            dot.setToolTip(F.tr("Найден ещё раз только что"))
+            dot.setToolTip(F.tr("Только что найден в сети"))
             dot.setStyleSheet(f"background:{_css(T.green)};border-radius:3px;border:none")
             h.addWidget(dot)
         if current:

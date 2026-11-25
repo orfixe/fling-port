@@ -53,15 +53,15 @@ PHRASES = [
     # Appearance
     ("Тема", "Theme"), ("Тёмные", "Dark"), ("Светлые", "Light"), ("Как в системе", "As the system"),
     ("Светлая или тёмная — как в Windows, и меняется вместе с ней.",
-     "Light or dark, as in Windows, and it switches along with it."),
+     "Light or dark to match Windows, and switches along with it."),
     ("Светлая или тёмная — как в системе, и меняется вместе с ней.",
-     "Light or dark, as in your system, and it switches along with it."),
+     "Light or dark to match your system, and switches along with it."),
     ("Днём:", "Day:"), ("Ночью:", "Night:"),
     ("Цвет акцента", "Accent colour"),
     ("Системный — цвет акцента Windows, меняется вместе с ним",
-     "System — the Windows accent colour, and it changes along with it"),
+     "System — the Windows accent colour, following its changes"),
     ("Системный — цвет акцента системы, меняется вместе с ним",
-     "System — your system's accent colour, and it changes along with it"),
+     "System — your system's accent colour, following its changes"),
     ("Из темы — свой цвет у каждой темы", "From the theme — each theme has its own colour"),
     ("Синий", "Blue"), ("Фиолетовый", "Purple"), ("Розовый", "Pink"), ("Красный", "Red"),
     ("Оранжевый", "Orange"), ("Жёлтый", "Yellow"), ("Зелёный", "Green"), ("Бирюзовый", "Teal"),
@@ -80,8 +80,8 @@ PHRASES = [
     ("Fling перезапустится на выбранном языке.", "Fling restarts in the chosen language."),
     ("Запускать при входе в систему", "Start at login"),
     ("Fling ждёт в области уведомлений и откроется по клику или Win+Shift+C.",
-     "Fling waits in the notification area and opens on a click or Win+Shift+C."),
-    ("Fling ждёт в трее и откроется по клику.", "Fling waits in the tray and opens on a click."),
+     "Fling waits in the notification area and opens with a click or Win+Shift+C."),
+    ("Fling ждёт в трее и откроется по клику.", "Fling waits in the tray and opens with a click."),
     ("Компактная панель", "Compact panel"),
     ("Только то, что играет, громкость и выбор ТВ.", "Only what's playing, the volume and the TV switcher."),
     ("Как пользоваться", "How to use"), ("Журнал Fling", "Fling log"), ("Папка настроек", "Settings folder"),
@@ -89,7 +89,7 @@ PHRASES = [
     ("ТВ не выбран", "No TV selected"),
     ("пульт по сети связан", "network remote paired"), ("пульт по сети не связан", "network remote not paired"),
     ("ADB подключён", "ADB connected"),
-    ("Клавиатура управляет ТВ", "The keyboard drives the TV"),
+    ("Клавиатура управляет ТВ", "The keyboard controls the TV"),
     ("Пока панель открыта, стрелки, Enter, Пробел, Backspace, Home и +/− уходят на ТВ. "
      "Esc закрывает панель.",
      "While the panel is open, the arrows, Enter, Space, Backspace, Home and +/− go to the TV. "
@@ -103,24 +103,24 @@ PHRASES = [
     ("Когда на ТВ начинается другое видео или трек, а панель закрыта.",
      "When the TV moves on to another video or track while the panel is closed."),
     ("Связь с расширением браузера", "Browser extension link"),
-    ("Расширение показывает Fling открытую вкладку и добавляет кнопку «На ТВ». "
+    ("Расширение сообщает Fling, какая вкладка открыта, и добавляет кнопку Fling на панель браузера. "
      "Изменение вступит в силу после перезапуска Fling.",
-     "The extension tells Fling which tab is open and adds a “To the TV” button. "
+     "The extension tells Fling which tab is open and adds a Fling button to the browser toolbar. "
      "The change takes effect after Fling restarts."),
     ("Установить расширение…", "Install the extension…"),
     # About
     ("Версия ", "Version "),
     ("Отправляйте видео и вкладки браузера на Chromecast и Google TV и управляйте телевизором "
      "с компьютера: пульт, громкость, приложения, экран ТВ вживую.",
-     "Cast videos and browser tabs to a Chromecast or Google TV and drive the TV from your "
+     "Cast videos and browser tabs to a Chromecast or Google TV and control the TV from your "
      "computer: remote, volume, apps and the TV's screen, live."),
     ("Авторы", "Authors"),
     ("© 2026 orfixe и участники порта Fling", "© 2026 orfixe and the Fling port contributors"),
     ("Оригинальный Fling для macOS создали {a} и {b}", "The original Fling for macOS was made by {a} and {b}"),
-    ("Это неофициальный порт: его авторы Fling не проверяли и не одобряли.",
+    ("Это неофициальный порт: авторы Fling его не проверяли и не одобряли.",
      "This is an unofficial port, not reviewed or endorsed by the authors of Fling."),
     ("Лицензия MIT — для кода этого порта.", "MIT License, for the code of this port."),
-    ("Лицензия", "License"), ("Сторонние компоненты", "Third-party notices"), ("Благодарности", "Credits"),
+    ("Лицензия", "Licence"), ("Сторонние компоненты", "Third-party notices"), ("Благодарности", "Credits"),
     ("Ссылки", "Links"), ("Исходный код", "Source code"), ("Сообщить о проблеме", "Report a problem"),
     ("Выпуски", "Releases"), ("Что нового", "What's new"),
     ("Проверить обновления", "Check for updates"), ("Проверяю…", "Checking…"),
@@ -1107,7 +1107,7 @@ class SettingsWindow(QWidget):
                                  lambda on: (self._save(notify_track=bool(on)), self.state.changed.emit())))
         lay.addWidget(self._hr())
         lay.addWidget(toggle_row("Связь с расширением браузера",
-                                 "Расширение показывает Fling открытую вкладку и добавляет кнопку «На ТВ». "
+                                 "Расширение сообщает Fling, какая вкладка открыта, и добавляет кнопку Fling на панель браузера. "
                                  "Изменение вступит в силу после перезапуска Fling.",
                                  self.state.conf.get("bridge", True),
                                  lambda on: self._save(bridge=bool(on))))
@@ -1161,7 +1161,7 @@ class SettingsWindow(QWidget):
         orig.setOpenExternalLinks(True)
         orig.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         lay.addWidget(orig)
-        lay.addWidget(note("Это неофициальный порт: его авторы Fling не проверяли и не одобряли."))
+        lay.addWidget(note("Это неофициальный порт: авторы Fling его не проверяли и не одобряли."))
         lay.addWidget(self._hr())
         lay.addWidget(F.label("Лицензия MIT — для кода этого порта.", 12, T.fg_a(0.85)))
         lr = QHBoxLayout(); lr.setSpacing(2); lr.setContentsMargins(-8, 0, 0, 0)

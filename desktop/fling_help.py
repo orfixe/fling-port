@@ -14,20 +14,20 @@ HELP = {
    "• Наберите `fling` в терминале или откройте «Fling» в меню.\n"
    "• Значок появится в трее, справа внизу.\n"
    "• Левый клик открывает панель, правый — меню.\n"
-   "• Закрывается на Esc или кликом мимо.\n"
-   "• «?» справа сверху — эта подсказка.\n"
-   "• Рядом «Компактный вид». Остаются обложка и кнопки, подписи при наведении. Пульт прячется."
+   "• Закрывается по Esc или кликом вне панели.\n"
+   "• «?» вверху справа — эта подсказка.\n"
+   "• Рядом «Компактный вид». Остаются обложка и кнопки, подписи — при наведении. Пульт скрывается."
   ],
   [
    "Первое подключение",
    "• «Подключение ТВ…» — в панели, в меню значка или командой `fling setup`.\n"
    "• Нажмите «Найти и подключить всё».\n"
-   "• У каждого шага свой значок: ✓ готово, ⏳ идёт, ! надо что-то нажать на ТВ, ✗ не вышло."
+   "• У каждого шага свой значок: ✓ готово, ⏳ идёт, ! нужно что-то нажать на ТВ, ✗ не вышло."
   ],
   [
    "Выбор телевизора",
    "• Внизу панели, рядом с именем ТВ, кнопка «Выбрать».\n"
-   "• Из неё: «Найти ТВ заново», «Добавить ТВ по IP…», «Убрать добавленный вручную».\n"
+   "• В её меню: «Найти ТВ заново», «Добавить ТВ по IP…», «Убрать добавленный вручную».\n"
    "• В окне «Подключение ТВ» то же самое называется «Выбрать ТВ…».\n"
    "• Если имена одинаковые, в меню пишется адрес. «пульт ✓» — пульт уже связан. «по IP» — этот ТВ добавили вручную."
   ],
@@ -44,23 +44,23 @@ HELP = {
    "• Из любой программы — Meta ⇧ C. Так написано на кнопке. Это Meta+Shift+C.\n"
    "• Ссылка уже скопирована — «Отправить скопированную ссылку».\n"
    "• Можно отправить YouTube, прямые файлы (mp4, mkv, mp3, m3u8…) и большинство видеосайтов.\n"
-   "• Netflix и похожие так не уходят. Откройте их кнопками приложений, дальше пультом."
+   "• Netflix и похожие сервисы так не отправить: откройте их кнопками приложений, а дальше управляйте пультом."
   ],
   [
    "Что играет сейчас",
    "• На панели обложка, название и время.\n"
-   "• Пробел — пауза или снова играть.\n"
+   "• Пробел — пауза и продолжение.\n"
    "• ← и → — на 30 секунд назад или вперёд. Кнопки так и называются: «Назад 30 с» и «Вперёд 30 с».\n"
    "• Громкость — ползунок.\n"
    "• Стоп: «Остановить трансляцию» или Ctrl+.\n"
-   "• ⟳ на обложке обновляет, что играет."
+   "• ⟳ на обложке обновляет сведения о том, что играет."
   ],
   [
    "Название и обложка с ТВ",
-   "• Чтобы название и обложка были настоящие, нужен ADB. Это шаг «ADB: что играет, название и обложка» в «Подключение ТВ…».\n"
+   "• Чтобы название и обложка были настоящими, нужен ADB. Это шаг «ADB: что играет, название и обложка» в «Подключение ТВ…».\n"
    "• На ТВ: Настройки → Система → О системе. Семь раз нажмите «Сборка ОС».\n"
    "• Потом Настройки → Система → Для разработчиков. Включите «Отладка по USB» и «Беспроводная отладка».\n"
-   "• На вопрос на экране нажмите «Разрешить». Лучше с галочкой «Всегда».\n"
+   "• Когда ТВ спросит, нажмите «Разрешить» — лучше с галочкой «Всегда».\n"
    "• Если ТВ показал код сопряжения, впишите порт и 6 цифр в том же шаге."
   ],
   [
@@ -68,7 +68,7 @@ HELP = {
    "• Нажмите «Связать с YouTube на ТВ — видеть, что играет».\n"
    "• На ТВ: YouTube → Настройки → «Подключить телефон» или «Связать с ТВ по коду».\n"
    "• Введите 12 цифр с экрана.\n"
-   "• Потом видно точное видео и время. Появляются «Предыдущее видео» и «Следующее видео».\n"
+   "• После этого видно точное видео и время, а также появляются кнопки «Предыдущее видео» и «Следующее видео».\n"
    "• Если ADB уже показывает, что играет, этот шаг можно пропустить."
   ],
   [
@@ -91,7 +91,7 @@ HELP = {
   [
    "Сделать снимок",
    "• «Сделать снимок» снимает экран телевизора.\n"
-   "• Файл падает в «Изображения/Fling» и сразу открывается.\n"
+   "• Файл сохраняется в «Изображения/Fling» и сразу открывается.\n"
    "• Чёрный кадр — видео защищено от снимков. Так у YouTube и Netflix. Меню и главный экран снимаются нормально.\n"
    "• Без ADB снимка не будет. Включите его в «Подключение ТВ…»."
   ],
@@ -132,10 +132,10 @@ HELP = {
   ],
   [
    "Если что-то не работает",
-   "• ТВ не находится: оба должны быть в одной сети. Или «Выбрать» → «Добавить ТВ по IP…». Адрес — на ТВ, Настройки → Сеть.\n"
-   "• Пауза на YouTube не слушается, пока не нажмёте «Связать с ТВ».\n"
+   "• ТВ не находится: компьютер и ТВ должны быть в одной сети. Или «Выбрать» → «Добавить ТВ по IP…». Адрес — на ТВ, Настройки → Сеть.\n"
+   "• YouTube не реагирует на паузу, пока не нажмёте «Связать с ТВ».\n"
    "• Старая обложка — включите ADB в «Подключение ТВ…».\n"
-   "• Не получается ввести код — жмите кнопки под полем.\n"
+   "• Не получается ввести код — нажимайте кнопки под полем.\n"
    "• Чёрный снимок — защита видео, не поломка.\n"
    "• Журнал лежит в `~/.cache/fling/app.log`."
   ]
@@ -145,10 +145,10 @@ HELP = {
    "Launch and panel",
    "• Type `fling` in a terminal, or open Fling from the menu.\n"
    "• The icon shows up in the tray, bottom right.\n"
-   "• Left click opens the panel. Right click opens the menu.\n"
+   "• Left-click opens the panel, right-click opens the menu.\n"
    "• Esc closes it. So does a click outside.\n"
    "• ? at the top right opens this guide.\n"
-   "• Next to it, “Compact view”. Artwork and the keys stay, labels show on hover. The remote hides."
+   "• Next to it, “Compact view”. Artwork and buttons stay; labels show on hover. The remote hides."
   ],
   [
    "First connection",
@@ -173,13 +173,13 @@ HELP = {
   [
    "Cast video to TV",
    "• “Cast this tab” sends the open Firefox tab.\n"
-   "• From any app, Meta ⇧ C. That’s what’s written on the button. Same keys as Meta+Shift+C.\n"
+   "• From any app, Meta ⇧ C. That’s what’s written on the button. It means Meta+Shift+C.\n"
    "• Copied a link? “Cast copied link”.\n"
    "• YouTube works. So do direct files (mp4, mkv, mp3, m3u8…) and most video sites.\n"
    "• Netflix and the like won’t go this way. Open them with the app buttons, then use the remote."
   ],
   [
-   "What is playing now",
+   "Now playing",
    "• The panel shows the artwork, the title and the time.\n"
    "• Space pauses or plays.\n"
    "• ← and → jump 30 seconds. The buttons do the same.\n"
@@ -233,9 +233,9 @@ HELP = {
    "• Also in the menu of the green Android icon at the bottom of the panel (or the tray icon menu → ADB). ADB has to be on.\n"
    "• “TV screen with mouse” opens a window with the TV picture. Click in it and the mouse becomes a pointer on the TV. Alt gives the mouse back.\n"
    "• A click on the artwork in the panel opens the same window.\n"
-   "• “Cursor on the TV (no picture)” is just the pointer, no video: a small window, click in it, the mouse and keyboard drive the TV.\n"
+   "• “Cursor on the TV (no picture)” is just the pointer, no video: a small window, click in it, the mouse and keyboard control the TV.\n"
    "• It runs on scrcpy. Fling downloads it by itself the first time (~12 MB).\n"
-   "• YouTube and Netflix video may be black in the window — that's copy protection; menus show fine.\n"
+   "• YouTube and Netflix video may be black in the window — that’s copy protection; menus show fine.\n"
    "• “ADB console…” runs commands on the TV. Type them as in `adb shell`: `getprop`, `pm list packages`. `logcat`, `install`, `pull` as they are. There are “Quick commands”, ↑/↓ for history, “Stop” ends a command.\n"
    "• Commands that may delete data or restart the TV ask first."
   ],
@@ -263,7 +263,7 @@ HELP = {
    "  - `fling tui` — remote in the terminal"
   ],
   [
-   "If something doesn't work",
+   "If something doesn’t work",
    "• TV not found: both have to be on the same network. Or “Select” → “Add TV by IP…”. The address is on the TV, Settings → Network.\n"
    "• YouTube ignores pause until you click “Pair with TV”.\n"
    "• Old artwork: turn on ADB in “Connect TV…”.\n"
@@ -280,23 +280,23 @@ WINDOWS = {
  "ru": {
   "Запуск и панель":
    "• Откройте «Fling» в меню Пуск. Или наберите `fling` в PowerShell или cmd.\n"
-   "• Значок справа внизу, возле часов. Не видно — стрелка ^, перетащите его на панель задач.\n"
+   "• Значок справа внизу, возле часов. Не видно — нажмите стрелку ^ и перетащите его на панель задач.\n"
    "• Левый клик открывает панель, правый — меню.\n"
-   "• Закрывается на Esc или кликом мимо.\n"
-   "• «?» справа сверху — эта подсказка.\n"
-   "• Рядом «Компактный вид». Остаются обложка и кнопки, подписи при наведении. Пульт прячется.",
+   "• Закрывается по Esc или кликом вне панели.\n"
+   "• «?» вверху справа — эта подсказка.\n"
+   "• Рядом «Компактный вид». Остаются обложка и кнопки, подписи — при наведении. Пульт скрывается.",
   "Отправить видео на ТВ":
-   "• Поставьте расширение Fling в браузер — Chrome, Edge, Firefox и похожие. Оно говорит Fling, какая вкладка открыта.\n"
+   "• Установите расширение Fling в браузер — Chrome, Edge, Firefox или похожий. Оно сообщает Fling, какая вкладка открыта.\n"
    "• «Отправить эту вкладку» в панели, или кнопка Fling на панели браузера.\n"
    "• Из любой программы: Win+Shift+C. Если занято — Ctrl+Alt+Shift+C. В панели написано, какое сработало. В браузере: Alt+Shift+C.\n"
    "• Если видео на странице уже идёт, расширение продолжит его на ТВ с того же места.\n"
    "• Без расширения Fling берёт активную вкладку Firefox из файла сессии.\n"
    "• Скопированная ссылка — «Отправить скопированную ссылку».\n"
    "• Можно отправить YouTube, прямые файлы (mp4, mkv, mp3, m3u8…) и большинство видеосайтов.\n"
-   "• Netflix и похожие так не уходят. Откройте их кнопками приложений, дальше пультом.",
+   "• Netflix и похожие сервисы так не отправить: откройте их кнопками приложений, а дальше управляйте пультом.",
   "Сделать снимок":
    "• «Сделать снимок» снимает экран телевизора.\n"
-   "• Файл падает в `%USERPROFILE%\\Pictures\\Fling` — папка «Изображения», внутри Fling — и сразу открывается.\n"
+   "• Файл сохраняется в `%USERPROFILE%\\Pictures\\Fling` — папка «Изображения», внутри Fling — и сразу открывается.\n"
    "• Чёрный кадр — видео защищено от снимков. Так у YouTube и Netflix. Меню и главный экран снимаются нормально.\n"
    "• Без ADB снимка не будет. Включите его в «Подключение ТВ…».",
   "Bluetooth-пульт": None,
@@ -322,11 +322,11 @@ WINDOWS = {
    "  - `fling quit` — выход",
   "Если что-то не работает":
    "• ТВ не находится: компьютер и ТВ должны быть в одной сети. При первом запуске всплывёт окно брандмауэра — разрешите Python или Fling в частной сети. Или «Выбрать» → «Добавить ТВ по IP…».\n"
-   "• Пауза на YouTube не слушается, пока не нажмёте «Связать с ТВ».\n"
+   "• YouTube не реагирует на паузу, пока не нажмёте «Связать с ТВ».\n"
    "• Старая обложка — включите ADB в «Подключение ТВ…».\n"
-   "• «Отправить эту вкладку» серая: расширение стоит, в его окошке зелёная точка, вкладка с видео открыта.\n"
+   "• «Отправить эту вкладку» неактивна: проверьте, что расширение установлено, в его окошке горит зелёная точка, а вкладка с видео открыта.\n"
    "• Микрофон молчит: Параметры → Конфиденциальность и защита → Микрофон → разрешите классическим приложениям.\n"
-   "• Не получается ввести код — жмите кнопки под полем.\n"
+   "• Не получается ввести код — нажимайте кнопки под полем.\n"
    "• Чёрный снимок — защита видео, не поломка.\n"
    "• Журнал: `%LOCALAPPDATA%\\Fling\\logs\\app.log`.",
  },
@@ -334,15 +334,15 @@ WINDOWS = {
   "Launch and panel":
    "• Open Fling from the Start menu. Or type `fling` in PowerShell or cmd.\n"
    "• The icon sits bottom right, by the clock. Hidden? Click the ^ arrow and drag it onto the taskbar.\n"
-   "• Left click opens the panel. Right click opens the menu.\n"
+   "• Left-click opens the panel, right-click opens the menu.\n"
    "• Esc closes it. So does a click outside.\n"
    "• ? at the top right opens this guide.\n"
-   "• Next to it, “Compact view”. Artwork and the keys stay, labels show on hover. The remote hides.",
+   "• Next to it, “Compact view”. Artwork and buttons stay; labels show on hover. The remote hides.",
   "Cast video to TV":
-   "• Add the Fling extension to your browser — Chrome, Edge, Firefox and the ones like them. It tells Fling which tab is open.\n"
+   "• Add the Fling extension to your browser — Chrome, Edge, Firefox or similar. It tells Fling which tab is open.\n"
    "• “Cast this tab” in the panel, or the Fling button in the browser toolbar.\n"
-   "• From any app: Win+Shift+C. If something else owns it, Ctrl+Alt+Shift+C. The panel shows which one works. In the browser: Alt+Shift+C.\n"
-   "• If the video on the page is already playing, the extension picks it up on the TV at the same spot.\n"
+   "• From any app: Win+Shift+C. If that’s taken, Ctrl+Alt+Shift+C. The panel shows which one works. In the browser: Alt+Shift+C.\n"
+   "• If the video on the page is already playing, the extension continues it on the TV from the same spot.\n"
    "• No extension? Fling reads the active Firefox tab from its session file.\n"
    "• A copied link: “Cast copied link”.\n"
    "• YouTube works. So do direct files (mp4, mkv, mp3, m3u8…) and most video sites.\n"
@@ -373,7 +373,7 @@ WINDOWS = {
    "  - `fling slideshow folder [seconds]` — a photo slideshow\n"
    "  - `fling help` — this guide\n"
    "  - `fling quit` — quit",
-  "If something doesn't work":
+  "If something doesn’t work":
    "• TV not found: the PC and the TV have to be on the same network. On first start Windows Firewall pops up — allow Python or Fling on private networks. Or “Select” → “Add TV by IP…”.\n"
    "• YouTube ignores pause until you click “Pair with TV”.\n"
    "• Old artwork: turn on ADB in “Connect TV…”.\n"
