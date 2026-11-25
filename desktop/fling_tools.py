@@ -306,6 +306,7 @@ def choose(key: str, path: str, pinned: bool = True) -> None:
     """Remember the copy to use. pinned=False: an automatic pick a newer copy may replace."""
     if _unc(path):
         raise ToolError("программы из сетевых папок не запускаются")
+    P.trust_tool(path)                 # the guard lets exactly this file run
     _update(lambda d: d.setdefault("use", {}).__setitem__(key, {"path": path, "pinned": pinned}))
     _changed()
 
@@ -320,6 +321,9 @@ def forget(key: str) -> None:
 def _run_version(tool: Tool, exe: str) -> str | None:
     if _unc(exe):
         return None
+    # Only copies from the search places, a checksum-verified install or the user's own
+    # pick reach this point: register them with the guard before running them.
+    P.trust_tool(exe)
     try:
         r = P.run([exe, *tool.version_args], capture_output=True, text=True, timeout=8,
                   encoding="utf-8", errors="replace")

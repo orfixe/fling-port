@@ -350,6 +350,55 @@ def restart_app() -> None:
 # first (same list, same key), so a swapped guard is not started.
 
 GUARD_EXE = "fling-guard.exe"
+# Tools outside the install (adb, scrcpy found or installed by the Tools window):
+# "sha256  full path" per line. The guard lets exactly these files run — same path,
+# same bytes. Written only by fling_tools: a verified download, a copy found in a
+# standard place (SDK, PATH, WinGet…) or a file the user picked.
+GUARD_TRUSTED = os.path.join(DATA, "guard-trusted.txt")
+_TRUST_LOCK = threading.Lock()
+
+
+def trust_tool(exe: str) -> None:
+    """Add exe and the other programs in its folder (adb.exe + fastboot.exe…) to the
+    guard's list of trusted tools, with their current SHA-256."""
+    if not IS_WIN or not exe or exe.startswith("\\\\") or not os.path.isfile(exe):
+        return
+    import hashlib
+    folder = os.path.dirname(os.path.abspath(exe))
+    found = {}
+    try:
+        names = [n for n in os.listdir(folder) if n.lower().endswith(".exe")]
+    except OSError:
+        names = [os.path.basename(exe)]
+    for n in names:
+        p = os.path.join(folder, n)
+        try:
+            h = hashlib.sha256()
+            with open(p, "rb") as f:
+                for chunk in iter(lambda: f.read(1 << 20), b""):
+                    h.update(chunk)
+            found[os.path.normcase(p)] = (h.hexdigest(), p)
+        except OSError:
+            continue
+    with _TRUST_LOCK:
+        lines = {}
+        try:
+            with open(GUARD_TRUSTED, encoding="utf-8") as f:
+                for l in f:
+                    hx, _, path = l.rstrip("\r\n").partition("  ")
+                    if len(hx) == 64 and path:
+                        lines[os.path.normcase(path)] = (hx, path)
+        except OSError:
+            pass
+        if all(lines.get(k) == v for k, v in found.items()):
+            return
+        lines.update(found)
+        os.makedirs(DATA, exist_ok=True)
+        tmp = GUARD_TRUSTED + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            for hx, path in sorted(lines.values(), key=lambda v: v[1].lower()):
+                f.write(f"{hx}  {path}\n")
+        os.replace(tmp, GUARD_TRUSTED)
 
 
 def _release_pubkey() -> bytes | None:

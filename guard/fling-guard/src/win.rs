@@ -156,34 +156,80 @@ fn image_path(h: HANDLE) -> Option<String> {
     (ok != 0).then(|| String::from_utf16_lossy(&buf[..n as usize]))
 }
 
+/// Tools Fling uses from outside its install (adb, scrcpy picked or installed by the Tools
+/// window): `%LOCALAPPDATA%\Fling\guard-trusted.txt`, "sha256  full path" per line.
+fn trusted_path() -> PathBuf {
+    let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
+    base.join("Fling").join("guard-trusted.txt")
+}
+
+/// (size, modified) of a file: a cached hash is reused only while this is unchanged.
+fn file_key(path: &str) -> Option<(u64, std::time::SystemTime)> {
+    let md = std::fs::metadata(path).ok()?;
+    Some((md.len(), md.modified().ok()?))
+}
+
 struct Rules {
     install: String,          // normalised install folder + "\"
     list: Option<Manifest>,   // the signed list (None: a build from source)
     admin: Vec<String>,
     enforce: bool,            // stop what breaks the rules (official signed build) or only log
-    hashes: HashMap<String, String>, // image path → sha256 already computed
+    /// image path → (size, modified, sha256) already computed
+    hashes: HashMap<String, (u64, std::time::SystemTime, String)>,
+    /// normalised path → sha256 from guard-trusted.txt, and that file's modified time
+    trusted: HashMap<String, String>,
+    trusted_at: Option<std::time::SystemTime>,
 }
 
 impl Rules {
+    fn hash(&mut self, path: &str) -> Option<String> {
+        let n = norm(path);
+        let (len, at) = file_key(path)?;
+        if let Some((l, a, h)) = self.hashes.get(&n) {
+            if *l == len && *a == at {
+                return Some(h.clone());
+            }
+        }
+        let h = manifest::sha256_file(Path::new(path)).ok()?;
+        self.hashes.insert(n, (len, at, h.clone()));
+        Some(h)
+    }
+
+    fn reload_trusted(&mut self) {
+        let p = trusted_path();
+        let at = std::fs::metadata(&p).and_then(|m| m.modified()).ok();
+        if at == self.trusted_at {
+            return;
+        }
+        self.trusted_at = at;
+        self.trusted.clear();
+        if let Ok(text) = std::fs::read_to_string(&p) {
+            for l in text.lines() {
+                if let Some((h, path)) = l.split_once("  ") {
+                    if h.len() == 64 && h.bytes().all(|b| b.is_ascii_hexdigit()) && !path.starts_with(r"\\") {
+                        self.trusted.insert(norm(path), h.to_lowercase());
+                    }
+                }
+            }
+        }
+    }
+
     /// Why this program may run, or None.
     fn allowed(&mut self, path: &str) -> Option<&'static str> {
         let n = norm(path);
         if let Some(rel) = n.strip_prefix(&self.install) {
             let rel = rel.replace('\\', "/");
-            let m = self.list.as_ref()?;
-            let want = m.files.get(&rel)?.clone();
-            let got = match self.hashes.get(&n) {
-                Some(h) => h.clone(),
-                None => {
-                    let h = manifest::sha256_file(Path::new(path)).ok()?;
-                    self.hashes.insert(n.clone(), h.clone());
-                    h
-                }
-            };
-            return (got == want).then_some("listed");
+            let want = self.list.as_ref()?.files.get(&rel)?.clone();
+            return (self.hash(path)? == want).then_some("listed");
         }
         if self.admin.iter().any(|d| n.starts_with(d.as_str())) {
             return Some("admin folder");
+        }
+        self.reload_trusted();
+        if let Some(want) = self.trusted.get(&n).cloned() {
+            if self.hash(path).as_deref() == Some(want.as_str()) {
+                return Some("trusted tool");
+            }
         }
         if authenticode_ok(path) {
             return Some("signed");
@@ -262,6 +308,8 @@ pub fn watch(pid: u32) -> i32 {
         admin: admin_folders(),
         enforce,
         hashes: HashMap::new(),
+        trusted: HashMap::new(),
+        trusted_at: None,
     }));
 
     // 2. job + completion port: Windows tells us about every new process at once
