@@ -52,6 +52,9 @@ starts together with Fling:
    Windows reports each new process to the guard at once. It may run only if it is
    - a file of the signed list with the same hash (adb, scrcpy…), or
    - in a folder only an administrator can write (System32, Program Files), or
+   - a tool from the Tools window (adb, scrcpy) registered with its exact path and
+     SHA-256 when it was installed with the publisher's checksum, found in a standard
+     place (Android SDK, PATH, WinGet…) or picked by you — the same bytes only, or
    - signed by its publisher (Authenticode).
 
    Anything else — a miner dropped into `%TEMP%`, an unsigned helper — is stopped
