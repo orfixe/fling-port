@@ -12,6 +12,8 @@ let probe = null;         // this tab's player (resume point)
 let volDragging = false;
 let busyCast = false;
 
+let recent = [];
+
 function send(type, body) {
   return api.runtime.sendMessage({ type, body });
 }
@@ -81,6 +83,8 @@ function render(s) {
     const playing = m.state === "PLAYING" || m.state === "BUFFERING";
     $("icoPause").hidden = !playing;
     $("icoPlay").hidden = playing;
+    $("prev").hidden = $("next").hidden = !s.yt_live;     // YouTube through the TV link
+    $("progress").classList.toggle("seekable", !!(m.duration && m.elapsed != null));
   }
 
   // this tab
@@ -136,9 +140,15 @@ function renderTab() {
   const btn = $("castTab");
   btn.disabled = !tab || busyCast || !(st && st.device);
   const resume = probe && probe.resume;
+  const linkAt = probe && !resume && !(probe.media && probe.media.time > 0) ? probe.linkStart : null;
   $("castLabel").textContent = busyCast ? t("casting")
     : resume ? t("resumeAt", clock(resume))
+    : linkAt ? t("castFrom", clock(linkAt))
     : (st && st.panel === "casting") ? t("castTabInstead") : t("castTab");
+  const start = $("castStart");
+  start.hidden = !tab || !(resume || linkAt);
+  start.disabled = btn.disabled;
+  for (const b of $("recentList").children) b.disabled = busyCast || !(st && st.device);
   const why = $("castWhy");
   why.textContent = !tab ? t("openVideoPage") : (st && !st.catt) ? t("needCatt") : "";
   why.hidden = !why.textContent;
@@ -159,14 +169,65 @@ document.addEventListener("click", (e) => {
   }
 });
 
-$("castTab").addEventListener("click", async () => {
+async function castWith(type, body) {
   busyCast = true;
   renderTab();
-  const r = await send("castTab");
+  const r = await send(type, body);
   busyCast = false;
   if (r && r.ok) render(r);
   else showError(r && r.error);
   renderTab();
+  loadRecent();
+}
+
+$("castTab").addEventListener("click", () => castWith("castTab", { mode: "auto" }));
+$("castStart").addEventListener("click", () => castWith("castTab", { mode: "start" }));
+
+// click on the progress bar = jump there (the app only knows relative seeks)
+$("progress").addEventListener("click", (e) => {
+  const m = st && st.media;
+  if (!m || !m.duration || m.elapsed == null) return;
+  const box = e.currentTarget.getBoundingClientRect();
+  const target = Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) * m.duration;
+  const delta = Math.round(target - m.elapsed);
+  if (Math.abs(delta) >= 2) act({ action: "seek", seconds: Math.max(-3600, Math.min(3600, delta)) });
+});
+
+// ------------------------------------------------------------ recent casts
+
+function renderRecent() {
+  const box = $("recentBox"), list = $("recentList");
+  box.hidden = !recent.length;
+  list.textContent = "";
+  for (const item of recent) {
+    const b = document.createElement("button");
+    b.className = "row recent";
+    b.title = item.url;
+    const title = document.createElement("span");
+    title.className = "rtitle";
+    title.textContent = item.title || item.url;
+    const host = document.createElement("span");
+    host.className = "muted small rhost";
+    host.textContent = hostOf(item.url);
+    b.append(title, host);
+    b.disabled = busyCast || !(st && st.device);
+    b.addEventListener("click", () => castWith("castUrl", { url: item.url, title: item.title }));
+    list.appendChild(b);
+  }
+}
+
+async function loadRecent() {
+  const r = await send("recent").catch(() => null);
+  recent = r && r.keep && Array.isArray(r.recent) ? r.recent : [];
+  renderRecent();
+}
+
+$("clearRecent").addEventListener("click", async (e) => {
+  e.preventDefault();          // don't toggle the <details>
+  e.stopPropagation();
+  await send("clearRecent");
+  recent = [];
+  renderRecent();
 });
 
 $("volume").addEventListener("input", (e) => {
@@ -199,9 +260,12 @@ $("retry").addEventListener("click", tick);
 document.addEventListener("keydown", (e) => {
   if (e.target.matches("input, select")) return;
   const casting = st && st.panel === "casting";
+  if (e.target.closest("details > summary") && (e.code === "Space" || e.key === "Enter")) return;
   if (e.code === "Space" && casting) { e.preventDefault(); act({ action: "play_pause" }); }
   else if (e.key === "ArrowLeft" && casting) act({ action: "seek", seconds: -30 });
   else if (e.key === "ArrowRight" && casting) act({ action: "seek", seconds: 30 });
+  else if ((e.key === "n" || e.key === "N") && st && st.yt_live) act({ action: "next" });
+  else if ((e.key === "p" || e.key === "P") && st && st.yt_live) act({ action: "prev" });
 });
 
 // scroll anywhere over the remote = d-pad (like the desktop panel)
@@ -238,6 +302,7 @@ async function tick() {
   send("reportTab");
   probe = await send("probe").catch(() => null);
   await tick();
+  loadRecent();
   setInterval(tick, 1000);
   setInterval(async () => { probe = await send("probe").catch(() => probe); renderTab(); }, 4000);
 })();

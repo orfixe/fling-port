@@ -41,15 +41,24 @@ BASE = {
     },
     "options_ui": {"page": "options.html", "open_in_tab": True},
     # tabs: read the active tab's address for the app; scripting + activeTab: read the
-    # page's player (resume position) only when you cast; alarms: heartbeat to the app.
+    # page's player (resume position) only when you cast; contextMenus: the right-click
+    # "Cast…" items; storage: settings and recent casts; alarms: heartbeat to the app.
     "permissions": ["tabs", "activeTab", "scripting", "storage", "contextMenus", "alarms"],
     # the Fling desktop app on this computer — nothing else
     "host_permissions": ["http://127.0.0.1/*"],
+    # Only "cast-tab" gets a default key (fewer clashes with sites and other extensions);
+    # the rest are assigned on the browser's shortcuts page, which the options page opens.
     "commands": {
         "cast-tab": {
             "suggested_key": {"default": "Alt+Shift+C", "mac": "Alt+Shift+C"},
             "description": "__MSG_cmdCastTab__",
-        }
+        },
+        "cast-tab-now": {"description": "__MSG_cmdCastNow__"},
+        "play-pause": {"description": "__MSG_cmdPlayPause__"},
+        "seek-back": {"description": "__MSG_cmdSeekBack__"},
+        "seek-forward": {"description": "__MSG_cmdSeekForward__"},
+        "volume-up": {"description": "__MSG_cmdVolUp__"},
+        "volume-down": {"description": "__MSG_cmdVolDown__"},
     },
 }
 

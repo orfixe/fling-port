@@ -60,7 +60,7 @@
     "message": "Resume on TV at $1"
   },
   "openVideoPage": {
-    "message": "Open a tab in your browser, then try again."
+    "message": "Open a web page in this browser, then try again."
   },
   "needCatt": {
     "message": "Fling needs catt — open the Fling panel."
@@ -141,10 +141,7 @@
     "message": "Fling app port"
   },
   "optPortHint": {
-    "message": "Only if bridge_port in fling.json is different."
-  },
-  "optShortcut": {
-    "message": "Change the shortcut (Alt+Shift+C by default) on the browser's extension shortcuts page."
+    "message": "Change only if bridge_port in fling.json is different (47613 by default)."
   },
   "optConnected": {
     "message": "✓ Connected to Fling $1 on $2 · TV: $3"
@@ -157,5 +154,98 @@
   },
   "optNotifyHint": {
     "message": "A Windows / desktop notification from the Fling app with the new title. Same switch as “Notify when the video changes” in the Fling panel."
+  },
+  "cmdCastNow": {
+    "message": "Cast this tab from the current moment"
+  },
+  "cmdPlayPause": {
+    "message": "Play / pause on the TV"
+  },
+  "cmdSeekBack": {
+    "message": "Back 30 s"
+  },
+  "cmdSeekForward": {
+    "message": "Forward 30 s"
+  },
+  "cmdVolUp": {
+    "message": "TV volume up"
+  },
+  "cmdVolDown": {
+    "message": "TV volume down"
+  },
+  "menuCastAudio": {
+    "message": "Cast this audio"
+  },
+  "menuCastFromHere": {
+    "message": "Cast from this moment"
+  },
+  "menuTypeOnTv": {
+    "message": "Type “%s” on the TV"
+  },
+  "seekHint": {
+    "message": "Click to jump to this point"
+  },
+  "prevVideo": {
+    "message": "Previous video (P)"
+  },
+  "nextVideo": {
+    "message": "Next video (N)"
+  },
+  "castFromStart": {
+    "message": "Cast from the beginning"
+  },
+  "castFrom": {
+    "message": "Cast this tab from $1"
+  },
+  "recent": {
+    "message": "Recent"
+  },
+  "clear": {
+    "message": "Clear"
+  },
+  "optCasting": {
+    "message": "Casting"
+  },
+  "optPrivacy": {
+    "message": "Privacy"
+  },
+  "optShortcuts": {
+    "message": "Keyboard shortcuts"
+  },
+  "optConnection": {
+    "message": "Connection"
+  },
+  "optEditShortcuts": {
+    "message": "Change shortcuts…"
+  },
+  "optNoShortcut": {
+    "message": "not set"
+  },
+  "optShortcutsFirefox": {
+    "message": "Open about:addons, click the gear icon and choose “Manage Extension Shortcuts”."
+  },
+  "optShortcutsManual": {
+    "message": "Open your browser's Extensions page and look for “Keyboard shortcuts”."
+  },
+  "optCheck": {
+    "message": "Save and check"
+  },
+  "optPortBad": {
+    "message": "Enter a number from 1024 to 65535."
+  },
+  "optRecent": {
+    "message": "Remember recent casts"
+  },
+  "optRecentHint": {
+    "message": "They appear under the Fling toolbar button, so you can cast them again. Stored only in this browser; nothing from private windows is saved."
+  },
+  "clearRecent": {
+    "message": "Clear now"
+  },
+  "cleared": {
+    "message": "Cleared"
+  },
+  "optExtId": {
+    "message": "Extension ID (for bridge_extension_ids in fling.json):"
   }
 }
