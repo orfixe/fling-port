@@ -2609,18 +2609,21 @@ def glyph(name, size=14, color=None, weight=1.7):
         p.setPen(Qt.PenStyle.NoPen); p.setBrush(color or T.fg)
         p.drawEllipse(QRectF(s*.15, s*.15, s*.7, s*.7))
     elif name == "keyboard":
-        # Keyboard — opens the “type on TV” field: outline, two rows of keys, a space bar
-        p.drawRoundedRect(QRectF(s*.06, s*.22, s*.88, s*.56), s*.12, s*.12)
+        # Keyboard — opens the “type on TV” field: a thin outline, two rows of round keys
+        # and a space bar. Keys are dots with clear gaps: square keys merged into one
+        # white block at 20 px.
+        thin = QPen(pen)
+        thin.setWidthF(max(1.0, pen.widthF() * 0.7))
+        p.setPen(thin)
+        p.drawRoundedRect(QRectF(s*.08, s*.24, s*.84, s*.52), s*.1, s*.1)
         p.save()
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(color or T.fg)
-        k = s * .11
-        for row, n in ((.33, 5), (.47, 4)):
-            x0 = s*.5 - (n * k + (n - 1) * s*.045) / 2
-            for j in range(n):
-                p.drawRoundedRect(QRectF(x0 + j * (k + s*.045), s*row, k, k), s*.025, s*.025)
-        p.drawRoundedRect(QRectF(s*.28, s*.61, s*.44, k), s*.03, s*.03)
+        for y in (.39, .52):
+            for x in (.26, .42, .58, .74):
+                p.drawEllipse(QPointF(s*x, s*y), s*.045, s*.045)
         p.restore()
+        p.drawLine(QPointF(s*.36, s*.65), QPointF(s*.64, s*.65))
     elif name == "play_on_tv":
         p.drawRoundedRect(QRectF(s*.12, s*.22, s*.76, s*.52), s*.08, s*.08)
         p.setBrush(color or T.fg)
