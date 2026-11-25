@@ -325,6 +325,115 @@ def restart_app() -> None:
     subprocess.Popen(self_command("--after-restart", "show"), creationflags=flags, close_fds=True)
 
 
+# ---------------------------------------------------------------- guard (Windows)
+#
+# fling-guard.exe (guard/, Rust) sits next to Fling.exe. It checks the install against
+# its signed file list (fling.manifest + .minisig) and puts Fling into a Job Object, so
+# every program Fling starts is checked: listed with the same hash, in an admin-only
+# folder, or Authenticode-signed — anything else is stopped. Fling checks the guard
+# first (same list, same key), so a swapped guard is not started.
+
+GUARD_EXE = "fling-guard.exe"
+
+
+def _release_pubkey() -> bytes | None:
+    """The raw Ed25519 release key from security/fling-release.pub (bundled)."""
+    import base64
+    for base in (getattr(sys, "_MEIPASS", ""), os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")):
+        p = os.path.join(base, "security", "fling-release.pub")
+        try:
+            with open(p, encoding="ascii") as f:
+                line = [l.strip() for l in f if l.strip() and not l.startswith("untrusted comment:")][0]
+            raw = base64.b64decode(line)
+            return raw if len(raw) == 42 and raw[:2] == b"Ed" else None
+        except (OSError, IndexError, ValueError):
+            continue
+    return None
+
+
+def minisign_verify(data: bytes, sig_text: str, pub: bytes) -> str:
+    """Check a minisign signature (prehashed Ed25519 "ED"); returns the trusted comment.
+    Raises ValueError when it does not match."""
+    import base64
+    import hashlib
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    from cryptography.exceptions import InvalidSignature
+    lines = sig_text.splitlines()
+    if len(lines) < 4 or not lines[2].startswith("trusted comment: "):
+        raise ValueError("not a minisign signature")
+    sig = base64.b64decode(lines[1])
+    glob_sig = base64.b64decode(lines[3])
+    tc = lines[2][len("trusted comment: "):]
+    if len(sig) != 74 or sig[:2] != b"ED" or sig[2:10] != pub[2:10] or len(glob_sig) != 64:
+        raise ValueError("signature is not from the release key")
+    key = Ed25519PublicKey.from_public_bytes(pub[10:])
+    try:
+        key.verify(sig[10:], hashlib.blake2b(data, digest_size=64).digest())
+        key.verify(glob_sig, sig[10:] + tc.encode())
+    except InvalidSignature:
+        raise ValueError("the signature does not match") from None
+    return tc
+
+
+def guard_state(app_dir: str) -> tuple[str, str]:
+    """("signed" | "unsigned" | "source" | "tampered", detail) for the install in app_dir.
+    Quick: checks the list's signature and the guard's own hash only."""
+    import hashlib
+    man = os.path.join(app_dir, "fling.manifest")
+    if not os.path.isfile(man):
+        return "source", "no fling.manifest"
+    with open(man, "rb") as f:
+        data = f.read()
+    pub = _release_pubkey()
+    try:
+        with open(man + ".minisig", encoding="utf-8") as f:
+            sig = f.read()
+        if not pub:
+            raise ValueError("no release key in this build")
+        lines = data.decode().splitlines()
+        want_tc = f"fling-manifest version={lines[1][8:]} platform={lines[2][9:]}"
+        if minisign_verify(data, sig, pub) != want_tc:
+            raise ValueError("signed for something else")
+        signed = True
+    except (OSError, ValueError, IndexError, ImportError) as e:
+        signed, why = False, str(e) or type(e).__name__
+    entry = next((l.split("  ", 1)[0] for l in data.decode(errors="replace").splitlines()
+                  if l.lower().endswith("  " + GUARD_EXE)), None)
+    exe = os.path.join(app_dir, GUARD_EXE)
+    if entry and os.path.isfile(exe):
+        h = hashlib.sha256()
+        with open(exe, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        if h.hexdigest() != entry.lower():
+            return "tampered", f"{GUARD_EXE} differs from the list"
+    return ("signed", "ok") if signed else ("unsigned", why)
+
+
+def start_guard() -> str:
+    """Start fling-guard for this process (Windows). Returns the install state."""
+    if not IS_WIN or os.environ.get("FLING_NO_GUARD"):
+        return "off"
+    if FROZEN:
+        app_dir = os.path.dirname(sys.executable)
+    else:                                   # from source: guard/target/release, report only
+        app_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "guard", "target", "release")
+    exe = os.path.join(app_dir, GUARD_EXE)
+    if not os.path.isfile(exe):
+        return "missing"
+    state, detail = guard_state(app_dir) if FROZEN else ("source", "")
+    print(f"guard: {state} {detail}", flush=True)
+    if state == "tampered":
+        return state                        # never start a guard that is not ours
+    try:
+        subprocess.Popen([exe, "watch", str(os.getpid())], close_fds=True,
+                         creationflags=0x00000008 | 0x00000200 | 0x08000000)  # detached, no window
+    except OSError as e:
+        print("guard:", e, flush=True)
+        return "missing"
+    return state
+
+
 # ---------------------------------------------------------------- start at login
 
 AUTOSTART = f"{HOME}/.config/autostart/fling.desktop"

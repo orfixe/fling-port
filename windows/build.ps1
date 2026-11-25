@@ -4,13 +4,25 @@
   libraries bundled, nothing else to install) packed as dist\Fling-Setup-<ver>.exe with
   Inno Setup (windows\fling.iss). Without Inno Setup: dist\Fling-Windows-<ver>.zip instead.
   Plus the browser extension zips.
+  Also builds fling-guard.exe (guard\, Rust) and writes fling.manifest, the list of every
+  file with its SHA-256. -Sign signs that list with the release key (asks for its
+  password); only a signed list turns the guard's protection on.
+
+.PARAMETER Sign
+  Sign fling.manifest with fling-sign (the key stays on the maintainer's machine).
+.PARAMETER Official
+  The release build: implies -Sign and builds the guard with FLING_OFFICIAL=1, so a
+  missing or broken signature counts as tampering.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File windows\build.ps1
+.EXAMPLE
+  powershell -ExecutionPolicy Bypass -File windows\build.ps1 -Official
 #>
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 orfixe and the Fling port contributors
 # Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
+param([switch]$Sign, [switch]$Official)
 $ErrorActionPreference = 'Stop'
 $Repo  = Split-Path -Parent $PSScriptRoot
 $Work  = Join-Path $Repo 'build\windows'
@@ -66,6 +78,7 @@ Exec $Py -m PyInstaller --noconfirm --clean --windowed --name Fling `
   --collect-submodules androidtvremote2 --collect-data androidtvremote2 `
   --collect-submodules pyytlounge --collect-submodules zeroconf `
   --copy-metadata catt --exclude-module tkinter `
+  --add-data "$(Join-Path $Repo 'security\fling-release.pub');security" `
   (Join-Path $D 'fling_app.py')
 
 Write-Host '==> extensions' -ForegroundColor Cyan
@@ -119,6 +132,38 @@ foreach ($n in 'LICENSE', 'NOTICE', 'CREDITS.md', 'THIRD-PARTY-NOTICES.md') {
   Copy-Item (Join-Path $Repo $n) (Join-Path $Out $n) -Force
 }
 Copy-Item (Join-Path $Repo 'extension\dist\*.zip') $Dist -Force
+
+# `fling` command (on PATH when the setup task is ticked) is part of the signed list
+Copy-Item (Join-Path $PSScriptRoot 'fling.cmd') $Out -Force
+
+Write-Host '==> guard (Rust)' -ForegroundColor Cyan
+if ($Official) { $Sign = $true }
+$Pub = Get-Content (Join-Path $Repo 'security\fling-release.pub') -Raw
+if ($Sign -and $Pub -match 'placeholder') { throw 'security\fling-release.pub is a placeholder: run fling-sign keygen first (see SECURITY.md)' }
+$Cargo = (Get-Command cargo -ErrorAction SilentlyContinue).Source
+if (-not $Cargo) { $Cargo = Join-Path $env:USERPROFILE '.cargo\bin\cargo.exe' }
+if (-not (Test-Path $Cargo)) { throw 'Rust is not installed (winget install Rustlang.Rustup)' }
+# the GNU toolchain needs mingw binutils (WinLibs) on PATH; MSVC does not
+$WinLibs = Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\BrechtSanders.WinLibs*\mingw64\bin" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($WinLibs -and -not (Get-Command dlltool -ErrorAction SilentlyContinue)) { $env:PATH = "$($WinLibs.FullName);$env:PATH" }
+$GuardDir = Join-Path $Repo 'guard'
+if ($Official) { $env:FLING_OFFICIAL = '1' } else { Remove-Item Env:FLING_OFFICIAL -ErrorAction SilentlyContinue }
+Push-Location $GuardDir
+try { Exec $Cargo build --release --locked } finally { Pop-Location; Remove-Item Env:FLING_OFFICIAL -ErrorAction SilentlyContinue }
+$GuardBin = Join-Path $GuardDir 'target\release'
+Copy-Item (Join-Path $GuardBin 'fling-guard.exe') $Out -Force
+
+Write-Host '==> signed file list' -ForegroundColor Cyan
+Remove-Item (Join-Path $Out 'fling.manifest'), (Join-Path $Out 'fling.manifest.minisig') -ErrorAction SilentlyContinue
+Exec (Join-Path $GuardBin 'fling-guard.exe') manifest $Out $Ver 'windows-x64'
+if ($Sign) {
+  Write-Host '    release key password:' -ForegroundColor Yellow
+  & (Join-Path $GuardBin 'fling-sign.exe') sign (Join-Path $Out 'fling.manifest') --comment "fling-manifest version=$Ver platform=windows-x64"
+  if ($LASTEXITCODE -ne 0) { throw 'signing failed' }
+  Exec (Join-Path $GuardBin 'fling-guard.exe') check $Out
+} else {
+  Write-Host '    not signed (-Sign / -Official): the guard only reports on this build' -ForegroundColor Yellow
+}
 
 $Iscc = @((Get-Command iscc -ErrorAction SilentlyContinue).Source,
           "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe",

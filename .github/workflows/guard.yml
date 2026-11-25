@@ -1,0 +1,46 @@
+name: Guard
+# Builds fling-guard / fling-sign and runs a sign → check → tamper round trip with a
+# throw-away key. The release key is never in CI: releases are signed on the
+# maintainer's machine (see SECURITY.md).
+on:
+  push:
+    paths: ["guard/**", ".github/workflows/guard.yml"]
+  pull_request:
+    paths: ["guard/**", ".github/workflows/guard.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Build
+        working-directory: guard
+        run: cargo build --release --locked
+      - name: Round trip with a throw-away key
+        shell: bash
+        working-directory: guard
+        env:
+          FLING_SIGN_PASSWORD: ci-throwaway
+        run: |
+          set -eu
+          bin=target/release
+          export FLING_SIGNING_KEY="$RUNNER_TEMP/k/test.key"
+          $bin/fling-sign keygen > /dev/null
+          # a guard that trusts the throw-away key
+          cp "$RUNNER_TEMP/k/test.pub" ../security/fling-release.pub
+          cargo build --release --locked -p fling-guard
+          d="$RUNNER_TEMP/inst"; mkdir -p "$d/sub"; echo hello > "$d/sub/a.txt"; cp $bin/fling-guard* "$d/"
+          $bin/fling-guard manifest "$d" 9.9.9 test
+          $bin/fling-sign sign "$d/fling.manifest" --comment "fling-manifest version=9.9.9 platform=test"
+          $bin/fling-guard check "$d"
+          echo changed >> "$d/sub/a.txt"
+          if $bin/fling-guard check "$d"; then echo "tampering not detected"; exit 1; fi
+          git checkout -- ../security/fling-release.pub

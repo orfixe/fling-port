@@ -73,7 +73,6 @@ Type: filesandordirs; Name: "{app}\_internal"
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "fling.cmd"; DestDir: "{app}"; Tasks: flingcmd; Flags: ignoreversion
 
 [Icons]
 Name: "{userprograms}\Fling"; Filename: "{app}\Fling.exe"; Parameters: "show"; WorkingDir: "{app}"

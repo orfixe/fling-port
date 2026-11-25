@@ -1,0 +1,17 @@
+[workspace]
+members = ["fling-guard", "fling-sign"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["orfixe and the Fling port contributors"]
+
+# Small, fast binaries: the guard runs next to Fling all the time.
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

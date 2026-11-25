@@ -2309,6 +2309,12 @@ EN_PHRASES += [   # Connect TV window, TV menu, screenshots
     ('Снимок чёрный: видео защищено от снимков (DRM у YouTube/Netflix). Меню и главный экран ТВ снимаются нормально.', 'The screenshot is black: the video is copy-protected (DRM on YouTube/Netflix). Menus and the home screen capture fine.'),
     ('ТВ', 'TV'),
 ]
+EN_PHRASES += [   # guard
+    ("Файлы Fling изменены после установки, поэтому Fling не запущен. "
+     "Установите Fling заново со страницы релизов на GitHub и проверьте компьютер антивирусом.",
+     "Fling's files were changed after the install, so Fling was not started. "
+     "Install Fling again from the GitHub releases page and scan the computer for malware."),
+]
 EN_PHRASES += [   # keyboard captured strip
     ("⌨  Клавиатура захвачена, Esc — выход", "⌨  Keyboard captured, Esc to exit"),
     ("⌨  Клавиатура свободна", "⌨  Keyboard is free"),
@@ -7011,6 +7017,12 @@ def main():
         return 0
     if send_to_running(cmd):
         return 0
+    if P.start_guard() == "tampered":              # see fling_platform: guard
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.critical(None, "Fling", tr(
+            "Файлы Fling изменены после установки, поэтому Fling не запущен. "
+            "Установите Fling заново со страницы релизов на GitHub и проверьте компьютер антивирусом."))
+        return 2
     conf0 = load_conf()
     apply_color_scheme(app, conf0)
     T = Theme(app, conf0)

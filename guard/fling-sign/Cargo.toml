@@ -1,0 +1,10 @@
+[package]
+name = "fling-sign"
+description = "Release signing for Fling (minisign format). Runs only on the maintainer's machine; never in CI."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+minisign = "0.7"

@@ -21,3 +21,6 @@ Thumbs.db
 proposal-macos-PRIVATE/
 macos/.work/
 macos/dist/
+
+# Rust build output (guard/)
+guard/target/
