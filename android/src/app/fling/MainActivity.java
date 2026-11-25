@@ -71,7 +71,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             {"Kinopoisk", "https://hd.kinopoisk.ru", "ru.kinopoisk"},
     };
     static final int SEEK = 30;
-    private static final int REQ_MIC = 7;
+    private static final int REQ_MIC = 7, REQ_FILES = 8, REQ_NOTIFY = 9;
 
     private Ui ui;
     /** Set in onDestroy. Cast/Atv/Discovery callbacks keep arriving after that; without
@@ -117,11 +117,16 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private boolean pendingAutoCast;
     private boolean resumed;
     private int padMode;   // 0 buttons, 1 touchpad
+    private String look;   // theme + accent + language this screen was built with (Settings may change them)
+    private ArrayList<Uri> pendingLocal;   // phone files waiting for a TV to be found
+    private String pendingLocalType;
 
     // views
     private LinearLayout root;
     private ScrollView scroll;
-    private View helpView, langRowView;
+    private View helpView, langRowView, gearView;
+    private View prevKey, nextKey, seekBack, seekFwd, gap1, gap2, hwHint;
+    private Ui.Row sleepRow;
     private TextView errorView, subtitleHeader;
     private LinearLayout nowCard, linkCard, tvCard;
     private Ui.Artwork nowArt, linkArt;
@@ -159,11 +164,17 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     // ================================================================ lifecycle
 
+    @Override protected void attachBaseContext(Context base) { super.attachBaseContext(base); Ui.applyNight(this, base); }
+
+    private String lookNow() { return Ui.theme(this) + "|" + Ui.accentId(this) + "|" + L.lang(this); }
+
     @Override protected void onCreate(Bundle b) {
-        super.onCreate(b);
         L.init(this);
+        Ui.applyAccent(this);
+        super.onCreate(b);
         ui = new Ui(this);
         prefs = getSharedPreferences("fling", MODE_PRIVATE);
+        look = lookNow();
         host = prefs.getString("host", null);
         devName = prefs.getString("name", null);
         padMode = prefs.getInt("padMode", 0);
@@ -186,7 +197,10 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     @Override protected void onResume() {
         super.onResume();
+        if (!look.equals(lookNow())) { recreate(); return; }   // back from Settings with a new theme or language
         resumed = true;
+        if (prefs.getBoolean("keepOn", false)) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        else getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (!prefs.getBoolean("help_seen", false)) {                  // first launch: show the guide once
             prefs.edit().putBoolean("help_seen", true).apply();
             main.postDelayed(this::startTour, 900);                    // after the screen has been laid out
@@ -399,6 +413,12 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     private void handleIntent(Intent i) {
         if (i == null) return;
+        ArrayList<Uri> files = sharedFiles(i);
+        if (files != null) {
+            i.setAction(Intent.ACTION_MAIN);   // don't recast on rotation
+            castLocal(files, i.getType());
+            return;
+        }
         String text = null, subject = null;
         if (Intent.ACTION_SEND.equals(i.getAction())) {
             text = i.getStringExtra(Intent.EXTRA_TEXT);
@@ -412,6 +432,78 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         setLink(url, subject);
         i.setAction(Intent.ACTION_MAIN);   // don't recast on rotation
         if (host != null) castLink(url, linkTitle); else pendingAutoCast = true;
+    }
+
+    /** Photos, videos or music handed to Fling (Share, Share several, Open with); null for links and text. */
+    @SuppressWarnings("deprecation")
+    private static ArrayList<Uri> sharedFiles(Intent i) {
+        String a = i.getAction(), type = i.getType();
+        if (type != null && type.startsWith("text/")) return null;
+        ArrayList<Uri> out = new ArrayList<>();
+        if (Intent.ACTION_SEND.equals(a)) {
+            Uri u = i.getParcelableExtra(Intent.EXTRA_STREAM);
+            if (u != null) out.add(u);
+        } else if (Intent.ACTION_SEND_MULTIPLE.equals(a)) {
+            ArrayList<Uri> l = i.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+            if (l != null) for (Uri u : l) if (u != null) out.add(u);
+        } else if (Intent.ACTION_VIEW.equals(a) && i.getData() != null && "content".equals(i.getData().getScheme())) {
+            out.add(i.getData());
+        }
+        if (out.isEmpty() && i.getClipData() != null && (Intent.ACTION_SEND.equals(a) || Intent.ACTION_SEND_MULTIPLE.equals(a)))
+            for (int k = 0; k < i.getClipData().getItemCount(); k++) {
+                Uri u = i.getClipData().getItemAt(k).getUri();
+                if (u != null) out.add(u);
+            }
+        return out.isEmpty() ? null : out;
+    }
+
+    /** Phone files to CastService, which serves them over Wi-Fi and plays them on the TV, in order. */
+    private void castLocal(ArrayList<Uri> uris, String type) {
+        if (host == null) { pendingLocal = uris; pendingLocalType = type; showError(L.t("Ищу телевизор…")); return; }
+        pendingLocal = null;
+        askNotifications();
+        Intent s = new Intent(this, CastService.class).setAction(CastService.ACTION_LOCAL)
+                .putExtra(CastService.EXTRA_HOST, host)
+                .putExtra(CastService.EXTRA_TYPE, type)
+                .putParcelableArrayListExtra(CastService.EXTRA_URIS, uris);
+        // pass on the read access the sharing app gave us, so the service can read the files after we close
+        ClipData cd = ClipData.newRawUri("", uris.get(0));
+        for (int k = 1; k < uris.size(); k++) cd.addItem(new ClipData.Item(uris.get(k)));
+        s.setClipData(cd);
+        s.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            startForegroundService(s);
+            CastService.dismissed = null;
+            toast(uris.size() == 1 ? L.t("Отправляю на ТВ…") : L.f("Отправляю файлы на ТВ (%d)…", uris.size()));
+        } catch (Exception e) { showError(L.t("Не удалось открыть файл.")); }
+    }
+
+    private void pickFiles() {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("*/*")
+                .putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"video/*", "audio/*", "image/*"})
+                .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        try { startActivityForResult(i, REQ_FILES); } catch (Exception e) { showError(L.t("На телефоне нет приложения для выбора файлов.")); }
+    }
+
+    @Override protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req != REQ_FILES || res != RESULT_OK || data == null) return;
+        ArrayList<Uri> uris = new ArrayList<>();
+        if (data.getClipData() != null)
+            for (int k = 0; k < data.getClipData().getItemCount(); k++) uris.add(data.getClipData().getItemAt(k).getUri());
+        else if (data.getData() != null) uris.add(data.getData());
+        for (Uri u : uris)   // keep access while the TV plays, even after Fling is closed
+            try { getContentResolver().takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception ignored) {}
+        if (!uris.isEmpty()) castLocal(uris, null);
+    }
+
+    /** Android 13+: ask once for notifications, so the playback controls can be shown. */
+    private void askNotifications() {
+        if (Build.VERSION.SDK_INT < 33 || prefs.getBoolean("askedNotify", false)) return;
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return;
+        prefs.edit().putBoolean("askedNotify", true).apply();
+        requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFY);
     }
 
     static String extractUrl(String text) {
@@ -521,6 +613,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         prefs.edit().putString("host", h).putString("name", name).apply();
         connectDevice();
         if (pendingAutoCast && link != null) { pendingAutoCast = false; castLink(link, linkTitle); }
+        if (pendingLocal != null) castLocal(pendingLocal, pendingLocalType);
         sync();
     }
 
@@ -692,7 +785,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         }
         if (st == null) return;
         if (paired()) { atv.key(host, Atv.PLAY_PAUSE); return; }
-        if (st.stuck()) { showError(L.t("Телевизор игнорирует паузу по Chromecast (так ведёт себя YouTube на ТВ). Нажмите «Связать с ТВ» ниже — пауза пойдёт как кнопка пульта.")); return; }
+        if (st.stuck()) { showError(L.t("Телевизор игнорирует паузу по Chromecast (так ведёт себя YouTube на ТВ). Нажмите «Связать с ТВ» ниже — пауза будет работать как кнопка пульта.")); return; }
         if (st.playing()) cast.pause(); else cast.play();
         st = cast.status();   // Cast updates its status optimistically without onStatus
         sync();
@@ -717,7 +810,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     };
 
     @Override public boolean onKeyDown(int code, KeyEvent e) {
-        if ((code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN) && host != null) {
+        if ((code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN) && host != null && volKeys()) {
             boolean up = code == KeyEvent.KEYCODE_VOLUME_UP;
             if (paired()) atv.key(host, up ? Atv.VOL_UP : Atv.VOL_DOWN);
             else if (st != null && st.volume >= 0) {
@@ -734,10 +827,12 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     }
 
     @Override public boolean onKeyUp(int code, KeyEvent e) {
-        if ((code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN) && host != null
+        if ((code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN) && host != null && volKeys()
                 && (paired() || (st != null && st.volume >= 0))) return true;
         return super.onKeyUp(code, e);
     }
+
+    private boolean volKeys() { return prefs.getBoolean("volKeys", true); }
 
     // ================================================================ voice
 
@@ -751,6 +846,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     }
 
     @Override public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
+        if (req == REQ_NOTIFY) return;   // without it the playback controls just stay hidden
         if (req == REQ_MIC && res.length > 0 && res[0] == PackageManager.PERMISSION_GRANTED) atv.voiceBegin(host);
         else if (req == REQ_MIC) showError(L.t("Без доступа к микрофону голосовой поиск не работает."));
     }
@@ -870,6 +966,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             d.setSystemUiVisibility(f);
         }
 
+        getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(ui.page));
         scroll = new ScrollView(this);
         scroll.setBackgroundColor(ui.page);
         scroll.setFillViewport(true);
@@ -917,6 +1014,10 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         help.setOnClickListener(v -> startTour());
         helpView = help;
         header.addView(help, new LinearLayout.LayoutParams(ui.dp(36), ui.dp(36)));
+        View gear = ui.key("gear", null, 36, false, v -> startActivity(new Intent(this, SettingsActivity.class)));
+        gear.setContentDescription(L.t("Настройки"));
+        gearView = gear;
+        header.addView(gear, ui.margins(Ui.lp(ui.dp(36), ui.dp(36)), 8, 0, 0, 0));
         root.addView(header);
 
         errorView = ui.text("", 14, ui.orange, false);
@@ -965,15 +1066,22 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         LinearLayout ctl = ui.row();
         ctl.setGravity(Gravity.CENTER);
         ctl.setPadding(0, ui.dp(10), 0, ui.dp(6));
-        View back = ui.key("back30", null, 50, false, v -> seek(-SEEK));
+        View back = seekBack = ui.key("back30", null, 50, false, v -> seek(-SEEK));
         playKey = (FrameLayout) ui.key("pause", null, 64, true, v -> togglePlay());
         playIcon = (ImageView) playKey.getChildAt(0);
-        View fwd = ui.key("fwd30", null, 50, false, v -> seek(SEEK));
+        View fwd = seekFwd = ui.key("fwd30", null, 50, false, v -> seek(SEEK));
+        // previous / next: only for a queue of phone files
+        prevKey = ui.key("prev", null, 42, false, v -> cast.queueJump(-1));
+        prevKey.setContentDescription(L.t("Предыдущий"));
+        nextKey = ui.key("next", null, 42, false, v -> cast.queueJump(1));
+        nextKey.setContentDescription(L.t("Следующий"));
+        ctl.addView(prevKey, ui.margins(Ui.lp(ui.dp(42), ui.dp(42)), 0, 0, 12, 0));
         ctl.addView(back);
-        View g1 = new View(this); ctl.addView(g1, Ui.lp(ui.dp(28), 1));
+        gap1 = new View(this); ctl.addView(gap1, Ui.lp(ui.dp(28), 1));
         ctl.addView(playKey);
-        View g2 = new View(this); ctl.addView(g2, Ui.lp(ui.dp(28), 1));
+        gap2 = new View(this); ctl.addView(gap2, Ui.lp(ui.dp(28), 1));
         ctl.addView(fwd);
+        ctl.addView(nextKey, ui.margins(Ui.lp(ui.dp(42), ui.dp(42)), 12, 0, 0, 0));
         nowCard.addView(ctl);
 
         nowHint = ui.text("", 13, ui.orange, false);
@@ -1031,6 +1139,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         linkCastRow = ui.row(L.t("Отправить на ТВ"), "tv_play", null, true, v -> { if (link != null) castLink(link, linkTitle); });
         linkCard.addView(linkCastRow);
         linkCard.addView(ui.row(L.t("Вставить ссылку из буфера"), "clipboard", null, false, v -> pasteLink()));
+        linkCard.addView(ui.row(L.t("Файл с телефона"), "phone", null, false, v -> pickFiles()));
         linkCard.addView(ui.row(L.t("Сделать снимок"), "camera", null, false, v -> tvScreenshot()));
         recentBox = ui.col();
         linkCard.addView(recentBox);
@@ -1195,9 +1304,12 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         vk.addView(ui.pill("spk_slash", L.t("Без звука"), v -> atv.key(host, Atv.MUTE)), p2);
         vk.addView(ui.pill("spk_plus", L.t("Громк +"), v -> atv.key(host, Atv.VOL_UP)), p3);
         ctlBox.addView(vk);
-        TextView hwHint = ui.text(L.t("Кнопки громкости телефона тоже управляют ТВ"), 12, ui.fgA(0.35f), false);
-        hwHint.setGravity(Gravity.CENTER);
+        TextView hw = ui.text(L.t("Кнопки громкости телефона тоже управляют ТВ"), 12, ui.fgA(0.35f), false);
+        hw.setGravity(Gravity.CENTER);
+        hwHint = hw;
         ctlBox.addView(hwHint, ui.margins(Ui.lp(-1, -2), 0, 2, 0, 6));
+        sleepRow = ui.row(L.t("Таймер сна"), "moon", "", false, this::showSleepMenu);
+        ctlBox.addView(sleepRow);
 
         // type + mic
         LinearLayout ty = ui.row();
@@ -1220,6 +1332,30 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         tvCard.addView(ctlBox);
         addCard(tvCard);
     }
+
+    private void showSleepMenu(View anchor) {
+        PopupMenu pm = new PopupMenu(this, sleepRow.trailing);
+        int[] mins = {15, 30, 45, 60, 90, 120};
+        for (int i = 0; i < mins.length; i++) pm.getMenu().add(0, mins[i], i, sleepLabel(mins[i]));
+        if (SleepTimer.endsAt(this) > 0) pm.getMenu().add(0, 0, 99, L.t("Выключить таймер"));
+        pm.setOnMenuItemClickListener(it -> {
+            int m = it.getItemId();
+            if (m == 0) { SleepTimer.cancel(this); toast(L.t("Таймер сна выключен")); }
+            else { SleepTimer.set(this, host, m); toast(L.f("ТВ выключится в %s", hhmm(SleepTimer.endsAt(this)))); }
+            sync();
+            return true;
+        });
+        pm.show();
+    }
+
+    private static String sleepLabel(int m) {
+        if (m < 60) return L.f("Через %d мин", m);
+        if (m == 60) return L.t("Через 1 час");
+        if (m == 90) return L.t("Через 1,5 часа");
+        return L.f("Через %d часа", m / 60);
+    }
+
+    private String hhmm(long t) { return android.text.format.DateFormat.getTimeFormat(this).format(new java.util.Date(t)); }
 
     private void submitPin() {
         String code = pinEdit.getText().toString().trim().toUpperCase(Locale.ROOT);
@@ -1290,6 +1426,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         steps.add(new Tour.Step(nowCard, L.t("Что играет"),
                 L.t("Пауза, ±30 секунд и громкость того, что идёт на ТВ.")));
         steps.add(new Tour.Step(langRowView, L.t("Язык"), L.t("Русский или английский — переключается здесь.")));
+        steps.add(new Tour.Step(gearView, L.t("Настройки"),
+                L.t("Тема, цвет акцента, язык, уведомление с кнопками и кнопки громкости.")));
         steps.add(new Tour.Step(helpView, L.t("Подсказки"),
                 L.t("Эти подсказки всегда можно повторить кнопкой «?».")));
         Tour.start(this, ui, scroll, steps, () -> Help.show(this, ui));
@@ -1362,9 +1500,25 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             boolean stuck = st.stuck();
             String icon = stuck ? (paired ? "pause" : "pause") : st.playing() ? "pause" : "play";
             playIcon.setImageDrawable(new Ui.Glyph(icon, ui.accent, 2.0f));
-            nowHint.setText(stuck && !paired ? L.t("ТВ не принимает команды по Chromecast для этого видео. Нажмите «Связать с ТВ» ниже — пауза и перемотка пойдут как кнопки пульта.") : "");
+            nowHint.setText(stuck && !paired ? L.t("ТВ не принимает команды по Chromecast для этого видео. Нажмите «Связать с ТВ» ниже — пауза и перемотка будут работать как кнопки пульта.") : "");
             nowHint.setVisibility(stuck && !paired ? View.VISIBLE : View.GONE);
             if (st.volume >= 0 && volPending < 0) { castVol.set(st.volume); castVolNum.setText(String.valueOf(st.volume)); }
+            boolean queue = CastService.queue.size() > 1 && CastService.queueIndex(st.contentId) >= 0;
+            prevKey.setVisibility(queue ? View.VISIBLE : View.GONE);
+            nextKey.setVisibility(queue ? View.VISIBLE : View.GONE);
+            // five keys need 300 dp: on narrower phones a queue shows previous / play / next only
+            boolean seekKeys = !queue || getResources().getConfiguration().screenWidthDp >= 360;
+            seekBack.setVisibility(seekKeys ? View.VISIBLE : View.GONE);
+            seekFwd.setVisibility(seekKeys ? View.VISIBLE : View.GONE);
+            int gap = ui.dp(queue ? (seekKeys ? 14 : 24) : 28);
+            if (gap1.getLayoutParams().width != gap) { gap1.getLayoutParams().width = gap; gap2.getLayoutParams().width = gap; gap1.requestLayout(); gap2.requestLayout(); }
+        }
+        // media notification + lock-screen controls (CastService) while the TV plays a Cast session
+        Cast.Status cs = this.st;
+        if (resumed && host != null && cs != null && cs.hasMedia() && !CastService.running && prefs.getBoolean("notify", true)
+                && !String.valueOf(cs.contentId).equals(CastService.dismissed)) {
+            askNotifications();
+            CastService.show(this, host);
         }
 
         // link
@@ -1421,6 +1575,10 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             micIcon.setImageDrawable(new Ui.Glyph(voice ? "mic_fill" : "mic", voice ? ui.red : ui.fg, 2.0f));
             micKey.setBackground(ui.rippleOval(voice ? Ui.alpha(ui.red, 0.15f) : ui.fgA(ui.dark ? 0.1f : 0.06f)));
             listening.setVisibility(voice ? View.VISIBLE : View.GONE);
+            hwHint.setVisibility(volKeys() ? View.VISIBLE : View.GONE);
+            long sleepAt = SleepTimer.endsAt(this);
+            sleepRow.trailing.setText(sleepAt > 0 ? L.f("в %s", hhmm(sleepAt)) : L.t("выкл."));
+            sleepRow.trailing.setTextColor(sleepAt > 0 ? ui.accent : ui.fgA(0.35f));
         }
 
         // footer

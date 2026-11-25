@@ -41,17 +41,76 @@ import android.widget.TextView;
 /** Theme, drawn icons and the small custom widgets of the Fling look. */
 final class Ui {
     final Context ctx;
-    final boolean dark;
+    final boolean dark, black;
     final int page, card, fg, accent, green, orange, red, hairline;
+
+    // ------------------------------------------------------------ themes (Settings → Appearance)
+
+    /** Theme modes, stored in prefs "fling" → "theme". */
+    static final String[] THEMES = {"system", "light", "dark", "black"};
+    /** Accent ids, stored in "accent"; each has a colour R.color.acc_<id> and a style R.style.Accent_<id>. */
+    static final String[] ACCENTS = {"you", "blue", "indigo", "purple", "pink", "teal", "green", "graphite"};
+
+    static String theme(Context c) { return c.getSharedPreferences("fling", Context.MODE_PRIVATE).getString("theme", "system"); }
+
+    static String accentId(Context c) {
+        String a = c.getSharedPreferences("fling", Context.MODE_PRIVATE).getString("accent", "blue");
+        if (a.equals("you") && android.os.Build.VERSION.SDK_INT < 31) return "blue";   // no wallpaper colours before Android 12
+        return java.util.Arrays.asList(ACCENTS).contains(a) ? a : "blue";
+    }
+
+    static boolean dynamicAvailable() { return android.os.Build.VERSION.SDK_INT >= 31; }
+
+    /** Call from Activity.attachBaseContext (after super): a light/dark choice that differs from the
+     *  system's becomes an override of the activity's configuration, so resources and system dialogs
+     *  follow it too. */
+    static void applyNight(android.app.Activity a, Context base) {
+        String t = theme(base);
+        if (t.equals("system")) return;
+        Configuration c = new Configuration();   // a delta: only uiMode is overridden
+        int night = t.equals("light") ? Configuration.UI_MODE_NIGHT_NO : Configuration.UI_MODE_NIGHT_YES;
+        c.uiMode = (base.getResources().getConfiguration().uiMode & ~Configuration.UI_MODE_NIGHT_MASK) | night;
+        a.applyOverrideConfiguration(c);
+    }
+
+    /** Call from Activity.onCreate before any view exists: tints the system widgets and dialogs. */
+    static void applyAccent(android.app.Activity a) {
+        a.getTheme().applyStyle(accentRes(accentId(a))[1], true);
+    }
+
+    static int accentColor(Context c, String id) { return c.getColor(accentRes(id)[0]); }
+
+    /** {colour, style} resources of an accent id. */
+    private static int[] accentRes(String id) {
+        switch (id) {
+            case "you": return new int[]{R.color.acc_you, R.style.Accent_you};
+            case "indigo": return new int[]{R.color.acc_indigo, R.style.Accent_indigo};
+            case "purple": return new int[]{R.color.acc_purple, R.style.Accent_purple};
+            case "pink": return new int[]{R.color.acc_pink, R.style.Accent_pink};
+            case "teal": return new int[]{R.color.acc_teal, R.style.Accent_teal};
+            case "green": return new int[]{R.color.acc_green, R.style.Accent_green};
+            case "graphite": return new int[]{R.color.acc_graphite, R.style.Accent_graphite};
+            default: return new int[]{R.color.acc_blue, R.style.Accent_blue};
+        }
+    }
 
     Ui(Context ctx) {
         this.ctx = ctx;
         dark = (ctx.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
                 == Configuration.UI_MODE_NIGHT_YES;
-        page = dark ? 0xFF000000 : 0xFFF2F2F7;
-        card = dark ? 0xFF1C1C1E : 0xFFFFFFFF;
+        black = dark && theme(ctx).equals("black");
+        String acc = accentId(ctx);
+        boolean you = acc.equals("you");
+        if (black) { page = 0xFF000000; card = 0xFF000000; }   // AMOLED: pixels off; cards get a hairline instead
+        else if (you) {   // Material You: page and cards take the wallpaper's neutral tones too
+            page = ctx.getColor(dark ? android.R.color.system_neutral1_900 : android.R.color.system_neutral1_50);
+            card = ctx.getColor(dark ? android.R.color.system_neutral1_800 : android.R.color.system_neutral1_10);
+        } else {
+            page = dark ? 0xFF000000 : 0xFFF2F2F7;
+            card = dark ? 0xFF1C1C1E : 0xFFFFFFFF;
+        }
         fg = dark ? 0xFFFFFFFF : 0xFF1C1C1E;
-        accent = dark ? 0xFF0A84FF : 0xFF007AFF;
+        accent = accentColor(ctx, acc);
         green = dark ? 0xFF30D158 : 0xFF28C840;
         orange = dark ? 0xFFFF9F0A : 0xFFE08600;
         red = dark ? 0xFFFF453A : 0xFFFF3B30;
@@ -138,7 +197,9 @@ final class Ui {
 
     LinearLayout card() {
         LinearLayout c = col();
-        c.setBackground(round(card, 18));
+        GradientDrawable bg = round(card, 18);
+        if (black) bg.setStroke(Math.max(1, dp(1)), fgA(0.16f));
+        c.setBackground(bg);
         c.setPadding(dp(6), dp(8), dp(6), dp(8));
         c.setElevation(dark ? 0 : dp(1));
         return c;
@@ -414,6 +475,47 @@ final class Ui {
                 case "send":
                     poly(c, true, s, .14f, .5f, .86f, .18f, .62f, .86f, .48f, .56f);
                     break;
+                case "prev":
+                    fill(c, s, .74f, .24f, .74f, .76f, .36f, .5f);
+                    c.drawLine(s * .28f, s * .26f, s * .28f, s * .74f, p);
+                    break;
+                case "next":
+                    fill(c, s, .26f, .24f, .26f, .76f, .64f, .5f);
+                    c.drawLine(s * .72f, s * .26f, s * .72f, s * .74f, p);
+                    break;
+                case "phone":                       // a phone with a small play mark: a file from this phone
+                    c.drawRoundRect(new RectF(s * .28f, s * .1f, s * .72f, s * .9f), s * .08f, s * .08f, p);
+                    fill(c, s, .44f, .38f, .44f, .62f, .62f, .5f);
+                    break;
+                case "moon": {                      // sleep timer
+                    Path a = new Path();
+                    a.addCircle(m, m, s * .32f, Path.Direction.CW);
+                    Path cut = new Path();
+                    cut.addCircle(s * .66f, s * .36f, s * .28f, Path.Direction.CW);
+                    a.op(cut, Path.Op.DIFFERENCE);
+                    c.drawPath(a, p);
+                    break;
+                }
+                case "help": {                      // a question mark in a circle
+                    c.drawCircle(m, m, s * .38f, p);
+                    Paint tp = new Paint(Paint.ANTI_ALIAS_FLAG);
+                    tp.setColor(color);
+                    tp.setTextSize(s * .5f);
+                    tp.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+                    tp.setTextAlign(Paint.Align.CENTER);
+                    c.drawText("?", m, m + s * .18f, tp);
+                    break;
+                }
+                case "gear": {                      // settings
+                    c.drawCircle(m, m, s * .12f, p);
+                    c.drawCircle(m, m, s * .27f, p);
+                    for (int k = 0; k < 8; k++) {
+                        double an = Math.PI / 4 * k;
+                        float cx = (float) Math.cos(an), sy = (float) Math.sin(an);
+                        c.drawLine(m + cx * s * .29f, m + sy * s * .29f, m + cx * s * .4f, m + sy * s * .4f, p);
+                    }
+                    break;
+                }
             }
             c.restore();
         }

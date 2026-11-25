@@ -10,6 +10,30 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+### Added
+
+- Android: cast **photos, videos and music from the phone** — Share → "Cast to TV" from Gallery or a
+  file manager (several files play as a queue), "Open with", or "File from this phone" in the Link
+  card. Fling serves them over Wi-Fi with seeking; photos are sent upright and sized for the TV
+  (HEIC included); music shows its tags and cover.
+- Android: a **playback notification** with lock-screen controls while something plays on the TV
+  (pause, ±30 s, previous/next for a queue, stop); the volume keys can drive the TV through it.
+- Android: **sleep timer** in the remote (15 min to 2 h) — turns the TV off even with Fling closed,
+  and never turns on a TV that is already off.
+- Android: **Settings** (gear in the header): theme (system, light, dark, black AMOLED), accent
+  colour incl. **Material You** wallpaper colours on Android 12+, with a live preview; switches for
+  the notification, the volume keys and "Keep the screen on"; language, updates.
+
+### Changed
+
+- Android: no app logo inside the app; the header title lines up with the cards.
+
+### Fixed
+
+- Android: update check no longer crashes on a long numeric version; backups and device transfer
+  exclude the pairing key; YouTube links are recognised only on youtube.com; the mic no longer
+  races its own release; artwork cache is bounded.
+
 ## [0.3.3] - 2026-11-24
 
 The desktop app (Windows above all) grows a LIVE section; Android and macOS are rebuilt

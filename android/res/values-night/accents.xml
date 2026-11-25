@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="acc_blue">#0A84FF</color>
+    <color name="acc_indigo">#7D7AFF</color>
+    <color name="acc_purple">#BF5AF2</color>
+    <color name="acc_pink">#FF375F</color>
+    <color name="acc_teal">#40C8E0</color>
+    <color name="acc_green">#30D158</color>
+    <color name="acc_graphite">#A1A1A6</color>
+    <color name="acc_you">#0A84FF</color>
+</resources>

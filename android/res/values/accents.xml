@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Accent colours (Settings → Accent colour); values-night holds the dark-theme shades. -->
+<resources>
+    <color name="acc_blue">#007AFF</color>
+    <color name="acc_indigo">#5856D6</color>
+    <color name="acc_purple">#AF52DE</color>
+    <color name="acc_pink">#E8305A</color>
+    <color name="acc_teal">#0A93A6</color>
+    <color name="acc_green">#248A3D</color>
+    <color name="acc_graphite">#636366</color>
+    <!-- Material You: the wallpaper colour from Android 12 (values-v31); blue before that -->
+    <color name="acc_you">#007AFF</color>
+
+    <style name="Accent.blue" parent=""><item name="android:colorAccent">@color/acc_blue</item></style>
+    <style name="Accent.indigo" parent=""><item name="android:colorAccent">@color/acc_indigo</item></style>
+    <style name="Accent.purple" parent=""><item name="android:colorAccent">@color/acc_purple</item></style>
+    <style name="Accent.pink" parent=""><item name="android:colorAccent">@color/acc_pink</item></style>
+    <style name="Accent.teal" parent=""><item name="android:colorAccent">@color/acc_teal</item></style>
+    <style name="Accent.green" parent=""><item name="android:colorAccent">@color/acc_green</item></style>
+    <style name="Accent.graphite" parent=""><item name="android:colorAccent">@color/acc_graphite</item></style>
+    <style name="Accent.you" parent=""><item name="android:colorAccent">@color/acc_you</item></style>
+</resources>
