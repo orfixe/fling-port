@@ -10,7 +10,7 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
-## [0.5.1] - unreleased
+## [0.5.1] - 2026-11-26
 
 ### Added
 
@@ -35,6 +35,7 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 - Android: Settings → theme is one **Auto | Light | Dark** control, with **AMOLED** (pure black)
   as its own switch; a saved "Black" theme becomes Dark + AMOLED.
 - Android: a proper settings gear icon.
+- Windows, Linux, browser extension: no changes besides the version number.
 - macOS: installs without GitHub CLI once the repository is public; licensing notes updated now
   that the original Fling is under the Boost Software License 1.0.
 
@@ -491,6 +492,7 @@ unchanged.
   instead of a real one, and the TV's name is hidden in the screenshots.
 
 [unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.0...HEAD
+[0.5.1]: https://github.com/orfixe/fling-port/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/orfixe/fling-port/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/orfixe/fling-port/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/orfixe/fling-port/compare/v0.3.3...v0.4.0
