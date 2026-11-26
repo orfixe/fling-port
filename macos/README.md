@@ -14,9 +14,7 @@ avoids this by installing via `curl` / Terminal — we do the same.
 ## Install on a Mac (recommended)
 
 ```sh
-# once: gh auth login   (account that can read the private orfixe/fling-port)
-curl -fsSL -H "Authorization: token $(gh auth token)" \
-  "https://raw.githubusercontent.com/orfixe/fling-port/main/macos/install.sh" \
+curl -fsSL https://raw.githubusercontent.com/orfixe/fling-port/main/macos/install.sh \
   -o /tmp/install-fling-port.sh
 bash /tmp/install-fling-port.sh
 ```

@@ -36,10 +36,65 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
 /** Client identity (self-signed RSA cert, as the Android TV Remote protocol
- *  requires) and TLS sockets that accept the TV's self-signed certificate. */
+ *  requires) and TLS sockets to TVs, whose certificates are self-signed.
+ *
+ *  TV certificates can't be checked against a CA, so they are pinned on first use: the
+ *  remote (6466/6467) and Samsung (8002) keep the certificate seen the first time and refuse
+ *  any other one afterwards (a man in the middle on the Wi-Fi), until the TV is paired again
+ *  or forgotten (forget). Cast (8009) is the exception: Chromecast devices replace their
+ *  TLS certificate on their own every day or so, so it can't be pinned; Cast checks the
+ *  device on the connection itself instead (CastAuth: Google's Cast device certificate). */
 final class Tls {
     private static PrivateKey key;
     private static X509Certificate cert;
+    private static File pinFile;                                   // host:port=sha256 per line
+    private static final java.util.Properties PINS = new java.util.Properties();
+    static final int CAST_PORT = 8009;
+
+    /** Where the pins live; called by Atv and Samsung when they are created. */
+    static synchronized void init(Context ctx) {
+        if (pinFile != null) return;
+        pinFile = new File(ctx.getFilesDir(), "tls-pins.properties");
+        try (java.io.FileInputStream in = new java.io.FileInputStream(pinFile)) {
+            PINS.load(in);
+        } catch (IOException ignored) {                            // first run: no pins yet
+        }
+    }
+
+    /** Pairing again / forgetting a TV: its certificates may be new, learn them again. */
+    static synchronized void forget(String host) {
+        PINS.keySet().removeIf(k -> ((String) k).startsWith(host + ":"));
+        savePins();
+    }
+
+    private static synchronized void savePins() {
+        if (pinFile == null) return;
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(pinFile)) {
+            PINS.store(out, "Fling: TV certificate pins (SHA-256)");
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static synchronized void checkPin(String host, int port, X509Certificate c)
+            throws java.security.cert.CertificateException {
+        String fp;
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("SHA-256").digest(c.getEncoded());
+            StringBuilder b = new StringBuilder();
+            for (byte x : d) b.append(String.format(Locale.ROOT, "%02x", x));
+            fp = b.toString();
+        } catch (Exception e) {
+            throw new java.security.cert.CertificateException(e);
+        }
+        String k = host + ":" + port, known = PINS.getProperty(k);
+        if (known == null) {
+            PINS.setProperty(k, fp);                               // trust on first use
+            savePins();
+        } else if (!known.equals(fp)) {
+            throw new java.security.cert.CertificateException(
+                    "the TV's certificate changed: pair the TV again (or forget it and add it again)");
+        }
+    }
 
     static synchronized void ensureIdentity(Context ctx) throws Exception {
         if (cert != null) return;
@@ -72,12 +127,20 @@ final class Tls {
             kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             kmf.init(ks, new char[0]);
         }
-        TrustManager[] trustAll = {new X509TrustManager() {
-            public void checkClientTrusted(X509Certificate[] c, String a) {}
-            public void checkServerTrusted(X509Certificate[] c, String a) {}
+        TrustManager[] pinned = {new X509TrustManager() {
+            public void checkClientTrusted(X509Certificate[] c, String a)
+                    throws java.security.cert.CertificateException {
+                throw new java.security.cert.CertificateException("Fling is the client here");
+            }
+            public void checkServerTrusted(X509Certificate[] c, String a)
+                    throws java.security.cert.CertificateException {
+                if (c == null || c.length == 0)
+                    throw new java.security.cert.CertificateException("the TV sent no certificate");
+                if (port != CAST_PORT) checkPin(host, port, c[0]);  // Cast: CastAuth checks the device
+            }
             public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
         }};
-        ctx.init(kmf == null ? null : kmf.getKeyManagers(), trustAll, new SecureRandom());
+        ctx.init(kmf == null ? null : kmf.getKeyManagers(), pinned, new SecureRandom());
         java.net.Socket raw = new java.net.Socket();
         raw.connect(new InetSocketAddress(host, port), timeoutMs);
         raw.setTcpNoDelay(true);

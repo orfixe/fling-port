@@ -66,6 +66,7 @@ final class Atv {
     Atv(Context ctx, Listener l) {
         this.ctx = ctx;
         this.l = l;
+        Tls.init(ctx);                                     // TV certificate pins
         this.prefs = ctx.getSharedPreferences("atv", Context.MODE_PRIVATE);
     }
 
@@ -107,6 +108,7 @@ final class Atv {
 
     void startPairing(String host) {
         if (sam(host)) { sam.connect(host); return; }
+        Tls.forget(host);                                  // pairing again: the TV may have a new certificate
         io.execute(() -> {
             l.onPairing("starting", "");
             try {

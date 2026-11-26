@@ -179,6 +179,7 @@ public final class LiveActivity extends Activity implements SurfaceHolder.Callba
         Window w = getWindow();
         if (Build.VERSION.SDK_INT >= 30) {
             w.setDecorFitsSystemWindows(false);
+            w.getDecorView();                            // creates the decor: no controller before it
             WindowInsetsController c = w.getInsetsController();
             if (c != null) {
                 c.hide(WindowInsets.Type.systemBars());

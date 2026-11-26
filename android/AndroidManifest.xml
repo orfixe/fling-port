@@ -1,16 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="app.fling"
-    android:versionCode="9"
-    android:versionName="0.5.0">
+<!-- applicationId, versionCode and versionName come from build.gradle.kts -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <!-- Fling updates itself from the newest release (Updater) -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- self-update (REQUEST_INSTALL_PACKAGES + Updater$Result): GitHub build only, flavors/github -->
     <!-- media notification while something plays on the TV (CastService) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
@@ -31,7 +28,7 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:theme="@style/FlingTheme"
-        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules">
 
@@ -90,8 +87,6 @@
             android:foregroundServiceType="mediaPlayback" />
 
         <receiver android:name=".SleepTimer" android:exported="false" />
-
-        <receiver android:name=".Updater$Result" android:exported="false" />
 
         <service
             android:name=".PauseTile"

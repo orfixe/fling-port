@@ -53,6 +53,7 @@ public class SettingsActivity extends Activity {
         getWindow().setNavigationBarColor(0);
         if (Build.VERSION.SDK_INT >= 30) {
             getWindow().setDecorFitsSystemWindows(false);
+            getWindow().getDecorView();                  // creates the decor: no controller before it (Android 17 crashed)
             WindowInsetsController c = getWindow().getInsetsController();
             if (c != null) {
                 int light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
@@ -84,7 +85,7 @@ public class SettingsActivity extends Activity {
             } else {
                 v.setPadding(ins.getSystemWindowInsetLeft(), ins.getSystemWindowInsetTop(), ins.getSystemWindowInsetRight(), ins.getSystemWindowInsetBottom());
             }
-            return WindowInsets.CONSUMED;
+            return Build.VERSION.SDK_INT >= 30 ? WindowInsets.CONSUMED : ins.consumeSystemWindowInsets();
         });
 
         // header: back + title
@@ -122,19 +123,23 @@ public class SettingsActivity extends Activity {
         LinearLayout c = card();
         c.addView(preview());
         c.addView(ui.separator());
+        // Auto | Light | Dark in one control, as the system settings do; pure black is a switch
+        // of its own below, for whenever the theme ends up dark (Auto at night too)
         String cur = Ui.theme(this);
-        String[] names = {L.t("Как в системе"), L.t("Светлая"), L.t("Тёмная"), L.t("Чёрная (AMOLED)")};
-        for (int i = 0; i < Ui.THEMES.length; i++) {
-            final String id = Ui.THEMES[i];
-            Ui.Row r = ui.row(names[i], null, id.equals(cur) ? "✓" : null, false, v -> {
-                if (id.equals(Ui.theme(this))) return;
-                prefs.edit().putString("theme", id).apply();
-                restyle();
-            });
-            r.trailing.setTextColor(ui.accent);
-            r.trailing.setTextSize(17);
-            c.addView(r);
-        }
+        String[] names = {L.t("Авто"), L.t("Светлая"), L.t("Тёмная")};
+        LinearLayout seg = ui.segmented(names, java.util.Arrays.asList(Ui.THEMES).indexOf(cur), idx -> {
+            String id = Ui.THEMES[idx];
+            if (id.equals(Ui.theme(this))) return;
+            prefs.edit().putString("theme", id).apply();
+            restyle();
+        });
+        LinearLayout box = ui.col();
+        box.setPadding(ui.dp(12), ui.dp(12), ui.dp(12), ui.dp(6));
+        box.addView(seg, Ui.lp(-1, -2));
+        c.addView(box);
+        if (!cur.equals("light"))
+            c.addView(toggle("AMOLED", L.t("Чистый чёрный в тёмной теме — экономит батарею."),
+                    "amoled", false, this::restyle));
     }
 
     /** A small "now playing" card in the chosen colours. */
@@ -251,7 +256,9 @@ public class SettingsActivity extends Activity {
         c.addView(toggle(L.t("Не гасить экран"), L.t("Экран телефона не гаснет, пока открыт Fling."), "keepOn", false));
     }
 
-    private View toggle(String title, String hint, String key, boolean def) {
+    private View toggle(String title, String hint, String key, boolean def) { return toggle(title, hint, key, def, null); }
+
+    private View toggle(String title, String hint, String key, boolean def, Runnable after) {
         LinearLayout r = ui.row();
         r.setPadding(ui.dp(12), ui.dp(10), ui.dp(8), ui.dp(10));
         LinearLayout t = ui.col();
@@ -266,7 +273,10 @@ public class SettingsActivity extends Activity {
         int[][] states = {{android.R.attr.state_checked}, {}};
         sw.setThumbTintList(new ColorStateList(states, new int[]{ui.accent, ui.dark ? 0xFFBDBDC2 : 0xFFFFFFFF}));
         sw.setTrackTintList(new ColorStateList(states, new int[]{ui.accA(0.5f), ui.fgA(0.25f)}));
-        sw.setOnCheckedChangeListener((b, on) -> prefs.edit().putBoolean(key, on).apply());
+        sw.setOnCheckedChangeListener((b, on) -> {
+            prefs.edit().putBoolean(key, on).apply();
+            if (after != null) after.run();
+        });
         sw.setContentDescription(title);
         r.addView(sw, ui.margins(Ui.lp(-2, -2), 12, 0, 0, 0));
         r.setOnClickListener(v -> sw.toggle());
@@ -291,14 +301,15 @@ public class SettingsActivity extends Activity {
     private void buildAbout() {
         section(L.t("О приложении"));
         LinearLayout c = card();
-        c.addView(ui.row(L.t("Проверить обновления"), "refresh", Updater.installedVersion(this), false, v -> updater.check(true)));   // trailing: the version, short enough for 320 dp
+        if (BuildConfig.SELF_UPDATE)                     // the GitHub build; Play updates the app itself
+            c.addView(ui.row(L.t("Проверить обновления"), "refresh", Updater.installedVersion(this), false, v -> updater.check(true)));   // trailing: the version, short enough for 320 dp
         c.addView(ui.row(L.t("Как пользоваться"), "help", null, false, v -> Help.show(this, ui)));
         c.addView(ui.row(L.t("Показать подсказки снова"), "refresh", null, false, v -> {
             getSharedPreferences("fling", MODE_PRIVATE).edit().putBoolean("help_seen", false).apply();
             finish();                                    // the main screen runs the tips when it comes back
         }));
-        String build = L.t("Сборка") + " " + BuildInfo.VERSION_NAME + " (" + BuildInfo.VERSION_CODE + ") · "
-                + BuildInfo.COMMIT + " · " + BuildInfo.DATE;
+        String build = L.t("Сборка") + " " + BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ") · "
+                + BuildConfig.GIT_COMMIT + " · " + BuildConfig.BUILD_DATE;
         TextView bi = ui.text(build, 12, ui.fgA(0.45f), false);
         bi.setGravity(Gravity.CENTER);
         bi.setTextIsSelectable(true);

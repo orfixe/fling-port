@@ -67,6 +67,13 @@ final class Proto {
             for (Object o : l) if (o instanceof byte[]) return (byte[]) o;
             return null;
         }
+        /** Every value of a repeated bytes field, in order. */
+        List<byte[]> all(int n) {
+            List<byte[]> r = new ArrayList<>();
+            List<Object> l = f.get(n);
+            if (l != null) for (Object o : l) if (o instanceof byte[]) r.add((byte[]) o);
+            return r;
+        }
         R msg(int n) throws IOException { byte[] b = bytes(n); return b == null ? null : new R(b); }
         String str(int n) { byte[] b = bytes(n); return b == null ? null : new String(b, StandardCharsets.UTF_8); }
     }

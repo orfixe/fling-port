@@ -176,6 +176,7 @@ final class L {
         e("Связать с ТВ", "Pair with TV");
         // Updater
         e("Версия %s · Проверить обновления", "Version %s · Check for updates");
+        e("Версия %s", "Version %s");
         e("У вас последняя версия (%s).", "You have the latest version (%s).");
         e("Не удалось проверить обновления: ", "Couldn't check for updates: ");
         e("В версии %s нет файла Fling.apk.", "Version %s has no Fling.apk file.");
@@ -273,6 +274,8 @@ final class L {
         e("Светлая", "Light");
         e("Тёмная", "Dark");
         e("Чёрная (AMOLED)", "Black (AMOLED)");
+        e("Авто", "Auto");
+        e("Чистый чёрный в тёмной теме — экономит батарею.", "Pure black in the dark theme — saves battery.");
         e("Пример видео", "Sample video");
         e("Так будет выглядеть Fling", "This is how Fling will look");
         e("Цвет акцента", "Accent colour");
@@ -294,6 +297,40 @@ final class L {
         e("Экран телефона не гаснет, пока открыт Fling.", "The phone screen stays on while Fling is open.");
         e("О приложении", "About");
         e("Проверить обновления", "Check for updates");
+
+        // TV chooser (DevicePicker)
+        e("GitHub ограничил число проверок с этого адреса. Попробуйте через час.", "GitHub limited checks from this address. Try again in an hour.");
+        e("ADB · отладка по сети", "ADB · network debugging");
+        e("LIVE и ADB, без пульта и Cast", "LIVE and ADB, no remote or Cast");
+        e("Tailscale включён", "Tailscale is on");
+        e("Tailscale выключен", "Tailscale is off");
+        e("Tailscale не установлен", "Tailscale isn't installed");
+        e("Wi‑Fi, ADB и Tailscale · обычно до 10 секунд.", "Wi‑Fi, ADB and Tailscale · usually up to 10 seconds.");
+        e("В сети", "Online");
+        e("Включите его, чтобы ТВ из tailnet были на связи.", "Turn it on to reach the TVs on your tailnet.");
+        e("Добавить по адресу", "Add by address");
+        e("Дома · Wi‑Fi", "At home · Wi‑Fi");
+        e("Искать снова", "Search again");
+        e("Ищу телевизоры…", "Looking for TVs…");
+        e("Нажмите на ТВ, чтобы переключиться.", "Tap a TV to switch to it.");
+        e("Найдено: %d", "Found: %d");
+        e("Не в сети", "Offline");
+        e("Нужен на телефоне и на ТВ, чтобы управлять ТВ не из дома.", "Needed on the phone and the TV to control the TV away from home.");
+        e("Открыть", "Open");
+        e("Проверьте, что ТВ включён и в той же сети Wi‑Fi, что и телефон. Если ТВ в другой подсети, добавьте его по адресу ниже.", "Make sure the TV is on and on the same Wi‑Fi as the phone. If it's on another subnet, add it by its address below.");
+        e("Проверяю %s…", "Checking %s…");
+        e("Сейчас выбран", "Selected");
+        e("ТВ из tailnet добавляется один раз — по адресу ниже.", "Add a tailnet TV once, by its address below.");
+        e("Телевизоры", "TVs");
+        e("Телевизоры не найдены", "No TVs found");
+        e("Убрать этот ТВ из списка", "Remove this TV from the list");
+        e("Установить", "Install");
+        e("Устройство с ADB", "ADB device");
+        e("добавлен по IP", "added by IP");
+        e("пульт", "remote");
+
+        // Cast device authentication (CastAuth)
+        e("Устройство не подтвердило, что это настоящий Chromecast, поэтому Fling не стал с ним соединяться.", "The device didn't prove it is a genuine Chromecast, so Fling didn't connect to it.");
 
         // LIVE: scrcpy session (Scrcpy)
         e("Файл scrcpy-server не совпал с контрольной суммой, поэтому он не запущен.", "The scrcpy-server file didn't match its checksum, so it wasn't started.");

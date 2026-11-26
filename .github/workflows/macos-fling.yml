@@ -1,4 +1,4 @@
-name: macOS Fling (private)
+name: macOS Fling
 # Builds the macOS app and keeps it as a workflow artifact. It never touches a release:
 # release files are signed on the maintainer's machine (windows/release.ps1, SECURITY.md),
 # and a CI upload would replace them with unsigned rebuilds.

@@ -46,12 +46,26 @@ final class Ui {
 
     // ------------------------------------------------------------ themes (Settings → Appearance)
 
-    /** Theme modes, stored in prefs "fling" → "theme". */
-    static final String[] THEMES = {"system", "light", "dark", "black"};
+    /** Theme modes, stored in prefs "fling" → "theme"; "amoled" (boolean) makes dark pure black. */
+    static final String[] THEMES = {"system", "light", "dark"};
     /** Accent ids, stored in "accent"; each has a colour R.color.acc_<id> and a style R.style.Accent_<id>. */
     static final String[] ACCENTS = {"you", "blue", "indigo", "purple", "pink", "teal", "green", "graphite"};
 
-    static String theme(Context c) { return c.getSharedPreferences("fling", Context.MODE_PRIVATE).getString("theme", "system"); }
+    static String theme(Context c) {
+        android.content.SharedPreferences p = c.getSharedPreferences("fling", Context.MODE_PRIVATE);
+        String t = p.getString("theme", "system");
+        if (t.equals("black")) {                    // up to 0.5.0 black was a fourth theme: now dark + AMOLED
+            p.edit().putString("theme", "dark").putBoolean("amoled", true).apply();
+            return "dark";
+        }
+        return java.util.Arrays.asList(THEMES).contains(t) ? t : "system";
+    }
+
+    /** Dark theme in pure black (pixels off on AMOLED), whenever the theme ends up dark. */
+    static boolean amoled(Context c) {
+        theme(c);                                   // moves an old "black" over first
+        return c.getSharedPreferences("fling", Context.MODE_PRIVATE).getBoolean("amoled", false);
+    }
 
     static String accentId(Context c) {
         String a = c.getSharedPreferences("fling", Context.MODE_PRIVATE).getString("accent", "blue");
@@ -98,7 +112,7 @@ final class Ui {
         this.ctx = ctx;
         dark = (ctx.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
                 == Configuration.UI_MODE_NIGHT_YES;
-        black = dark && theme(ctx).equals("black");
+        black = dark && amoled(ctx);
         String acc = accentId(ctx);
         boolean you = acc.equals("you");
         if (black) { page = 0xFF000000; card = 0xFF000000; }   // AMOLED: pixels off; cards get a hairline instead
@@ -506,19 +520,23 @@ final class Ui {
                     c.drawText("?", m, m + s * .18f, tp);
                     break;
                 }
-                case "gear": {                      // settings
-                    c.drawCircle(m, m, s * .12f, p);
-                    c.drawCircle(m, m, s * .27f, p);
-                    for (int k = 0; k < 8; k++) {
-                        double an = Math.PI / 4 * k;
-                        float cx = (float) Math.cos(an), sy = (float) Math.sin(an);
-                        c.drawLine(m + cx * s * .29f, m + sy * s * .29f, m + cx * s * .4f, m + sy * s * .4f, p);
-                    }
+                case "gear": {                      // settings: Material Icons "settings" (outlined), Apache-2.0
+                    if (gearPath == null) gearPath = androidx.core.graphics.PathParser.createPathFromPathData(GEAR);
+                    c.save();
+                    c.scale(s / 24f, s / 24f);
+                    p.setStyle(Paint.Style.FILL);
+                    c.drawPath(gearPath, p);
+                    p.setStyle(Paint.Style.STROKE);
+                    c.restore();
                     break;
                 }
             }
             c.restore();
         }
+
+        /** Material Icons "settings", outlined (github.com/google/material-design-icons, Apache License 2.0). */
+        private static final String GEAR = "M19.43 12.98c.04-.32.07-.64.07-.98 0-.34-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.09-.16-.26-.25-.44-.25-.06 0-.12.01-.17.03l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.06-.02-.12-.03-.18-.03-.17 0-.34.09-.43.25l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98 0 .33.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.09.16.26.25.44.25.06 0 .12-.01.17-.03l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.06.02.12.03.18.03.17 0 .34-.09.43-.25l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zm-1.98-1.71c.04.31.05.52.05.73 0 .21-.02.43-.05.73l-.14 1.13.89.7 1.08.84-.7 1.21-1.27-.51-1.04-.42-.9.68c-.43.32-.84.56-1.25.73l-1.06.43-.16 1.13-.2 1.35h-1.4l-.19-1.35-.16-1.13-1.06-.43c-.43-.18-.83-.41-1.23-.71l-.91-.7-1.06.43-1.27.51-.7-1.21 1.08-.84.89-.7-.14-1.13c-.03-.31-.05-.54-.05-.74s.02-.43.05-.73l.14-1.13-.89-.7-1.08-.84.7-1.21 1.27.51 1.04.42.9-.68c.43-.32.84-.56 1.25-.73l1.06-.43.16-1.13.2-1.35h1.39l.19 1.35.16 1.13 1.06.43c.43.18.83.41 1.23.71l.91.7 1.06-.43 1.27-.51.7 1.21-1.07.85-.89.7.14 1.13zM12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z";
+        private static Path gearPath;
 
         private void poly(Canvas c, boolean close, float s, float... pts) {
             Path a = new Path();

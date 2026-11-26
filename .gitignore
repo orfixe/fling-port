@@ -24,3 +24,8 @@ macos/dist/
 
 # Rust build output (guard/)
 guard/target/
+
+# Gradle
+android/.gradle/
+android/app/build/
+*.aab
