@@ -69,8 +69,9 @@ try {
   # macOS: built by CI; macos/install.sh downloads them from the latest release
   if (-not $MacFrom) { $MacFrom = (gh release view --repo orfixe/fling-port --json tagName -q .tagName) }
   gh release download $MacFrom --repo orfixe/fling-port --dir $Rel `
-    --pattern Fling --pattern Info.plist --pattern Fling.app.zip --pattern install.sh --clobber
+    --pattern Fling --pattern Info.plist --pattern Fling.app.zip --clobber
   if ($LASTEXITCODE -ne 0) { throw "could not fetch the macOS files of $MacFrom" }
+  Copy-Item (Join-Path $Repo 'macos\install.sh') $Rel -Force   # the installer from this commit, not the last release's
 
   Write-Host '==> SHA256SUMS.txt' -ForegroundColor Cyan
   $Sums = Join-Path $Rel 'SHA256SUMS.txt'
