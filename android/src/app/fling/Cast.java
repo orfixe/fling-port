@@ -125,6 +125,14 @@ final class Cast {
         host = h;
         sock = Tls.connect(h, 8009, false, 8000);
         out = new DataOutputStream(sock.getOutputStream());
+        try {                                       // a real Cast device, no man in the middle
+            sock.setSoTimeout(8000);
+            CastAuth.authenticate(sock, new DataInputStream(sock.getInputStream()), out, SENDER, RECEIVER);
+            sock.setSoTimeout(0);
+        } catch (Exception e) {
+            closeNow();
+            throw e;
+        }
         connected = true;
         final SSLSocket s = sock;
         Thread t = new Thread(() -> readLoop(s), "cast-read");

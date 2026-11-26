@@ -296,6 +296,9 @@ final class L {
         e("О приложении", "About");
         e("Проверить обновления", "Check for updates");
 
+        // Cast device authentication (CastAuth)
+        e("Устройство не подтвердило, что это настоящий Chromecast, поэтому Fling не стал с ним соединяться.", "The device didn't prove it is a genuine Chromecast, so Fling didn't connect to it.");
+
         // LIVE: scrcpy session (Scrcpy)
         e("Файл scrcpy-server не совпал с контрольной суммой, поэтому он не запущен.", "The scrcpy-server file didn't match its checksum, so it wasn't started.");
         e("Подтвердите на ТВ «Разрешить отладку» и нажмите LIVE ещё раз.", "Accept “Allow debugging” on the TV, then tap LIVE again.");

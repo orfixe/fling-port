@@ -42,7 +42,8 @@ import javax.net.ssl.X509TrustManager;
  *  remote (6466/6467) and Samsung (8002) keep the certificate seen the first time and refuse
  *  any other one afterwards (a man in the middle on the Wi-Fi), until the TV is paired again
  *  or forgotten (forget). Cast (8009) is the exception: Chromecast devices replace their
- *  TLS certificate on their own every day or so, so it can't be pinned. */
+ *  TLS certificate on their own every day or so, so it can't be pinned; Cast checks the
+ *  device on the connection itself instead (CastAuth: Google's Cast device certificate). */
 final class Tls {
     private static PrivateKey key;
     private static X509Certificate cert;
@@ -135,7 +136,7 @@ final class Tls {
                     throws java.security.cert.CertificateException {
                 if (c == null || c.length == 0)
                     throw new java.security.cert.CertificateException("the TV sent no certificate");
-                if (port != CAST_PORT) checkPin(host, port, c[0]);  // Cast rotates its certificate
+                if (port != CAST_PORT) checkPin(host, port, c[0]);  // Cast: CastAuth checks the device
             }
             public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
         }};
