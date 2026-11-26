@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TVs on the local network speak plain HTTP (Cast media server, Samsung :8001, DLNA, the
+     phone's own MediaServer), so cleartext is allowed on purpose; everything on the internet
+     (GitHub releases, YouTube) goes over HTTPS anyway. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

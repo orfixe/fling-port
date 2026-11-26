@@ -236,7 +236,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         discovery.start();
         sam.discover(() -> main.post(() -> onDevices(lastFound)));   // Samsung TVs (SSDP) join the same list
         connectDevice();
-        updater.checkDaily();                                          // quiet; speaks only if newer
+        if (BuildConfig.SELF_UPDATE) updater.checkDaily();             // quiet; speaks only if newer (GitHub build)
         main.post(poll);
         main.post(tick);
         probeDelay = PROBE_MIN;
@@ -1638,10 +1638,12 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         langRow.addView(seg, Ui.lp(ui.dp(120), -2));
         root.addView(langRow, ui.margins(Ui.lp(-1, -2), 0, 10, 0, 0));
         // version + "check for updates" (Updater: newest GitHub release)
-        TextView upd = ui.text(L.f("Версия %s · Проверить обновления", Updater.installedVersion(this)), 12, ui.accent, false);
+        TextView upd = BuildConfig.SELF_UPDATE
+                ? ui.text(L.f("Версия %s · Проверить обновления", Updater.installedVersion(this)), 12, ui.accent, false)
+                : ui.text(L.f("Версия %s", Updater.installedVersion(this)), 12, ui.fgA(0.45f), false);   // Play updates it
         upd.setGravity(Gravity.CENTER);
         upd.setPadding(0, ui.dp(10), 0, ui.dp(10));
-        upd.setOnClickListener(v -> updater.check(true));
+        if (BuildConfig.SELF_UPDATE) upd.setOnClickListener(v -> updater.check(true));
         root.addView(upd, ui.margins(Ui.lp(-1, -2), 0, 4, 0, 0));
         langRowView = seg;
     }

@@ -291,14 +291,15 @@ public class SettingsActivity extends Activity {
     private void buildAbout() {
         section(L.t("О приложении"));
         LinearLayout c = card();
-        c.addView(ui.row(L.t("Проверить обновления"), "refresh", Updater.installedVersion(this), false, v -> updater.check(true)));   // trailing: the version, short enough for 320 dp
+        if (BuildConfig.SELF_UPDATE)                     // the GitHub build; Play updates the app itself
+            c.addView(ui.row(L.t("Проверить обновления"), "refresh", Updater.installedVersion(this), false, v -> updater.check(true)));   // trailing: the version, short enough for 320 dp
         c.addView(ui.row(L.t("Как пользоваться"), "help", null, false, v -> Help.show(this, ui)));
         c.addView(ui.row(L.t("Показать подсказки снова"), "refresh", null, false, v -> {
             getSharedPreferences("fling", MODE_PRIVATE).edit().putBoolean("help_seen", false).apply();
             finish();                                    // the main screen runs the tips when it comes back
         }));
-        String build = L.t("Сборка") + " " + BuildInfo.VERSION_NAME + " (" + BuildInfo.VERSION_CODE + ") · "
-                + BuildInfo.COMMIT + " · " + BuildInfo.DATE;
+        String build = L.t("Сборка") + " " + BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ") · "
+                + BuildConfig.GIT_COMMIT + " · " + BuildConfig.BUILD_DATE;
         TextView bi = ui.text(build, 12, ui.fgA(0.45f), false);
         bi.setGravity(Gravity.CENTER);
         bi.setTextIsSelectable(true);

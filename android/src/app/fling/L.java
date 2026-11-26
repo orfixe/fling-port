@@ -176,6 +176,7 @@ final class L {
         e("Связать с ТВ", "Pair with TV");
         // Updater
         e("Версия %s · Проверить обновления", "Version %s · Check for updates");
+        e("Версия %s", "Version %s");
         e("У вас последняя версия (%s).", "You have the latest version (%s).");
         e("Не удалось проверить обновления: ", "Couldn't check for updates: ");
         e("В версии %s нет файла Fling.apk.", "Version %s has no Fling.apk file.");
