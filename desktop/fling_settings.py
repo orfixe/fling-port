@@ -183,12 +183,25 @@ def paint_icon(p: QPainter, name, r: QRectF, color: QColor, weight=1.6):
         return QPointF(x0 + s * fx, y0 + s * fy)
 
     if name == "gear":
-        p.drawEllipse(c, s * .26, s * .26)
-        p.drawEllipse(c, s * .09, s * .09)
-        for i in range(8):
-            a = math.radians(i * 45 + 22.5)
-            p.drawLine(QPointF(c.x() + math.cos(a) * s * .3, c.y() + math.sin(a) * s * .3),
-                       QPointF(c.x() + math.cos(a) * s * .42, c.y() + math.sin(a) * s * .42))
+        # a real cog: one outline with 8 trapezoid teeth on a round body, and the hub hole
+        teeth, R, r = 8, s * .45, s * .335          # tooth tips / body (root) radius
+        tip, root = math.radians(11), math.radians(19)   # half-widths of a tooth at tip / root
+        pt = lambda ang, rad: QPointF(c.x() + math.cos(ang) * rad, c.y() + math.sin(ang) * rad)
+        cog = QPainterPath()
+        step = 2 * math.pi / teeth
+        for i in range(teeth):
+            a = i * step - math.pi / 2
+            if i == 0:
+                cog.moveTo(pt(a - root, r))
+            cog.lineTo(pt(a - tip, R))
+            cog.lineTo(pt(a + tip, R))
+            cog.lineTo(pt(a + root, r))
+            nxt = a + step - root                    # along the body to the next tooth
+            for k in range(1, 5):
+                cog.lineTo(pt(a + root + (nxt - a - root) * k / 4, r))
+        cog.closeSubpath()
+        p.drawPath(cog)
+        p.drawEllipse(c, s * .13, s * .13)
     elif name == "palette":
         pa = QPainterPath()
         pa.moveTo(at(.5, .1))
