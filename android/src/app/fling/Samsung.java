@@ -70,6 +70,7 @@ final class Samsung {
     Samsung(Context ctx, Listener l) {
         this.ctx = ctx.getApplicationContext();
         this.l = l;
+        Tls.init(this.ctx);                                // TV certificate pins
         this.prefs = ctx.getSharedPreferences("samsung", Context.MODE_PRIVATE);
     }
 
@@ -119,6 +120,7 @@ final class Samsung {
     }
 
     void forget(String h) {
+        Tls.forget(h);
         try {
             JSONArray a = new JSONArray(prefs.getString("tvs", "[]")), out = new JSONArray();
             for (int i = 0; i < a.length(); i++) if (!a.getJSONObject(i).optString("host").equals(h)) out.put(a.getJSONObject(i));

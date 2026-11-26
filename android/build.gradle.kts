@@ -33,7 +33,7 @@ val releaseKsPass: String? = System.getenv("FLING_ANDROID_KS_PASS")?.takeIf { it
 
 android {
     namespace = "app.fling"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "app.fling"
@@ -111,6 +111,7 @@ android {
             java.setSrcDirs(listOf("flavors/github/java"))
         }
         getByName("play") {
+            manifest.srcFile("flavors/play/AndroidManifest.xml")
             java.setSrcDirs(listOf("flavors/play/java"))
         }
     }

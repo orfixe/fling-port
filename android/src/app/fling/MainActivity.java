@@ -1193,7 +1193,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 left = ins.getSystemWindowInsetLeft(); right = ins.getSystemWindowInsetRight();
             }
             v.setPadding(left, top, right, bottom);
-            return WindowInsets.CONSUMED;
+            return Build.VERSION.SDK_INT >= 30 ? WindowInsets.CONSUMED : ins.consumeSystemWindowInsets();
         });
 
         // header

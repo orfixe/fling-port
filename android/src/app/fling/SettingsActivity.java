@@ -84,7 +84,7 @@ public class SettingsActivity extends Activity {
             } else {
                 v.setPadding(ins.getSystemWindowInsetLeft(), ins.getSystemWindowInsetTop(), ins.getSystemWindowInsetRight(), ins.getSystemWindowInsetBottom());
             }
-            return WindowInsets.CONSUMED;
+            return Build.VERSION.SDK_INT >= 30 ? WindowInsets.CONSUMED : ins.consumeSystemWindowInsets();
         });
 
         // header: back + title

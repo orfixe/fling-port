@@ -37,6 +37,7 @@ public class PauseTile extends TileService {
         t.updateTile();
     }
 
+    @android.annotation.SuppressLint("StartActivityAndCollapseDeprecated")   // the Intent form runs below 34 only
     @Override public void onClick() {
         L.init(this);
         String h = host();
