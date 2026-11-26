@@ -520,19 +520,32 @@ final class Ui {
                     c.drawText("?", m, m + s * .18f, tp);
                     break;
                 }
-                case "gear": {                      // settings
-                    c.drawCircle(m, m, s * .12f, p);
-                    c.drawCircle(m, m, s * .27f, p);
+                case "gear": {                      // settings: one outline with 8 teeth, a hole in the middle
+                    float ri = s * .3f, ro = s * .42f;
+                    RectF in = new RectF(m - ri, m - ri, m + ri, m + ri);
+                    Path g = new Path();
                     for (int k = 0; k < 8; k++) {
-                        double an = Math.PI / 4 * k;
-                        float cx = (float) Math.cos(an), sy = (float) Math.sin(an);
-                        c.drawLine(m + cx * s * .29f, m + sy * s * .29f, m + cx * s * .4f, m + sy * s * .4f, p);
+                        float a = 45f * k;                      // tooth centre, degrees
+                        if (k == 0) g.moveTo(px(m, ri, a - 31), py(m, ri, a - 31));
+                        g.arcTo(in, a - 31, 17);                // the rim between two teeth
+                        g.lineTo(px(m, ro, a - 9), py(m, ro, a - 9));
+                        g.lineTo(px(m, ro, a + 9), py(m, ro, a + 9));
+                        g.lineTo(px(m, ri, a + 14), py(m, ri, a + 14));
                     }
+                    g.close();
+                    Paint.Join j = p.getStrokeJoin();
+                    p.setStrokeJoin(Paint.Join.ROUND);
+                    c.drawPath(g, p);
+                    p.setStrokeJoin(j);
+                    c.drawCircle(m, m, s * .12f, p);
                     break;
                 }
             }
             c.restore();
         }
+
+        private static float px(float m, float r, float deg) { return m + r * (float) Math.cos(Math.toRadians(deg)); }
+        private static float py(float m, float r, float deg) { return m + r * (float) Math.sin(Math.toRadians(deg)); }
 
         private void poly(Canvas c, boolean close, float s, float... pts) {
             Path a = new Path();
