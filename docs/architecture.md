@@ -69,7 +69,7 @@ trusted files; see [SECURITY.md](../SECURITY.md).
   Fling remembers where it was stopped (`positions` in `fling.json`, 150 entries) and forgets
   it once watched to the end.
 - **Recent.** The last 25 casts (links, files, folders, playlists, slideshows) are in
-  *Open on TV…* in the panel and the tray menu.
+  *Files from this computer to the TV…* in the panel and the tray menu.
 - **Speed.** 0.5×–2× for media in the Default Media Receiver (`SET_PLAYBACK_RATE`).
 - **Safety.** Only `http(s)` links come from outside. Network paths (`\\server\share`,
   `//server/share`, `file://host/…`) are refused before any file call, also inside playlists

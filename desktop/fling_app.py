@@ -1041,7 +1041,10 @@ class State(QObject):
         self.lounge.start()
         self.media = M.Media(self)       # queue / slideshow / resume / recent (fling_media.py)
         self.tailnet = TS.KeepAlive(self)
-        self.sv = SV.Hub(self)               # Samsung / Miracast TVs: remote, apps, DLNA, mirroring  # a TV on the tailnet: ping, reconnect, footer latency
+        self.sv = SV.Hub(self)               # Samsung / Miracast TVs: remote, apps, DLNA, mirroring
+        self.online: dict[str, bool | None] = {}   # ip → answers right now (the green / red dots)
+        self._online_at = 0.0
+        self._online_busy = False  # a TV on the tailnet: ping, reconnect, footer latency
 
     # --- YouTube lounge
     def _on_yt(self, d):
@@ -1537,9 +1540,80 @@ class State(QObject):
         save_conf(self.conf)
         self.changed.emit()
 
+    # ---- is a TV reachable right now: the footer dot, the TV menu and the chooser cards
+    _PROBE_PORTS = {"samsung": (8001, 8002, 9197), None: (8009, 8008, 6466, 5555)}
+
+    def tv_status(self, d) -> bool | None:
+        """True: answers now · False: doesn't · None: not checked yet / can't tell."""
+        return self.online.get(d["ip"]) if d else None
+
+    @staticmethod
+    def _probe(d, mira_seen) -> bool | None:
+        if SV.is_miracast(d):                       # Wi-Fi Direct: only a search can see it
+            seen = mira_seen.get(d["name"])
+            return True if seen and time.monotonic() - seen < 300 else None
+        import select, socket as _s
+        ports = State._PROBE_PORTS.get(d.get("kind") if d.get("kind") == "samsung" else None)
+        socks = []
+        try:                                         # all ports at once: about 1 s for a TV that's gone
+            for port in ports:
+                c = _s.socket(_s.AF_INET, _s.SOCK_STREAM)
+                c.setblocking(False)
+                try:
+                    c.connect((d["ip"], port))
+                except (BlockingIOError, InterruptedError):
+                    pass
+                except OSError:
+                    c.close(); continue
+                socks.append(c)
+            end = time.monotonic() + 1.0
+            while socks and time.monotonic() < end:
+                _, w, x = select.select([], socks, socks, max(0.0, end - time.monotonic()))
+                for c in w:
+                    if c.getsockopt(_s.SOL_SOCKET, _s.SO_ERROR) == 0:
+                        return True
+                for c in set(w) | set(x):            # refused / failed: stop waiting on it
+                    if c in socks:
+                        socks.remove(c); c.close()
+                if not w and not x:
+                    break
+            return False
+        except (OSError, ValueError):
+            return False
+        finally:
+            for c in socks:
+                c.close()
+
+    def check_online(self, force=False):
+        """Probe every known TV in the background — every 6 s while the panel is open,
+        every 25 s otherwise."""
+        now = time.monotonic()
+        visible = bool(getattr(self, "panel_visible", None) and self.panel_visible())
+        if self._online_busy or (not force and now - self._online_at < (6 if visible else 25)):
+            return
+        devs = list(self.devices)
+        if self.device and self.device["ip"] not in {d["ip"] for d in devs}:
+            devs.append(self.device)
+        if not devs:
+            return
+        self._online_at, self._online_busy = now, True
+        seen = dict(self.sv.mira_seen)
+
+        def work():
+            with ThreadPoolExecutor(max_workers=8) as ex:
+                return dict(zip([d["ip"] for d in devs], ex.map(lambda d: State._probe(d, seen), devs)))
+
+        def done(r, e):
+            self._online_busy = False
+            if r and r != {k: self.online.get(k) for k in r}:
+                self.online.update(r)
+                self.changed.emit()
+        self.bg(work, done)
+
     def select_device(self, d):
         if self.device and d["ip"] == self.device["ip"]:   # already on this TV: nothing to do
             return
+        QTimer.singleShot(0, lambda: self.check_online(force=True))
         self.media.stop(quiet=True)       # the old TV's file server and queue end here
         self.device = d
         self.status = {}
@@ -2136,6 +2210,9 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Уведомлять о смене видео", "Notify when the video changes"), ("Сейчас на ТВ: ", "Now on TV: "), ("Возобновить на ТВ с ", "Resume on TV at "),
     ("Отмена", "Cancel"), ("Отправить скопированную ссылку", "Cast copied link"),
     ("Отправить эту вкладку вместо", "Cast this tab instead"), ("Отправить эту вкладку", "Cast this tab"),
+    ("Не в сети — Fling не достаёт до этого ТВ", "Offline — Fling can't reach this TV"),
+    ("Нажмите, чтобы переключить телевизор", "Click to switch TVs"), ("Проверяю связь…", "Checking…"),
+    ("Не в сети", "Offline"), ("В сети", "Online"),
     ("Убрать отправку вкладок из панели — вернуть можно в Настройках",
      "Remove tab casting from the panel — Settings brings it back"), ("Скрыть", "Hide"),
     ("Отправляю…", "Casting…"), ("Пауза / Играть", "Play / Pause"), ("Пауза на ТВ", "Pause on TV"),
@@ -3458,14 +3535,27 @@ class VolumeRow(QWidget):
 
 # ---------------------------------------------------------------- the panel (PanelView.swift)
 
+def status_dot_icon(on) -> QIcon:
+    """A small round status mark: green = answers, red = doesn't, grey = not known yet."""
+    k = 2.0
+    pm = QPixmap(int(12 * k), int(12 * k)); pm.setDevicePixelRatio(k)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm); p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(T.green if on is True else T.red if on is False else T.fg_a(0.35))
+    p.drawEllipse(QRectF(3, 3, 6, 6)); p.end()
+    return QIcon(pm)
+
+
 def fill_device_menu(menu: QMenu, s: "State", parent=None):
     """Device chooser used by the panel footer, the tray menu and the Connect TV window."""
     menu.clear()
     for d in s.devices:
-        a = menu.addAction(s.device_label(d))
+        on = s.tv_status(d)
+        a = menu.addAction(status_dot_icon(on), s.device_label(d))
         a.setCheckable(True)
         a.setChecked(bool(s.device) and d["ip"] == s.device["ip"])
-        a.setToolTip(d["ip"])
+        a.setToolTip({True: "В сети", False: "Не в сети"}.get(on, "Проверяю связь…"))
         a.triggered.connect(lambda _=False, d=d: s.select_device(d))
     if not s.devices:
         a = menu.addAction("ТВ не найдены"); a.setEnabled(False)
@@ -3889,8 +3979,14 @@ class Morph(QWidget):
     def paintEvent(self, e):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        r = self._cur().adjusted(0.5, 0.5, -0.5, -0.5)
+        # Everything lands on whole device pixels: a picture slid by fractions of a pixel is
+        # resampled every frame, and its text and edges shimmer — the "shaking" (worst in the
+        # small compact panel at 125/150 % scaling). Pictures are drawn 1:1, never scaled.
+        dpr = self.devicePixelRatioF() or 1.0
+        snap = lambda v: round(v * dpr) / dpr
+        c = self._cur()
+        cur = QRectF(QPointF(snap(c.left()), snap(c.top())), QPointF(snap(c.right()), snap(c.bottom())))
+        r = cur.adjusted(0.5, 0.5, -0.5, -0.5)
         clip = QPainterPath(); clip.addRoundedRect(r, 10, 10)
         bg = QColor(T.bg); bg.setAlphaF(1.0)
         p.setPen(QPen(T.fg_a(0.16), 1)); p.setBrush(bg)
@@ -3902,7 +3998,7 @@ class Morph(QWidget):
                 continue
             w = pm.width() / pm.devicePixelRatio(); h = pm.height() / pm.devicePixelRatio()
             p.setOpacity(op)
-            p.drawPixmap(QRectF(r.right() + 0.5 - w, r.bottom() + 0.5 - h, w, h), pm, QRectF(pm.rect()))
+            p.drawPixmap(QPointF(snap(cur.right() - w), snap(cur.bottom() - h)), pm)
         p.setOpacity(1.0)
 
 
@@ -5347,6 +5443,11 @@ class Panel(QWidget):
         ft = QHBoxLayout(); ft.setContentsMargins(14, 5, 14, 9); ft.setSpacing(7)
         self.dot = QLabel(); self.dot.setFixedSize(6, 6)
         self.dev_name = label("", 11.5)
+        # the TV's name is a quick switcher: every TV with its status, one click away
+        self.dev_name.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.dev_name.mousePressEvent = lambda e: self._tv_menu()
+        self.dot.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.dot.mousePressEvent = lambda e: self._tv_menu()
         self.adb_badge = AdbBadge(18, compact=True)
         self.adb_badge.clicked.connect(self._adb_badge_click)
         self.switch = QToolButton()
@@ -5738,6 +5839,12 @@ class Panel(QWidget):
             self.state._setup_ref = self._setup
         self._setup.show(); self._setup.raise_(); self._setup.activateWindow()
 
+    def _tv_menu(self):
+        m = QMenu(self)
+        fill_device_menu(m, self.state, self)
+        self.state.check_online(force=True)
+        m.exec(self.dev_name.mapToGlobal(self.dev_name.rect().bottomLeft()))
+
     def _hide_tabs(self):
         self.state.conf["hide_tabs"] = True
         save_conf(self.state.conf)
@@ -5976,8 +6083,12 @@ class Panel(QWidget):
             self.i_bar_cast.setEnabled(self.i_cast.isEnabled())
 
         # footer
-        col = T.green if s.device else T.fg_a(0.4)
+        on = s.tv_status(s.device)                     # a real check, not just "a TV is selected"
+        col = T.green if on is True else T.red if on is False else T.fg_a(0.4)
         self.dot.setStyleSheet(f"background:{Theme.css(col)};border-radius:3px")
+        tip = ({True: "В сети", False: "Не в сети — Fling не достаёт до этого ТВ"}.get(on, "Проверяю связь…")
+               + "\n" + tr("Нажмите, чтобы переключить телевизор")) if s.device else ""
+        self.dev_name.setToolTip(tip); self.dot.setToolTip(tip)
         dup = bool(s.device) and sum(1 for x in s.devices if x["name"] == s.device["name"]) > 1
         self.dev_name.setText((s.device["name"] + (f" ({s.device['ip']})" if dup else "")) if s.device
                               else ("Ищу ТВ…" if s.scanning else "Устройство не найдено"))
@@ -6770,6 +6881,7 @@ class Tray(QObject):
         """Every 2 s while the panel is open; every 10 s in the background, and then
         only the cheap ADB read (catt costs ~0.2 s CPU per call)."""
         st = self.state
+        st.check_online()                          # green / red dots: throttled inside
         self._tick = getattr(self, "_tick", 0) + 1
         visible = self.panel.isVisible()
         if not visible and on_battery():          # on battery with the panel closed: no background polling
@@ -6829,7 +6941,7 @@ class Tray(QObject):
         a.setShortcut(QKeySequence(GLOBAL_SHORTCUT)); a.setEnabled(castable)
         a.setVisible(not s.conf.get("hide_tabs"))
         m.addAction("Отправить скопированную ссылку", s.cast_clipboard)
-        M.fill_tray_menu(m.addMenu("Открыть на ТВ"), s)
+        M.fill_tray_menu(m.addMenu("Файлы с компьютера на ТВ"), s)
         m.addSeparator()
         # playback of what's on the TV now
         m.addAction("Пауза" if s.is_playing else "Играть", s.toggle_play).setEnabled(casting)

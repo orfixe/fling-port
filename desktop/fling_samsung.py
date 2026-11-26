@@ -968,6 +968,7 @@ class Hub(QObject):
         self.apps: list[tuple] = []
         self.dlna_loc: dict[str, str] = {}
         self.tv_dev = None               # the TV's display once mirroring is on (Windows)
+        self.mira_seen: dict[str, float] = {}   # Miracast name → when the last search saw it
         self._gnd_unit = None
         self._msg = None                 # the last status line Fling showed for this TV
 
@@ -1021,6 +1022,8 @@ class Hub(QObject):
                 return
             tvs, dlna, mira = res
             self.dlna_loc.update(dlna)
+            now = time.monotonic()
+            self.mira_seen = {m["name"]: now for m in mira}
             out = [dict(t, kind="samsung") for t in tvs]
             names = {t["name"] for t in out}
             for m in mira:

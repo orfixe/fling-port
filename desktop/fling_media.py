@@ -538,8 +538,11 @@ def speed_label(r: float) -> str:
 
 
 PHRASES = [
-    ("Открыть на ТВ…", "Open on TV…"), ("Открыть на ТВ", "Open on TV"),
-    ("Файлы…", "Files…"), ("Папку…", "Folder…"), ("Слайд-шоу из папки…", "Slideshow from a folder…"),
+    ("Файлы с компьютера на ТВ…", "Files from this computer to the TV…"),
+    ("Файлы с компьютера на ТВ", "Files from this computer to the TV"),
+    ("Открыть на ТВ", "Open on TV"),
+    ("Видео, музыка или фото…", "Videos, music or photos…"), ("Целая папка…", "A whole folder…"),
+    ("Слайд-шоу из папки с фото…", "Slideshow from a photo folder…"),
     ("Недавнее", "Recent"), ("Очистить недавнее", "Clear recent"),
     ("Выберите файлы для ТВ", "Choose files for the TV"), ("Выберите папку для ТВ", "Choose a folder for the TV"),
     ("Выберите папку с фото", "Choose a folder with photos"),
@@ -1686,9 +1689,9 @@ def fill_open_menu(menu: QMenu, state, parent=None, before=None):
                 before()
             fn()
         return run
-    menu.addAction(F.tr("Файлы…"), go(lambda: m.play_files_dialog(parent)))
-    menu.addAction(F.tr("Папку…"), go(lambda: m.play_files_dialog(parent, folder=True)))
-    menu.addAction(F.tr("Слайд-шоу из папки…"), go(lambda: m.play_files_dialog(parent, folder=True, slideshow=True)))
+    menu.addAction(F.tr("Видео, музыка или фото…"), go(lambda: m.play_files_dialog(parent)))
+    menu.addAction(F.tr("Целая папка…"), go(lambda: m.play_files_dialog(parent, folder=True)))
+    menu.addAction(F.tr("Слайд-шоу из папки с фото…"), go(lambda: m.play_files_dialog(parent, folder=True, slideshow=True)))
     hist = m.history()
     if hist:
         menu.addSeparator()
@@ -1738,14 +1741,14 @@ def fill_tray_menu(menu: QMenu, state, panel=None):
 
 
 class OpenRow(QWidget):
-    """Idle panel: "Open on TV…" → files, folder, slideshow, recent."""
+    """Idle panel: "Files from this computer to the TV…" → files, folder, slideshow, recent."""
 
     def __init__(self, state, panel):
         super().__init__()
         self.state, self.panel = state, panel
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        self.row = F.MenuRow("Открыть на ТВ…", on=self._menu)
+        self.row = F.MenuRow("Файлы с компьютера на ТВ…", on=self._menu)
         self.row.ic.setVisible(True)
         self.row.ic.setPixmap(_icon("folder", 14, F.T.fg_a(0.55)).pixmap(15, 15))
         lay.addWidget(self.row)

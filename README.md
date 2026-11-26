@@ -270,7 +270,7 @@ Each step shows ✓ done · ⏳ working · ! needs you on the TV · ✗ failed.
   new title; turn it off with *Notify when the video changes* in the panel or the tray menu.
 - **Remote:** below the app grid switch between Arrows, Touchpad, Numbers and Media. The **…** menu
   has scenes, the sleep timer and Turn on / Turn off; pin your favourite apps per TV.
-- **Files, playlists, slideshows:** drop files or folders on the panel, use *Open on TV…*, or
+- **Files, playlists, slideshows:** drop files or folders on the panel, use *Files from this computer to the TV…*, or
   `fling play` / `fling slideshow`. Subtitles next to a video are picked up automatically.
 - **Settings:** the gear in the panel's corner — themes, accent colour, remote and casting options.
 - **Android:** share a link to **Fling** from YouTube or a browser — it goes straight to the TV;

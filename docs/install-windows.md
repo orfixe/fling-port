@@ -123,7 +123,7 @@ Fling in Safari → Settings → Extensions.
 | TV arrows | the arrow keys on the keyboard while the panel is open, the arrows in the panel, or scroll over the panel |
 | Remote modes | under the app grid: Arrows, Touchpad (drag = arrows, click = OK), Numbers, Media |
 | Favourite apps, scenes, sleep timer | pin apps per TV; the **…** menu in the remote has scenes, the sleep timer and Turn on / Turn off |
-| Files, playlists, slideshows | drop files or folders on the panel, or *Open on TV…*: they play as a queue with shuffle / repeat; subtitles next to a video are found automatically |
+| Files, playlists, slideshows | drop files or folders on the panel, or *Files from this computer to the TV…*: they play as a queue with shuffle / repeat; subtitles next to a video are found automatically |
 | TV screen (LIVE) | **LIVE** at the top of the panel: the TV's screen in the panel, the mouse as the TV pointer (scrcpy, needs ADB) |
 | Apps for the TV | *Tools… → Catalog* (or `fling catalog`): install, update, open or remove VLC, Kodi, Jellyfin, Tailscale and more, from official sources |
 | Away from home | remote access over Tailscale: *Settings → Remote access* and the **Via Tailscale** group in the TV chooser — see [Remote access over Tailscale](tailscale.md) |

@@ -46,6 +46,15 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 - Desktop: the tray menu is grouped in a steadier order (casting, playback, TV and tools,
   switches, windows, Quit); *Fling log* left the ADB submenu (it stays in Settings → About and
   as `fling log`); wording fixes in the ADB console and the extension.
+- Desktop: the TV's dot is **really green or red** now: Fling checks every known TV in the
+  background (all its ports at once, about a second) instead of turning green whenever a TV is
+  selected. Click the TV's name in the panel to **switch TVs** in one click — each with its
+  status; the TV chooser cards show the same dots.
+- Desktop: *Open on TV…* is now *Files from this computer to the TV…* (videos, music or photos, a
+  whole folder, a photo slideshow, recent), in the panel and the tray.
+- Desktop: a real cog for Settings.
+- Desktop: after a theme or language change, Fling opens the panel in its new look instead of
+  Settings again.
 
 ### Fixed
 
@@ -54,6 +63,8 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 - Desktop: switching the theme or the language could leave no Fling running: the new copy
   talked to the old one while it was still quitting and exited. It now waits for the old copy
   to end, and only a running Fling that answers counts.
+- Desktop: the switch between the panel (full or compact) and LIVE no longer shakes at
+  125/150 % scaling: the morph window stays still and draws on whole pixels.
 
 ## [0.4.1] - 2026-11-26
 

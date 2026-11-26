@@ -144,7 +144,7 @@ class TvCard(QFrame):
     clicked = pyqtSignal()
     remove = pyqtSignal()
 
-    def __init__(self, d: dict, current: bool, paired: bool, fresh: bool):
+    def __init__(self, d: dict, current: bool, paired: bool, fresh: bool, online=None):
         super().__init__()
         T = F.T
         self.setObjectName("card")
@@ -183,11 +183,12 @@ class TvCard(QFrame):
         sub.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         col.addWidget(sub)
         h.addLayout(col, 1)
-        if fresh and not current:
+        if online is not None or fresh:                # reachable now (green) / not (red)
             dot = QLabel()
             dot.setFixedSize(7, 7)
-            dot.setToolTip(F.tr("Только что найден в сети"))
-            dot.setStyleSheet(f"background:{_css(T.green)};border-radius:3px;border:none")
+            ok = online if online is not None else True
+            dot.setToolTip(F.tr("В сети" if online else "Не в сети" if online is False else "Только что найден в сети"))
+            dot.setStyleSheet(f"background:{_css(T.green if ok else T.red)};border-radius:3px;border:none")
             h.addWidget(dot)
         if current:
             mark = QLabel()
@@ -443,7 +444,7 @@ class DevicePicker(QWidget):
         fresh_since = time.monotonic() - 20
         for d in s.devices:
             card = TvCard(d, d["ip"] == cur, bool(s.atv.paired(d["ip"])),
-                          self._seen.get(d["ip"], 0) > fresh_since)
+                          self._seen.get(d["ip"], 0) > fresh_since, s.tv_status(d))
             card.clicked.connect(lambda d=d: self.pick(d))
             card.remove.connect(lambda d=d: self.state.forget_device(d))
             self.rows.addWidget(card)
