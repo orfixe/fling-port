@@ -467,6 +467,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         main.post(() -> {
             lastFound = new ArrayList<>(list);
             devices = withManual(list);   // discovered TVs + the ones the user added by IP
+            DevicePicker.changed();
             if (host == null && !devices.isEmpty()) selectDevice(devices.get(0));
             else {
                 for (Discovery.Device d : devices) if (d.host.equals(host)) devName = displayName(d);   // refresh shown name
@@ -527,6 +528,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     }
 
     private void showError(String m) {
+        if (m != null && DevicePicker.error(m)) return;   // the chooser is open: say it there
         error = m;
         sync();
         main.removeCallbacks(clearError);
@@ -855,28 +857,31 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         return (d.host.equals(host) ? "✓  " : "") + d.name + (marks.isEmpty() ? "" : "  ·  " + String.join(", ", marks));
     }
 
-    private void showDeviceMenu(View anchor) {
-        PopupMenu pm = new PopupMenu(this, anchor);
-        for (int i = 0; i < devices.size(); i++) pm.getMenu().add(0, i, i, menuLabel(devices.get(i)));   // ids 0..n-1 = TVs
-        if (devices.isEmpty()) pm.getMenu().add(0, 999, 0, L.t("ТВ не найдены")).setEnabled(false);
-        pm.getMenu().add(1, 1001, 1001, L.t("Найти ТВ заново"));
-        pm.getMenu().add(1, 1000, 1000, L.t("Добавить ТВ по IP…"));
-        pm.getMenu().add(1, 1003, 1003, L.t("Удалённый доступ…"));
-        List<Discovery.Device> manual = manualDevices();
-        if (!manual.isEmpty()) {
-            android.view.SubMenu sm = pm.getMenu().addSubMenu(1, 1002, 1002, L.t("Убрать добавленный вручную"));
-            for (int i = 0; i < manual.size(); i++) sm.add(2, 2000 + i, i, manual.get(i).name);   // ids 2000+ = manual TVs
-        }
-        pm.setOnMenuItemClickListener(it -> {
-            int id = it.getItemId();
-            if (id == 1000) askIp();
-            else if (id == 1003) remoteAccess();
-            else if (id == 1001) { discovery.stop(); discovery.start(); toast(L.t("Ищу ТВ…")); }   // restart mDNS search
-            else if (id >= 2000) forgetManual(manual.get(id - 2000));
-            else if (id < devices.size()) selectDevice(devices.get(id));
-            return true;
+    /** The TV chooser (DevicePicker): Wi‑Fi, ADB and Tailscale in one screen, searching at once. */
+    private void openPicker() {
+        DevicePicker.show(this, ui, new DevicePicker.Host() {
+            public List<Discovery.Device> devices() { return devices; }
+            public String current() { return host; }
+            public boolean paired(String h) { return atv.paired(h); }
+            public boolean manual(Discovery.Device d) { return isManual(d); }
+            public void select(Discovery.Device d) { selectDevice(d); }
+            public void addByAddress(String text) { addByIp(text); }
+            public void addAdbOnly(String h, String name) {
+                Discovery.Device d = new Discovery.Device(name, h, "manual");
+                List<Discovery.Device> manual = manualDevices();
+                manual.removeIf(x -> x.host.equals(h));
+                manual.add(d);
+                saveManual(manual);
+                devices = withManual(devices);
+                selectDevice(d);
+            }
+            public void forget(Discovery.Device d) { forgetManual(d); }
+            public void rescan() {
+                discovery.stop(); discovery.start();
+                sam.discover(() -> main.post(() -> onDevices(lastFound)));
+            }
+            public void tailscaleHelp() { remoteAccess(); }
         });
-        pm.show();
     }
 
     private void askIp() {
@@ -906,6 +911,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 main.post(() -> {
                     devices = withManual(lastFound);
                     for (Discovery.Device d : devices) if (d.host.equals(ip)) { selectDevice(d); break; }
+                    DevicePicker.close();
                     sync();
                 });
                 return;
@@ -935,6 +941,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 saveManual(manual);
                 devices = withManual(devices);              // show it in the list right away
                 selectDevice(d);
+                DevicePicker.close();
             });
         });
     }
@@ -1611,7 +1618,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         TextView sw = ui.text(L.t("Сменить"), 15, ui.accent, true);
         sw.setPadding(ui.dp(12), ui.dp(10), ui.dp(12), ui.dp(10));
         sw.setBackground(ui.rippleRound(0, 10));
-        sw.setOnClickListener(this::showDeviceMenu);
+        sw.setOnClickListener(v -> openPicker());
         r.addView(sw);
         f.addView(r);
         root.addView(f, ui.margins(Ui.lp(-1, -2), 0, 0, 0, 8));
