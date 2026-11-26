@@ -94,6 +94,8 @@ reports are welcome.
 | Settings with themes and a live preview | ✓ 11 themes | ✓ 11 themes | ✓ incl. Material You | ✓ options |
 | **LIVE** — the TV's screen with mouse and keyboard (scrcpy) | ✓ in the panel | ✓ scrcpy window | ✓ new ⁴ | — |
 | Remote access over **Tailscale** (remote, ADB, LIVE away from home) | ✓ | ✓ | ✓ | — |
+| **Smart View**: Samsung TVs (remote, apps, DLNA) and screen mirroring over Miracast, incl. Wi‑Fi Direct without a shared network | ✓ new ⁵ | ✓ mirroring via GNOME Network Displays ⁵ | ✓ Samsung; mirroring via the system Cast screen ⁵ | — |
+| First-run welcome: language, then a short animated tour (skippable) | ✓ | ✓ | ✓ language + tips | — |
 | **Tools** window: find, install and update adb / scrcpy | ✓ | ✓ | — | — |
 | **Catalog**: official TV apps (VLC, Kodi, Jellyfin, Moonlight, Tailscale…), checked before install | ✓ | ✓ | — | — |
 | Signed releases, guard against foreign processes | ✓ | — | — | — |
@@ -102,7 +104,12 @@ reports are welcome.
 | Install an APK on the TV over ADB (pick a file, or right-click it in Explorer) | ✓ | ✓ | — | — |
 
 <sub>¹ when the extension casts the tab. ² Windows doesn't let apps act as a Bluetooth keyboard / remote.
-³ several shared files play one after another. ⁴ new in 0.4.1, not yet tested on many devices.</sub>
+³ several shared files play one after another. ⁴ new in 0.4.1, not yet tested on many devices.
+⁵ new in 0.5.0; see [docs/smart-view.md](docs/smart-view.md). Mirroring over Wi‑Fi Direct was tested on a
+Samsung hotel TV; the Samsung network remote and DLNA were tested against a protocol simulator, not a real TV yet.</sub>
+
+Don't cast browser tabs? Press **Hide** under the extension hint in the panel — *Settings → General →
+Casting browser tabs* brings it back.
 
 ### Screenshots
 
@@ -318,6 +325,8 @@ desktop/             shared by Windows and Linux (PyQt6)
   fling_devices.py   TV chooser window (search, cards, add by IP)
   fling_tailscale.py remote access over Tailscale: tailnet TVs, keep-alive, Settings page
   fling_tools.py     Tools window: find / install / update adb and scrcpy
+  fling_samsung.py   Smart View: Samsung remote, Miracast / Wi-Fi Direct mirroring, DLNA, TV resolution
+  fling_welcome.py   first-run welcome: language, then an animated tour
 guard/               fling-guard and fling-sign (Rust): signed file list, process allowlist, CPU watchdog
 security/            the release public key (fling-release.pub)
 windows/
@@ -347,6 +356,7 @@ docs/                guides, architecture, protocols, screenshots
 |---|---|
 | [Windows install guide](docs/install-windows.md) · [RU](docs/install-windows.ru.md) | Step by step: app, browser extension, first start, troubleshooting |
 | [Remote access over Tailscale](docs/tailscale.md) · [RU](docs/tailscale.ru.md) | Control the TV away from home: setup, ACLs, what works remotely |
+| [Smart View — Samsung and Miracast](docs/smart-view.md) · [RU](docs/smart-view.ru.md) | Screen mirroring (also in hotels over Wi‑Fi Direct), the Samsung remote, DLNA, resolution |
 | [Architecture](docs/architecture.md) | Components, threading, the browser bridge, now-playing sources, files |
 | [Protocols](docs/protocols.md) | Cast v2, Android TV Remote v2, ADB, YouTube Lounge, Bluetooth LE HID, the bridge API |
 | [Development](docs/development.md) | Building, checks, testing on a real TV, translations, releases |

@@ -10,6 +10,51 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-26
+
+### Added
+
+- Desktop: **Smart View for Samsung TVs and Miracast displays, inside the main panel** (no
+  separate window; see [docs/smart-view.md](docs/smart-view.md)). Samsung TVs and Miracast
+  displays in range over **Wi‑Fi Direct** appear in the normal TV chooser, so mirroring works
+  without a shared network too (hotel rooms, guest Wi‑Fi). *Mirror screen* in the panel and the
+  tray (`fling mirror`): Fling opens Windows' Cast panel and picks the TV itself (Linux: GNOME
+  Network Displays over D-Bus), then moves the TV's display to its largest 16:9 mode — a 4:3
+  mode like 1152×864 used to stretch the picture. *TV only / Extend / Duplicate* in the panel,
+  remembered. With a Samsung on the same network, the panel's remote, typing, volume and apps
+  drive it over the TV's own network remote (the TV asks "Allow?" once), it turns on over the
+  network, and videos, music, photos and media links go to it over DLNA (YouTube links open in
+  its YouTube app, other pages in its browser). The file server serves only the picked file and
+  answers only the TV's address.
+- Desktop: a **first-run welcome** — the language first, then a short animated tour (Skip,
+  arrow keys); Settings → About replays it.
+- Desktop: **Hide** under the extension hint removes *Cast this tab* and the hint from the panel
+  and the tray; Settings → General → *Casting browser tabs* brings them back.
+- Desktop: Settings → About shows the **build** (commit and date; "from source" for a run from
+  the repository), and the copied system info includes it.
+- Android: **Samsung TVs** (Smart View) in the same TV list — found over SSDP or added by IP. The
+  app's remote (d-pad, back, home, power, volume, typing, app chips) drives them over the TV's
+  own WebSocket; the TV asks "Allow?" once and Fling keeps its token. Links and phone files go to
+  the TV over DLNA (YouTube opens in its app, other pages in the TV's browser), plus *Mirror
+  screen* (opens Samsung's Smart View or the system Cast screen) and *Turn the TV on over the
+  network* (Wake-on-LAN).
+- Android: on first launch, the **language first** (Русский / English), then the tips in it;
+  Settings → About can show the tips again and shows the **build** (version, commit, date).
+
+### Changed
+
+- Desktop: the tray menu is grouped in a steadier order (casting, playback, TV and tools,
+  switches, windows, Quit); *Fling log* left the ADB submenu (it stays in Settings → About and
+  as `fling log`); wording fixes in the ADB console and the extension.
+
+### Fixed
+
+- Desktop: up to 10 small windows flashed for a moment at every start, worst at boot with
+  autostart (widgets were shown before they were put into the panel).
+- Desktop: switching the theme or the language could leave no Fling running: the new copy
+  talked to the old one while it was still quitting and exited. It now waits for the old copy
+  to end, and only a running Fling that answers counts.
+
 ## [0.4.1] - 2026-11-26
 
 Remote access over Tailscale, the TV screen on the phone, and a Catalog of official apps for the
@@ -401,7 +446,8 @@ unchanged.
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.4.0...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/orfixe/fling-port/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/orfixe/fling-port/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/orfixe/fling-port/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/orfixe/fling-port/compare/v0.3.2...v0.3.3

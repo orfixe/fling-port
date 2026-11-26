@@ -85,6 +85,17 @@ Builds from source (no signed list) run the same checks in **report-only** mode.
 - Android updates go through Android's own installer, which refuses an APK signed with a
   different key.
 - GitHub Actions are pinned by commit SHA; CI never holds the release key.
+- Smart View (Samsung / Miracast): to send a file over DLNA, Fling starts a small web server
+  that serves only the one file you picked, under a random path, and answers only the
+  IP address of the TV it was sent to; every other client gets 404. Picking another file
+  replaces it; the server stops when Fling quits.
+- The Samsung network remote uses the TV's own TLS port (8002), whose certificate is
+  self-signed by Samsung, so Fling accepts that certificate for the connection to the TV's
+  local address (there is nothing to verify it against). Only remote keys, typed text and
+  app launches go over it; the access token the TV hands out is kept in `fling.json`.
+- Mirroring uses Windows' own Cast panel; Fling picks the TV in it through UI Automation
+  only by its exact name and never when the panel already shows a connection. Display
+  modes are changed only on the display that appeared after *Mirror screen*.
 
 ## The Catalog (extra modules)
 
