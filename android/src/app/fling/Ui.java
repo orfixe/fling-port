@@ -46,12 +46,26 @@ final class Ui {
 
     // ------------------------------------------------------------ themes (Settings → Appearance)
 
-    /** Theme modes, stored in prefs "fling" → "theme". */
-    static final String[] THEMES = {"system", "light", "dark", "black"};
+    /** Theme modes, stored in prefs "fling" → "theme"; "amoled" (boolean) makes dark pure black. */
+    static final String[] THEMES = {"system", "light", "dark"};
     /** Accent ids, stored in "accent"; each has a colour R.color.acc_<id> and a style R.style.Accent_<id>. */
     static final String[] ACCENTS = {"you", "blue", "indigo", "purple", "pink", "teal", "green", "graphite"};
 
-    static String theme(Context c) { return c.getSharedPreferences("fling", Context.MODE_PRIVATE).getString("theme", "system"); }
+    static String theme(Context c) {
+        android.content.SharedPreferences p = c.getSharedPreferences("fling", Context.MODE_PRIVATE);
+        String t = p.getString("theme", "system");
+        if (t.equals("black")) {                    // up to 0.5.0 black was a fourth theme: now dark + AMOLED
+            p.edit().putString("theme", "dark").putBoolean("amoled", true).apply();
+            return "dark";
+        }
+        return java.util.Arrays.asList(THEMES).contains(t) ? t : "system";
+    }
+
+    /** Dark theme in pure black (pixels off on AMOLED), whenever the theme ends up dark. */
+    static boolean amoled(Context c) {
+        theme(c);                                   // moves an old "black" over first
+        return c.getSharedPreferences("fling", Context.MODE_PRIVATE).getBoolean("amoled", false);
+    }
 
     static String accentId(Context c) {
         String a = c.getSharedPreferences("fling", Context.MODE_PRIVATE).getString("accent", "blue");
@@ -98,7 +112,7 @@ final class Ui {
         this.ctx = ctx;
         dark = (ctx.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
                 == Configuration.UI_MODE_NIGHT_YES;
-        black = dark && theme(ctx).equals("black");
+        black = dark && amoled(ctx);
         String acc = accentId(ctx);
         boolean you = acc.equals("you");
         if (black) { page = 0xFF000000; card = 0xFF000000; }   // AMOLED: pixels off; cards get a hairline instead

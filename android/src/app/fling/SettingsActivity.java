@@ -123,19 +123,23 @@ public class SettingsActivity extends Activity {
         LinearLayout c = card();
         c.addView(preview());
         c.addView(ui.separator());
+        // Auto | Light | Dark in one control, as the system settings do; pure black is a switch
+        // of its own below, for whenever the theme ends up dark (Auto at night too)
         String cur = Ui.theme(this);
-        String[] names = {L.t("Как в системе"), L.t("Светлая"), L.t("Тёмная"), L.t("Чёрная (AMOLED)")};
-        for (int i = 0; i < Ui.THEMES.length; i++) {
-            final String id = Ui.THEMES[i];
-            Ui.Row r = ui.row(names[i], null, id.equals(cur) ? "✓" : null, false, v -> {
-                if (id.equals(Ui.theme(this))) return;
-                prefs.edit().putString("theme", id).apply();
-                restyle();
-            });
-            r.trailing.setTextColor(ui.accent);
-            r.trailing.setTextSize(17);
-            c.addView(r);
-        }
+        String[] names = {L.t("Авто"), L.t("Светлая"), L.t("Тёмная")};
+        LinearLayout seg = ui.segmented(names, java.util.Arrays.asList(Ui.THEMES).indexOf(cur), idx -> {
+            String id = Ui.THEMES[idx];
+            if (id.equals(Ui.theme(this))) return;
+            prefs.edit().putString("theme", id).apply();
+            restyle();
+        });
+        LinearLayout box = ui.col();
+        box.setPadding(ui.dp(12), ui.dp(12), ui.dp(12), ui.dp(6));
+        box.addView(seg, Ui.lp(-1, -2));
+        c.addView(box);
+        if (!cur.equals("light"))
+            c.addView(toggle(L.t("Чёрный фон"), L.t("В тёмной теме — чистый чёрный: на AMOLED-экране меньше расход батареи."),
+                    "amoled", false, this::restyle));
     }
 
     /** A small "now playing" card in the chosen colours. */
@@ -252,7 +256,9 @@ public class SettingsActivity extends Activity {
         c.addView(toggle(L.t("Не гасить экран"), L.t("Экран телефона не гаснет, пока открыт Fling."), "keepOn", false));
     }
 
-    private View toggle(String title, String hint, String key, boolean def) {
+    private View toggle(String title, String hint, String key, boolean def) { return toggle(title, hint, key, def, null); }
+
+    private View toggle(String title, String hint, String key, boolean def, Runnable after) {
         LinearLayout r = ui.row();
         r.setPadding(ui.dp(12), ui.dp(10), ui.dp(8), ui.dp(10));
         LinearLayout t = ui.col();
@@ -267,7 +273,10 @@ public class SettingsActivity extends Activity {
         int[][] states = {{android.R.attr.state_checked}, {}};
         sw.setThumbTintList(new ColorStateList(states, new int[]{ui.accent, ui.dark ? 0xFFBDBDC2 : 0xFFFFFFFF}));
         sw.setTrackTintList(new ColorStateList(states, new int[]{ui.accA(0.5f), ui.fgA(0.25f)}));
-        sw.setOnCheckedChangeListener((b, on) -> prefs.edit().putBoolean(key, on).apply());
+        sw.setOnCheckedChangeListener((b, on) -> {
+            prefs.edit().putBoolean(key, on).apply();
+            if (after != null) after.run();
+        });
         sw.setContentDescription(title);
         r.addView(sw, ui.margins(Ui.lp(-2, -2), 12, 0, 0, 0));
         r.setOnClickListener(v -> sw.toggle());

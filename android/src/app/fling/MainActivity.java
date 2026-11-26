@@ -179,7 +179,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     @Override protected void attachBaseContext(Context base) { super.attachBaseContext(base); Ui.applyNight(this, base); }
 
-    private String lookNow() { return Ui.theme(this) + "|" + Ui.accentId(this) + "|" + L.lang(this); }
+    private String lookNow() { return Ui.theme(this) + "|" + Ui.amoled(this) + "|" + Ui.accentId(this) + "|" + L.lang(this); }
 
     @Override protected void onCreate(Bundle b) {
         L.init(this);
