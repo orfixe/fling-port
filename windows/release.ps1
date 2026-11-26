@@ -9,14 +9,27 @@
     4. checks both signatures with fling-guard
   Nothing is uploaded: publishing stays a separate, deliberate step (gh release create).
 
+  -SavePassword keeps the password after a release that signed fine, encrypted with Windows
+  DPAPI for this user on this computer only (%LOCALAPPDATA%\Fling-release). Later releases
+  then run without asking. Trade-off: any program running as this user can sign a release.
+  -ForgetPassword deletes it.
+
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File windows\release.ps1
+.EXAMPLE
+  powershell -ExecutionPolicy Bypass -File windows\release.ps1 -SavePassword
 #>
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 orfixe and the Fling port contributors
 # Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
-param([string]$MacFrom = '')
+param([string]$MacFrom = '', [switch]$SavePassword, [switch]$ForgetPassword)
 $ErrorActionPreference = 'Stop'
+$Store = Join-Path $env:LOCALAPPDATA 'Fling-release\sign-password.xml'   # DPAPI: this user, this PC
+if ($ForgetPassword) {
+  Remove-Item $Store -Force -ErrorAction SilentlyContinue
+  Write-Host 'The saved release key password is deleted.' -ForegroundColor Green
+  exit 0
+}
 $Repo = Split-Path -Parent $PSScriptRoot
 $Ver  = (Select-String -Path (Join-Path $Repo 'desktop\fling_app.py') -Pattern '^VERSION = "(.+)"').Matches[0].Groups[1].Value
 $Bin  = Join-Path $Repo 'guard\target\release'
@@ -31,7 +44,13 @@ if (-not (Test-Path $apk) -or $newest.LastWriteTime -gt (Get-Item $apk).LastWrit
   throw "android\Fling.apk is older than $($newest.Name): rebuild it with android/build.sh first"
 }
 
-$secure = Read-Host "Fling $Ver - release key password" -AsSecureString
+$saved = Test-Path $Store
+if ($saved) {
+  $secure = Import-Clixml $Store                  # a SecureString only this Windows user can decrypt
+  Write-Host "==> release key password: saved one (-ForgetPassword deletes it)" -ForegroundColor Cyan
+} else {
+  $secure = Read-Host "Fling $Ver - release key password" -AsSecureString
+}
 $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
 $env:FLING_SIGN_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
 [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
@@ -59,7 +78,15 @@ try {
     ForEach-Object { '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name }
   [IO.File]::WriteAllText($Sums, ($lines -join "`n") + "`n")
   & (Join-Path $Bin 'fling-sign.exe') sign $Sums --comment "fling-release version=$Ver"
-  if ($LASTEXITCODE -ne 0) { throw 'signing SHA256SUMS.txt failed' }
+  if ($LASTEXITCODE -ne 0) {
+    if ($saved) { throw 'signing SHA256SUMS.txt failed - wrong saved password? run with -ForgetPassword, then again' }
+    throw 'signing SHA256SUMS.txt failed'
+  }
+  if ($SavePassword -and -not $saved) {             # only a password that just signed is kept
+    New-Item -ItemType Directory -Force -Path (Split-Path $Store) | Out-Null
+    $secure | Export-Clixml $Store
+    Write-Host "==> password saved for later releases ($Store)" -ForegroundColor Cyan
+  }
 
   Write-Host '==> check' -ForegroundColor Cyan
   & (Join-Path $Bin 'fling-guard.exe') verify $Sums
