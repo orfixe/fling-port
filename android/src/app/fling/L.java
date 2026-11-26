@@ -275,8 +275,7 @@ final class L {
         e("Тёмная", "Dark");
         e("Чёрная (AMOLED)", "Black (AMOLED)");
         e("Авто", "Auto");
-        e("Чёрный фон", "Black background");
-        e("В тёмной теме — чистый чёрный: на AMOLED-экране меньше расход батареи.", "Pure black in the dark theme: uses less battery on an AMOLED screen.");
+        e("Чистый чёрный в тёмной теме — экономит батарею.", "Pure black in the dark theme — saves battery.");
         e("Пример видео", "Sample video");
         e("Так будет выглядеть Fling", "This is how Fling will look");
         e("Цвет акцента", "Accent colour");
