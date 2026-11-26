@@ -58,7 +58,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** The Fling panel, as a phone app: casting, link sharing and the TV remote. */
-public class MainActivity extends Activity implements Atv.Listener, Cast.Listener, Discovery.Listener {
+public class MainActivity extends Activity implements Atv.Listener, Cast.Listener, Discovery.Listener, Samsung.Listener {
 
     static final String[][] TV_APPS = {
             {"YouTube", "vnd.youtube.launch://", "com.google.android.youtube.tv"},
@@ -99,6 +99,10 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     // state
     private String host, devName;
     private List<Discovery.Device> devices = new ArrayList<>();
+    private List<Discovery.Device> lastFound = new ArrayList<>();   // the latest mDNS list (Samsung TVs are merged in)
+    private Samsung sam;
+    private String samState = "";                                  // waiting | ready | denied | error
+    private LinearLayout samBox;
     private Cast.Status st;
     private Cast.Status adbSt;          // real now-playing read from the TV over ADB
     private Adb adb;
@@ -190,6 +194,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         cast = new Cast(this, this);
         adb = new Adb(this);
         atv = new Atv(this, this);
+        sam = new Samsung(this, this);
+        atv.sam = sam;                                   // Samsung addresses: the remote goes over Smart View
         discovery = new Discovery(this, this);
         updater = new Updater(this, ui, prefs);
         buildUi();
@@ -210,11 +216,25 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         resumed = true;
         if (prefs.getBoolean("keepOn", false)) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         else getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        if (!prefs.getBoolean("help_seen", false)) {                  // first launch: show the guide once
+        if (!prefs.getBoolean("welcome_done", false) && !prefs.contains("host")) {   // first launch: the language first
+            Welcome.show(this, ui, () -> {
+                prefs.edit().putBoolean("welcome_done", true).putBoolean("help_seen", true).apply();
+                if (!look.equals(lookNow())) {                            // another language: rebuild, then the tips
+                    prefs.edit().putBoolean("tour_after_lang", true).apply();
+                    recreate(); return;
+                }
+                main.postDelayed(this::startTour, 600);
+            });
+        } else if (!prefs.getBoolean("help_seen", false)) {           // first launch: show the guide once
             prefs.edit().putBoolean("help_seen", true).apply();
             main.postDelayed(this::startTour, 900);                    // after the screen has been laid out
         }
+        if (prefs.getBoolean("welcome_done", false) && prefs.getBoolean("tour_after_lang", false)) {
+            prefs.edit().remove("tour_after_lang").apply();
+            main.postDelayed(this::startTour, 900);
+        }
         discovery.start();
+        sam.discover(() -> main.post(() -> onDevices(lastFound)));   // Samsung TVs (SSDP) join the same list
         connectDevice();
         updater.checkDaily();                                          // quiet; speaks only if newer
         main.post(poll);
@@ -247,7 +267,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private final Runnable poll = new Runnable() {
         @Override public void run() {
             if (!resumed) return;
-            if (host != null) cast.refresh();
+            if (host != null && !sam.handles(host)) cast.refresh();
             pollAdb();
             main.postDelayed(this, 1500);
         }
@@ -277,6 +297,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 boolean tn = Tailnet.routedViaTailnet(h);
                 long ms = Tailnet.connectMs(h, 6466, 3000);
                 if (ms < 0) ms = Tailnet.connectMs(h, 8009, 3000);
+                if (ms < 0) ms = Tailnet.connectMs(h, 8001, 3000);   // a Samsung (Smart View)
                 final long m = ms;
                 main.post(() -> {
                     if (!h.equals(host)) { main.post(probe); return; }
@@ -393,8 +414,21 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     private void connectDevice() {
         if (host == null) return;
-        cast.connect(host);
+        if (!sam.handles(host)) cast.connect(host);   // a Samsung has no Cast receiver: Smart View only
         atv.connect(host);
+    }
+
+    private boolean isSamsung() { return sam.handles(host); }
+
+    @Override public void onSamsung(String state, String message) {
+        main.post(() -> {
+            if (!"info".equals(state)) samState = state;
+            if (message != null && !message.isEmpty()) {
+                if (state.equals("waiting") || state.equals("info")) toast(message); else showError(message);
+            }
+            if (state.equals("ready")) error = null;
+            sync();
+        });
     }
 
     private boolean paired() { return atv.paired(host); }
@@ -431,6 +465,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     @Override public void onDevices(List<Discovery.Device> list) {
         main.post(() -> {
+            lastFound = new ArrayList<>(list);
             devices = withManual(list);   // discovered TVs + the ones the user added by IP
             if (host == null && !devices.isEmpty()) selectDevice(devices.get(0));
             else {
@@ -554,6 +589,20 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private void castLocal(ArrayList<Uri> uris, String type) {
         if (host == null) { pendingLocal = uris; pendingLocalType = type; showError(L.t("Ищу телевизор…")); return; }
         pendingLocal = null;
+        if (isSamsung()) {                                 // a Samsung plays phone files over DLNA (the first one)
+            final String h = host;
+            final Uri u = uris.get(0);
+            toast(L.t("Отправляю на ТВ…"));
+            sam.runBg(() -> {
+                try {
+                    MediaServer.Item it = MediaServer.publish(this, u, type, h);
+                    sam.play(h, it.url, it.title, it.mime);
+                } catch (Exception e) {
+                    main.post(() -> showError(L.f("ТВ не принял файл: %s", e.getMessage())));
+                }
+            });
+            return;
+        }
         askNotifications();
         Intent s = new Intent(this, CastService.class).setAction(CastService.ACTION_LOCAL)
                 .putExtra(CastService.EXTRA_HOST, host)
@@ -650,6 +699,22 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private void castLink(String url, String title) {
         if (host == null) { pendingAutoCast = true; showError(L.t("Ищу телевизор…")); return; }
         String id = youtubeId(url);
+        if (isSamsung()) {
+            final String h = host;
+            if (isDirectMedia(url)) {
+                sam.runBg(() -> {
+                    try { sam.play(h, url, title == null ? hostOf(url) : title, Samsung.mimeOfUrl(url)); }
+                    catch (Exception e) { main.post(() -> showError(L.f("ТВ не принял ссылку: %s", e.getMessage()))); }
+                });
+            } else {
+                atv.launch(host, url);                     // YouTube → its app; other pages → the TV's browser
+            }
+            addRecent(url, title);
+            error = null;
+            toast(L.t("Отправлено на ТВ"));
+            sync();
+            return;
+        }
         if (isDirectMedia(url)) {
             cast.load(url, title);
         } else if (id != null) {
@@ -739,7 +804,9 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     /** Discovered TVs first, then manual ones that discovery didn't see (no duplicates by address). */
     private List<Discovery.Device> withManual(List<Discovery.Device> found) {
         List<Discovery.Device> out = new ArrayList<>(found);
-        for (Discovery.Device m : manualDevices()) {
+        List<Discovery.Device> extra = new ArrayList<>(sam.known());   // Samsung TVs seen before
+        extra.addAll(manualDevices());
+        for (Discovery.Device m : extra) {
             boolean seen = false;
             for (Discovery.Device d : out) if (d.host.equals(m.host)) seen = true;
             if (!seen) out.add(m);
@@ -835,8 +902,16 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         bg(() -> {
             String name = ip;
             // 8009 = Google Cast; 6466 = the Android TV remote (a tailnet may reach only some ports)
+            if (sam.probe(ip)) {                           // a Samsung: Smart View, remembered by Samsung
+                main.post(() -> {
+                    devices = withManual(lastFound);
+                    for (Discovery.Device d : devices) if (d.host.equals(ip)) { selectDevice(d); break; }
+                    sync();
+                });
+                return;
+            }
             if (Tailnet.connectMs(ip, 8009, 3000) < 0 && Tailnet.connectMs(ip, 6466, 3000) < 0) {
-                main.post(() -> showError(L.f("По адресу %s нет Chromecast / Google TV.", ip)));
+                main.post(() -> showError(L.f("По адресу %s нет Chromecast, Google TV или Samsung.", ip)));
                 return;
             }
             try {   // the TV's own name from its DIAL device description
@@ -1472,6 +1547,23 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         listening = ui.text(L.t("Слушаю — нажмите микрофон ещё раз, когда закончите."), 13, ui.red, false);
         ctlBox.addView(listening, ui.margins(Ui.lp(-1, -2), 10, 8, 10, 0));
         tvCard.addView(ctlBox);
+
+        // Samsung (Smart View): mirror the phone's screen, turn the TV on, play/pause/stop over DLNA
+        samBox = ui.col();
+        samBox.setPadding(0, ui.dp(4), 0, ui.dp(4));
+        Ui.Row mirror = ui.row(L.t("Зеркалировать экран"), "tv_play", null, true, v -> {
+            if (!Samsung.openMirroring(this)) showError(L.t("На этом телефоне нет экрана трансляции. Откройте Smart View в шторке быстрых настроек."));
+            else toast(L.t("Выберите телевизор в списке «Smart View»"));
+        });
+        samBox.addView(mirror);
+        samBox.addView(ui.row(L.t("Включить ТВ по сети"), "power", null, false, v -> sam.wake(host)));
+        LinearLayout tr = ui.row();
+        tr.setPadding(ui.dp(10), ui.dp(4), ui.dp(10), ui.dp(4));
+        tr.addView(ui.key("play", null, 42, false, v -> sam.transport(host, "Play")), Ui.lpW(1));
+        tr.addView(ui.key("pause", null, 42, false, v -> sam.transport(host, "Pause")), Ui.lpW(1));
+        tr.addView(ui.key("stop", null, 42, false, v -> sam.transport(host, "Stop")), Ui.lpW(1));
+        samBox.addView(tr);
+        tvCard.addView(samBox);
         addCard(tvCard);
     }
 
@@ -1719,10 +1811,16 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         pinOk.setAlpha(pinEdit.getText().length() == 6 ? 1f : 0.4f);
         setupBox.setVisibility(idleLike && !paired ? View.VISIBLE : View.GONE);
         ctlBox.setVisibility(idleLike && paired ? View.VISIBLE : View.GONE);
+        samBox.setVisibility(isSamsung() ? View.VISIBLE : View.GONE);
         pinFail.setText(pairMsg);
         pinFail.setVisibility(pairState.equals("failed") && !pairMsg.isEmpty() ? View.VISIBLE : View.GONE);
         if (paired) {
-            String now = tvApp != null ? L.f("Сейчас: %s", appName(tvApp)) : Boolean.FALSE.equals(tvOn) ? L.t("ТВ выключен") : tvOn == null ? L.t("Подключаюсь…") : L.t("Главный экран");
+            String now = isSamsung()
+                    ? (samState.equals("ready") ? "Samsung · Smart View"
+                       : samState.equals("waiting") ? L.t("Нажмите «Разрешить» на экране ТВ")
+                       : samState.equals("denied") ? L.t("ТВ не разрешил подключение")
+                       : samState.equals("error") ? L.t("ТВ не отвечает") : L.t("Подключаюсь…"))
+                    : tvApp != null ? L.f("Сейчас: %s", appName(tvApp)) : Boolean.FALSE.equals(tvOn) ? L.t("ТВ выключен") : tvOn == null ? L.t("Подключаюсь…") : L.t("Главный экран");
             tvNow.setText(now);
             for (TextView c : chips) ui.setChipActive(c, c.getTag().equals(tvApp));
             dpadBox.setVisibility(padMode == 0 ? View.VISIBLE : View.GONE);

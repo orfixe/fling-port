@@ -48,6 +48,28 @@ final class L {
     static {
         // first-run tips (Tour)
         e("Пропустить", "Skip");
+        // Smart View for Samsung (Samsung.java)
+        e("Зеркалировать экран", "Mirror screen");
+        e("Включить ТВ по сети", "Turn the TV on over the network");
+        e("Выберите телевизор в списке «Smart View»", "Choose the TV in the Smart View list");
+        e("На этом телефоне нет экрана трансляции. Откройте Smart View в шторке быстрых настроек.", "This phone has no cast screen. Open Smart View from the quick settings panel.");
+        e("Голосовой поиск на Samsung не поддерживается — напечатайте запрос.", "Voice search doesn't work on Samsung — type your query.");
+        e("Нажмите «Разрешить» на экране ТВ", "Press Allow on the TV screen");
+        e("Не знаю MAC-адрес ТВ — включите его один раз пультом, чтобы Fling его запомнил.", "Fling doesn't know the TV's MAC address yet — turn the TV on once with its remote so Fling can remember it.");
+        e("По адресу %s нет Chromecast, Google TV или Samsung.", "There's no Chromecast, Google TV or Samsung at %s.");
+        e("Связь с ТВ прервалась.", "The connection to the TV was lost.");
+        e("ТВ не ответил на запрос разрешения.", "The TV didn't answer the permission request.");
+        e("ТВ не отвечает", "The TV doesn't answer");
+        e("ТВ не отвечает — он выключен или в другой сети.", "The TV doesn't answer — it's off or on another network.");
+        e("ТВ не поддерживает DLNA или он выключен.", "The TV doesn't support DLNA or it's off.");
+        e("ТВ не принял ссылку: %s", "The TV didn't accept the link: %s");
+        e("ТВ не принял файл: %s", "The TV didn't accept the file: %s");
+        e("ТВ не разрешил подключение", "The TV refused the connection");
+        e("ТВ не разрешил подключение. На ТВ: Общие → Диспетчер внешних устройств → Диспетчер подключения устройств — разрешите Fling.", "The TV refused the connection. On the TV: General → External Device Manager → Device Connection Manager — allow Fling.");
+        e("Этого приложения нет на Samsung или Fling не знает, как его открыть.", "This app isn't on the Samsung, or Fling doesn't know how to open it.");
+        // Settings → About
+        e("Показать подсказки снова", "Show the tips again");
+        e("Сборка", "Build");
         e("Далее", "Next");
         e("Готово", "Done");
         e("Полная инструкция", "Full guide");

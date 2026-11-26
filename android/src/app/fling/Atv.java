@@ -69,7 +69,16 @@ final class Atv {
         this.prefs = ctx.getSharedPreferences("atv", Context.MODE_PRIVATE);
     }
 
-    boolean paired(String host) { return host != null && prefs.getBoolean("paired_" + host, false); }
+    /** Samsung TVs (Smart View) are driven over their own WebSocket: every call for one of
+     *  their addresses goes there, so the app's remote UI works on them unchanged. */
+    Samsung sam;
+
+    private boolean sam(String host) { return sam != null && sam.handles(host); }
+
+    boolean paired(String host) {
+        if (sam(host)) return true;       // no code to type: the TV asks "Allow?" on its own screen
+        return host != null && prefs.getBoolean("paired_" + host, false);
+    }
 
     /** True when this phone has been paired with any TV address. */
     boolean pairedAnywhere() {
@@ -81,6 +90,7 @@ final class Atv {
      *  paired when it is reached again by its Tailscale address. Tries a session quietly and,
      *  if the TV accepts it, remembers the new address as paired. No code on the TV screen. */
     void adopt(String host) {
+        if (sam(host)) return;
         if (host == null || paired(host) || !pairedAnywhere()) return;
         io.execute(() -> {
             try {
@@ -96,6 +106,7 @@ final class Atv {
     // ------------------------------------------------------------ pairing
 
     void startPairing(String host) {
+        if (sam(host)) { sam.connect(host); return; }
         io.execute(() -> {
             l.onPairing("starting", "");
             try {
@@ -181,6 +192,7 @@ final class Atv {
     // ------------------------------------------------------------ session
 
     void connect(String host) {
+        if (sam(host)) { sam.connect(host); return; }
         if (!paired(host)) return;
         io.execute(() -> {
             try { connectNow(host); } catch (Exception e) { l.onError(message(e)); }
@@ -212,7 +224,10 @@ final class Atv {
         sock = null;
     }
 
-    void disconnect() { io.execute(this::disconnectNow); }
+    void disconnect() {
+        if (sam != null) sam.disconnect();
+        io.execute(this::disconnectNow);
+    }
 
     private void readLoop(SSLSocket s) {
         try {
@@ -309,12 +324,14 @@ final class Atv {
     private interface ThrowingSend { void run() throws Exception; }
 
     void key(String host, int code) {
+        if (sam(host)) { sam.key(host, code); return; }
         command(host, () -> send(new Proto.W().msg(10, new Proto.W().varint(1, code).varint(2, 3)).out()));
     }
 
     /** Sleep timer: turns the TV off only if it is on (POWER toggles, so a sleeping TV must not get it).
      *  Runs done() in every case, on the remote's thread. */
     void powerOff(String host, Runnable done) {
+        if (sam(host)) { sam.key(host, POWER); done.run(); return; }   // the sleep timer: the TV is on if it answers
         io.execute(() -> {
             try {
                 connectNow(host);   // returns after the TV has reported its power state
@@ -328,11 +345,13 @@ final class Atv {
     }
 
     void launch(String host, String link) {
+        if (sam(host)) { sam.launch(host, link); return; }
         command(host, () -> send(new Proto.W().msg(90, new Proto.W().str(1, link)).out()));
     }
 
     void text(String host, String text) {
         if (text == null || text.isEmpty()) return;
+        if (sam(host)) { sam.text(host, text); return; }
         textLive(host, text);
     }
 
@@ -340,6 +359,7 @@ final class Atv {
      *  as it happens, each change replacing the whole field. */
     void textLive(String host, String text) {
         if (text == null) return;
+        if (sam(host)) { sam.textLive(host, text); return; }
         command(host, () -> {
             int cursor = Math.max(0, text.codePointCount(0, text.length()) - 1);
             Proto.W obj = new Proto.W();
@@ -356,6 +376,7 @@ final class Atv {
     // ------------------------------------------------------------ voice
 
     void voiceBegin(String host) {
+        if (sam(host)) { l.onError(L.t("Голосовой поиск на Samsung не поддерживается — напечатайте запрос.")); return; }
         command(host, () -> {
             if ((features & F_VOICE) == 0) throw new IOException(L.t("Этот ТВ не принимает голос — напечатайте запрос."));
             voiceLatch = new CountDownLatch(1);
