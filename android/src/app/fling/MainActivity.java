@@ -1154,6 +1154,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         if (Build.VERSION.SDK_INT >= 30) {
             getWindow().getDecorView();   // the insets controller needs the decor to exist
             getWindow().setDecorFitsSystemWindows(false);
+            getWindow().getDecorView();                  // creates the decor: no controller before it (Android 17 crashed)
             WindowInsetsController c = getWindow().getInsetsController();
             if (c != null) {
                 int light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;

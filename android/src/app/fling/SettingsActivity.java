@@ -53,6 +53,7 @@ public class SettingsActivity extends Activity {
         getWindow().setNavigationBarColor(0);
         if (Build.VERSION.SDK_INT >= 30) {
             getWindow().setDecorFitsSystemWindows(false);
+            getWindow().getDecorView();                  // creates the decor: no controller before it (Android 17 crashed)
             WindowInsetsController c = getWindow().getInsetsController();
             if (c != null) {
                 int light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
