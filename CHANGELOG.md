@@ -10,6 +10,39 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.5.1] - unreleased
+
+### Added
+
+- Android: **Cast checks that the device is a real Chromecast.** A Chromecast replaces its TLS
+  certificate by itself, so it can't be pinned; Fling now does what Chrome and the Google Cast
+  SDK do — a challenge on the `deviceauth` channel, answered with the device's certificate
+  (issued by Google's Cast root) and a signature over this connection's certificate. A man in
+  the middle can't answer it, and Fling doesn't connect.
+- Android: **a TV chooser like the PC's.** "Switch" opens a screen that searches at once and
+  shows every TV as a card: at home (Chromecast, Google TV, Samsung), ADB devices on the same
+  Wi‑Fi (network debugging, e.g. a Fire TV) and Tailscale TVs with their delay; what answers on
+  each (Cast, remote, ADB, Samsung) and whether it's online. Add by address right there.
+- Android: a **Google Play** build (App Bundle, no self-update) next to the GitHub APK.
+- Android: TV certificates of the remote (6466/6467) and Samsung (8002) are **pinned on first
+  use**; pairing again or forgetting a TV learns them again.
+
+### Changed
+
+- Android: built with Gradle, AndroidX and Material; release APKs are signed with a new release
+  key **with key rotation**, so installed apps keep updating (Android 9+ moves to the new key,
+  Android 8 keeps the old one).
+- Android: Settings → theme is one **Auto | Light | Dark** control, with **AMOLED** (pure black)
+  as its own switch; a saved "Black" theme becomes Dark + AMOLED.
+- Android: a proper settings gear icon.
+- macOS: installs without GitHub CLI once the repository is public; licensing notes updated now
+  that the original Fling is under the Boost Software License 1.0.
+
+### Fixed
+
+- Android 17: Settings closed itself when opened.
+- Android 8–10: a crash on `WindowInsets.CONSUMED` (API 30).
+
 ## [0.5.0] - 2026-11-26
 
 ### Added

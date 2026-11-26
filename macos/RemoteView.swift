@@ -1,6 +1,7 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 orfixe and the Fling port contributors
-// Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
+// SPDX-License-Identifier: BSL-1.0
+// Fling's Sources/Fling/RemoteView.swift (https://github.com/tatianathevisionary/fling) by
+// Damion Rashford and Tatiana, Boost Software License 1.0 (macos/LICENSE-fling.txt),
+// modified by orfixe and the Fling port contributors: keyboard button, TV volume slider.
 import SwiftUI
 import Combine
 import FlingKit

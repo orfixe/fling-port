@@ -41,9 +41,10 @@ the phone (scrcpy), and over **Tailscale** it all works away from home.
 > their project and is not affiliated with or endorsed by them; it only brings their app to
 > Windows, Linux, Android and the browser.
 >
-> **Status:** private preview. An independent re-implementation (Python/Qt, Java, JavaScript),
-> not a fork: no Swift code was copied. The original repository has no license yet — this project
-> stays private until its author agrees. See [CREDITS.md](CREDITS.md).
+> **Status:** preview. Windows, Linux, Android and the browser extension are an independent
+> re-implementation (Python/Qt, Java, JavaScript), not a fork: no Swift code was copied. The macOS
+> build is the original Swift app with a few changes, under the original's Boost Software License
+> 1.0. See [CREDITS.md](CREDITS.md).
 
 ---
 

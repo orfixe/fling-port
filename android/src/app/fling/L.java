@@ -299,6 +299,7 @@ final class L {
         e("Проверить обновления", "Check for updates");
 
         // TV chooser (DevicePicker)
+        e("GitHub ограничил число проверок с этого адреса. Попробуйте через час.", "GitHub limited checks from this address. Try again in an hour.");
         e("ADB · отладка по сети", "ADB · network debugging");
         e("LIVE и ADB, без пульта и Cast", "LIVE and ADB, no remote or Cast");
         e("Tailscale включён", "Tailscale is on");

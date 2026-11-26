@@ -46,6 +46,19 @@ Copies found already installed (PATH, Android SDK, WinGet, Scoop, Chocolatey, Ho
 system packages) are only run, or copied into Fling's folder when the user asks; their own
 licenses apply.
 
+## Bundled in the Android app (Fling.apk, Play bundle)
+
+| Software | Used for | License |
+|---|---|---|
+| [AndroidX](https://developer.android.com/jetpack/androidx) Core, AppCompat, Activity | system UI compatibility | Apache-2.0 |
+| [Material Components for Android](https://github.com/material-components/material-components-android) | themes and widgets | Apache-2.0 |
+| [Material Icons](https://github.com/google/material-design-icons) — "settings" (outlined) | the Settings gear | Apache-2.0 |
+| Cast Root CA and Eureka Root CA certificates, from [openscreen](https://chromium.googlesource.com/openscreen/) `cast/common/certificate/` | checking that a Cast device is genuine (`CastAuth.java`) | BSD-3-Clause, © The Chromium Authors (public certificates) |
+
+The unit test data in `android/test/castauth/` (real Cast device certificate chains and a
+signature) also comes from openscreen's `test/data/cast/common/certificate/`, BSD-3-Clause;
+it is not part of the app.
+
 ## Downloaded on first use (Android app, LIVE)
 
 | Software | From | Checked against | License |

@@ -37,9 +37,9 @@ import java.util.concurrent.Executors;
 
 /** Updates Fling itself from the newest GitHub release of the port (asset "Fling.apk").
  *
- *  The repository is private for now, so GitHub only answers with a token. The user pastes
- *  their own read-only token once; it stays in this phone's prefs and is never built into
- *  the APK. If the repository goes public, no token is needed at all.
+ *  A public repository needs no token. While it is private, GitHub answers 404 without one:
+ *  then the user pastes their own read-only token once; it stays in this phone's prefs and is
+ *  never built into the APK. A 403 without a token is GitHub's hourly limit, not "private".
  *
  *  The download is installed with PackageInstaller: Android shows its own confirm screen,
  *  and the update goes over the old app (same signing key), keeping pairing and settings. */
@@ -92,6 +92,8 @@ final class Updater {
                 if (rel != null && newer(rel.version, have)) offer(rel, have);
                 else if (!manual) return;
                 else if (rel != null) toast(L.f("У вас последняя версия (%s).", have));
+                else if (rel == null && why == null && status == 403 && token().isEmpty())
+                    toast(L.t("GitHub ограничил число проверок с этого адреса. Попробуйте через час."));   // 60 an hour without a token
                 else if (rel == null && why == null && (status == 404 || status == 401 || status == 403)) askToken(!token().isEmpty());
                 else toast(L.t("Не удалось проверить обновления: ") + (why != null ? why : "HTTP " + status));
             });

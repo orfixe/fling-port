@@ -2,34 +2,39 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 orfixe and the Fling port contributors
 # Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
-# Private install for the unofficial macOS Fling Port build.
+# Install for the unofficial macOS Fling Port build.
 #
 # Do NOT download Fling.app.zip in Safari/Chrome — macOS quarantines browser
 # downloads and often removes ad-hoc-signed apps as “malware”.
-# This script pulls the Mach-O with `gh` (no quarantine) and assembles the
+# This script pulls the Mach-O with curl (no quarantine) and assembles the
 # .app locally, same approach as upstream get-fling.sh.
 #
-# Needs: macOS 14+, `gh` logged into a account that can read orfixe/fling-port.
+# Needs: macOS 14+. While the repository is private, `gh` logged into an account
+# that can read it (the public download is tried first).
 set -euo pipefail
 
 REPO="${FLING_PORT_REPO:-orfixe/fling-port}"
 TAG="${FLING_PORT_TAG:-latest}"
 APP="${FLING_PORT_APP:-$HOME/Applications/Fling Port.app}"
 
-command -v gh >/dev/null || {
-  echo "Install GitHub CLI first: https://cli.github.com/  then: gh auth login"
-  exit 1
-}
 uname | grep -q Darwin || { echo "Run this on a Mac."; exit 1; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-echo "==> Downloading private release assets ($REPO @ $TAG)"
-# Prefer raw Mach-O + plist; fall back to zip if needed
-if gh release download "$TAG" -R "$REPO" -p 'Fling' -p 'Info.plist' -D "$TMP" 2>/dev/null; then
+echo "==> Downloading release assets ($REPO @ $TAG)"
+if [ "$TAG" = latest ]; then BASE="https://github.com/$REPO/releases/latest/download"
+else BASE="https://github.com/$REPO/releases/download/$TAG"; fi
+# Public repository: plain HTTPS. Private: gh. Prefer raw Mach-O + plist; fall back to zip.
+if curl -fsSL "$BASE/Fling" -o "$TMP/Fling" && curl -fsSL "$BASE/Info.plist" -o "$TMP/Info.plist"; then
   :
-elif gh release download "$TAG" -R "$REPO" -p 'Fling.app.zip' -D "$TMP"; then
+elif ! command -v gh >/dev/null; then
+  echo "Could not download $BASE/Fling. If the repository is private, install GitHub CLI"
+  echo "(https://cli.github.com/), run: gh auth login, and try again."
+  exit 1
+elif gh release download "$TAG" -R "$REPO" -p 'Fling' -p 'Info.plist' -D "$TMP" --clobber 2>/dev/null; then
+  :
+elif gh release download "$TAG" -R "$REPO" -p 'Fling.app.zip' -D "$TMP" --clobber; then
   echo "==> Unpacking zip (still assembled + re-signed locally)"
   ditto -x -k "$TMP/Fling.app.zip" "$TMP/unpacked"
   BIN="$(find "$TMP/unpacked" -type f -path '*/Contents/MacOS/Fling' | head -1)"
