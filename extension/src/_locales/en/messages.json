@@ -120,7 +120,7 @@
     "message": "No device found"
   },
   "rescan": {
-    "message": "Search again…"
+    "message": "Search again"
   },
   "optionsTitle": {
     "message": "Fling extension settings"

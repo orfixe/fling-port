@@ -84,6 +84,11 @@ PHRASES = [
      "Fling waits in the notification area and opens with a click or Win+Shift+C."),
     ("Fling ждёт в трее и откроется по клику.", "Fling waits in the tray and opens with a click."),
     ("Компактная панель", "Compact panel"),
+    ("Отправка вкладок браузера", "Casting browser tabs"),
+    ("Кнопка «Отправить эту вкладку» и подсказка про расширение для Chrome и Edge.",
+     "The Cast this tab button and the hint about the Chrome and Edge extension."),
+    ("Сборка ", "Build "), ("из исходников", "from source"), ("есть несохранённые изменения", "uncommitted changes"),
+    ("Показать вводный тур", "Show the welcome tour"),
     ("Только то, что играет, громкость и выбор ТВ.", "Only what's playing, the volume and the TV switcher."),
     ("Как пользоваться", "How to use"), ("Журнал Fling", "Fling log"), ("Папка настроек", "Settings folder"),
     # Remote
@@ -1006,6 +1011,10 @@ class SettingsWindow(QWidget):
         lay.addWidget(self._hr())
         lay.addWidget(toggle_row("Компактная панель", "Только то, что играет, громкость и выбор ТВ.",
                                  bool(self.state.conf.get("compact")), self._set_compact))
+        lay.addWidget(self._hr())
+        lay.addWidget(toggle_row("Отправка вкладок браузера",
+                                 "Кнопка «Отправить эту вкладку» и подсказка про расширение для Chrome и Edge.",
+                                 not self.state.conf.get("hide_tabs"), self._set_tabs))
         v.addWidget(box)
 
         row = QHBoxLayout(); row.setSpacing(8)
@@ -1028,6 +1037,10 @@ class SettingsWindow(QWidget):
 
     def _set_compact(self, on):
         self._save(compact=bool(on))
+        self.state.changed.emit()
+
+    def _set_tabs(self, on):
+        self._save(hide_tabs=not on)
         self.state.changed.emit()
 
     # ----------------------------------------------------------- Remote
@@ -1142,6 +1155,21 @@ class SettingsWindow(QWidget):
         tv = QVBoxLayout(); tv.setSpacing(3)
         tv.addWidget(F.label("Fling", 26, weight=QFont.Weight.Bold))
         tv.addWidget(F.label(F.tr("Версия ") + F.VERSION + " · " + F.P.OS_NAME, 12, T.fg_a(0.6)))
+        b = F.P.build_info()
+        parts = [F.tr("Сборка ") + (b["commit"] or "?")]
+        if b["date"]:
+            parts.append(b["date"])
+        if b["kind"] == "source":
+            parts.append(F.tr("из исходников"))
+        if b["dirty"]:
+            parts.append(F.tr("есть несохранённые изменения"))
+        bl = F.label(" · ".join(parts), 11, T.fg_a(0.45))
+        bl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        tv.addWidget(bl)
+        tour = button("Показать вводный тур", lambda: setattr(self, "_tour", __import__("fling_welcome").replay(F)))
+        tour_row = QHBoxLayout(); tour_row.setContentsMargins(0, 6, 0, 0)
+        tour_row.addWidget(tour); tour_row.addStretch(1)
+        tv.addLayout(tour_row)
         d = F.label("Отправляйте видео и вкладки браузера на Chromecast и Google TV и управляйте телевизором "
                     "с компьютера: пульт, громкость, приложения, экран ТВ вживую.", 12.5, T.fg_a(0.85), wrap=True)
         d.setContentsMargins(0, 4, 0, 0)
@@ -1220,7 +1248,8 @@ class SettingsWindow(QWidget):
         from PyQt6.QtCore import QT_VERSION_STR, PYQT_VERSION_STR
         osname = f"{platform.system()} {platform.release()} ({platform.version()})"
         return (f"Fling {F.VERSION} · {osname} · Python {platform.python_version()} · "
-                f"Qt {QT_VERSION_STR} · PyQt {PYQT_VERSION_STR} · {F.LANG}"
+                f"Qt {QT_VERSION_STR} · PyQt {PYQT_VERSION_STR} · {F.LANG} · "
+                f"build {F.P.build_info()['commit'] or '?'}"
                 + (" · frozen" if getattr(sys, "frozen", False) else ""))
 
     def _copy_info(self):

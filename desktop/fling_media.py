@@ -1753,7 +1753,10 @@ class OpenRow(QWidget):
         self.sync()
 
     def sync(self):
-        self.setVisible(not self.state.conf.get("compact") and self.state.panel != "setup")
+        want = not self.state.conf.get("compact") and self.state.panel != "setup"
+        if want and self.isWindow():   # not in the panel yet: showing it now would flash a window
+            return
+        self.setVisible(want)
 
     def _menu(self):
         menu = QMenu(self)

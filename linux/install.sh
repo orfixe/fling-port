@@ -41,7 +41,7 @@ echo "==> Files"
 install -m 644 "$HERE/../desktop/fling_app.py" "$HERE/../desktop/fling_help.py" "$HERE/../desktop/sf_icons.py" \
     "$HERE/../desktop/fling_themes.py" "$HERE/../desktop/fling_settings.py" "$HERE/../desktop/fling_remote.py" \
     "$HERE/../desktop/fling_media.py" "$HERE/../desktop/fling_tools.py" "$HERE/../desktop/fling_catalog.py" \
-    "$HERE/../desktop/fling_devices.py" "$HERE/../desktop/fling_tailscale.py" \
+    "$HERE/../desktop/fling_devices.py" "$HERE/../desktop/fling_tailscale.py" "$HERE/../desktop/fling_samsung.py" "$HERE/../desktop/fling_welcome.py" \
     "$HERE/../desktop/fling_platform.py" "$HERE/../desktop/fling_bridge.py" \
     "$HERE/bt_remote.py" "$DATA/"   # shared app, guide, icons, themes, settings, remote modes, media, tools, catalog, Tailscale, OS layer, browser bridge, BT service
 install -m 755 "$HERE/fling" "$HERE/fling-tui" "$BIN/"

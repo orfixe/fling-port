@@ -49,6 +49,9 @@ import fling_catalog                   # extra modules from official sources (th
 import fling_devices as D              # the TV chooser window (search animation, cards, add by IP)
 import fling_tailscale as TS           # remote access over Tailscale: tailnet TVs, keep-alive, settings page
 TS.F = sys.modules[__name__]
+import fling_samsung as SV           # Smart View for Samsung TVs: mirroring, remote, apps, DLNA
+import fling_welcome                 # first run: language, then an animated tour (skippable)
+SV.F = sys.modules[__name__]
 
 HOME = P.HOME
 CATT = P.find_catt()
@@ -58,7 +61,7 @@ SOCKET = "fling-panel"
 SEEK = 30
 GLOBAL_SHORTCUT = P.GLOBAL_SHORTCUT
 SHORTCUT_LABEL = P.SHORTCUT_LABEL
-VERSION = "0.4.1"
+VERSION = "0.5.0"
 
 # ---------------------------------------------------------------- config
 
@@ -1037,7 +1040,8 @@ class State(QObject):
         self.lounge.linked.connect(self._on_yt_linked)
         self.lounge.start()
         self.media = M.Media(self)       # queue / slideshow / resume / recent (fling_media.py)
-        self.tailnet = TS.KeepAlive(self)  # a TV on the tailnet: ping, reconnect, footer latency
+        self.tailnet = TS.KeepAlive(self)
+        self.sv = SV.Hub(self)               # Samsung / Miracast TVs: remote, apps, DLNA, mirroring  # a TV on the tailnet: ping, reconnect, footer latency
 
     # --- YouTube lounge
     def _on_yt(self, d):
@@ -1129,6 +1133,9 @@ class State(QObject):
     def send_files(self, paths: list[str]):
         """Files / folders dropped on Fling or `fling send`: install, play (a queue for several
         videos, songs or photos; playlists and folders too) or copy them to the TV."""
+        if SV.is_sv(self.device):
+            self.sv.send_files(paths)
+            return
         self.media.send(paths)
 
     def adb_push(self, path: str, why: str = "", then=None):
@@ -1232,7 +1239,7 @@ class State(QObject):
     def adb_ok(self) -> bool:
         """True when this TV recently answered as an authorized ADB device."""
         ip = self.ip
-        if not ip or not P.adb_available():
+        if not ip or SV.is_sv(self.device) or not P.adb_available():
             return False
         hit = _ADB_HOST.get(ip)
         return bool(hit and hit[0] == "device")
@@ -1453,7 +1460,7 @@ class State(QObject):
         if self._refreshing:
             return
         self._refreshing = True
-        ip = self.ip
+        ip = None if SV.is_sv(self.device) else self.ip    # no Cast status from a Samsung / Miracast TV
         def work():
             tab = current_tab(self.browser_tab) if with_tab else None
             st = None
@@ -1495,9 +1502,11 @@ class State(QObject):
         self._scanned = True
         self.scanning = True
         self.changed.emit()
+        self.sv.scan(self._merge_sv)                   # Samsung TVs and Miracast displays, in parallel
         def done(found, e):
             self.scanning = False                      # search finished (UI stops showing "Searching…")
             found = list(found or [])                  # catt scan result, may be empty
+            found += [d for d in self.devices if SV.is_sv(d)]   # Samsung / Miracast found meanwhile
             known = {d["ip"] for d in found}           # IPs seen on the network right now
             found += [d for d in self.conf.get("manual", []) if d["ip"] not in known]   # TVs added by IP
             if not found:
@@ -1507,12 +1516,26 @@ class State(QObject):
             if not self.device or self.device["ip"] not in [d["ip"] for d in found]:
                 same = [d for d in found if self.device and d["name"] == self.device["name"]]
                 self.device = same[0] if same else found[0]
-            self.conf.update(devices=found, device=self.device)
+            self.conf.update(devices=[d for d in found if not SV.is_miracast(d)], device=self.device)
             save_conf(self.conf)
-            self.atv.connect(self.ip)
+            if SV.is_sv(self.device):
+                self.sv.select(self.device)
+            else:
+                self.atv.connect(self.ip)
             self.changed.emit()
             self.refresh()
         self.bg(catt_scan, done)
+
+    def _merge_sv(self, extra):
+        """Samsung / Miracast results join the TV list (Cast results keep their place)."""
+        ips = {d["ip"] for d in extra}
+        self.devices = [d for d in self.devices if not SV.is_sv(d) and d["ip"] not in ips] + extra
+        if not self.device and self.devices:
+            self.select_device(self.devices[0])
+            return
+        self.conf["devices"] = [d for d in self.devices if not SV.is_miracast(d)]
+        save_conf(self.conf)
+        self.changed.emit()
 
     def select_device(self, d):
         if self.device and d["ip"] == self.device["ip"]:   # already on this TV: nothing to do
@@ -1526,7 +1549,9 @@ class State(QObject):
         self.conf["device"] = d
         save_conf(self.conf)
         self.last_error = None
-        self.atv.connect(self.ip)
+        self.sv.select(d)                  # Samsung: its remote; any other TV: closes it
+        if not SV.is_sv(d):
+            self.atv.connect(self.ip)
         self.changed.emit()
         self.refresh()
 
@@ -1618,6 +1643,12 @@ class State(QObject):
     def cast(self, url, notify=False, start=None, title=None):
         if M.is_unc(url):     # never touch \\host\share: Windows would hand it the login hash (NTLM)
             self._set(last_error=M.UNC_ERROR)
+            return
+        if SV.is_sv(self.device):          # Samsung: DLNA for media links, else its app / browser
+            if os.path.isfile(url):
+                self.sv.send_files([url])
+            else:
+                self.sv.cast_url(url, title)
             return
         kind, reason = classify(url)
         if kind == "none":
@@ -1769,6 +1800,9 @@ class State(QObject):
         self.tv_key(KEY["mute"])
 
     def wake(self):
+        if SV.is_sv(self.device):
+            self.sv.power_on()
+            return
         ip = self.ip
         def work():
             try:
@@ -1795,7 +1829,7 @@ class State(QObject):
     def remote_ready(self):
         # Damion's Fling: d-pad / typing need the Android TV Remote (or BT) session
         # plus ADB as a fallback: keys go as `input keyevent` (slower, but no pairing needed)
-        return self.tv_paired or self.bt_connected or self.adb_ok()
+        return self.tv_paired or self.bt_connected or self.adb_ok() or self.sv.ready
 
     def poll_bt(self):
         def done(r, e):
@@ -1823,6 +1857,9 @@ class State(QObject):
         self.bg(lambda: bt_call(cmd), done)
 
     def tv_key(self, code):
+        if SV.is_sv(self.device):                 # Samsung: its own network remote
+            self.sv.key(code)
+            return
         # Same path as upstream Fling: Android TV Remote / BT — not ADB keyevents
         if self.tv_paired and self.ip:
             self.atv.key(self.ip, code)
@@ -1854,13 +1891,17 @@ class State(QObject):
         self._adb_keys.submit(run)
 
     def tv_launch(self, link):
-        if self.ip:
+        if SV.is_sv(self.device):
+            self.sv.launch(link)
+        elif self.ip:
             self.atv.launch(self.ip, link)
 
     def tv_text(self, s):
         if not s:
             return
-        if not self.tv_paired and self.bt_connected:
+        if SV.is_sv(self.device):
+            self.sv.text(s)
+        elif not self.tv_paired and self.bt_connected:
             def done(r, e):
                 if r and r.get("skipped"):
                     self._set(last_error="По Bluetooth можно печатать только латиницу и цифры.")
@@ -2057,7 +2098,7 @@ EN_PHRASES = [  # longest first is applied automatically
     ("нет контрольной суммы scrcpy", "no scrcpy checksum"),
     ("в архиве scrcpy нет программы scrcpy", "the scrcpy download has no scrcpy program"),
     ("Выполнить", "Run"), ("Стоп", "Stop"), ("Быстрые команды ▾", "Quick commands ▾"),
-    ("Копировать вывод", "Copy output"), ("Очистить", "Clear"),
+    ("Скопировать вывод", "Copy output"), ("Очистить", "Clear"),
     ("ТВ не выбран   ·   ", "No TV selected   ·   "), ("ТВ не выбран.", "No TV selected."), ("ТВ: ", "TV: "),
     ("Команда выполняется в оболочке ТВ (adb shell). adb-команды вроде logcat, install, pull пишите как есть. "
      "↑/↓ — история.",
@@ -2095,6 +2136,8 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Уведомлять о смене видео", "Notify when the video changes"), ("Сейчас на ТВ: ", "Now on TV: "), ("Возобновить на ТВ с ", "Resume on TV at "),
     ("Отмена", "Cancel"), ("Отправить скопированную ссылку", "Cast copied link"),
     ("Отправить эту вкладку вместо", "Cast this tab instead"), ("Отправить эту вкладку", "Cast this tab"),
+    ("Убрать отправку вкладок из панели — вернуть можно в Настройках",
+     "Remove tab casting from the panel — Settings brings it back"), ("Скрыть", "Hide"),
     ("Отправляю…", "Casting…"), ("Пауза / Играть", "Play / Pause"), ("Пауза на ТВ", "Pause on TV"),
     ("Предыдущее видео", "Previous video"), ("Следующее видео", "Next video"), ("Пробел", "Space"),
     ("Проверьте код — он действует несколько минут.", "Check the code — it's valid for a few minutes."),
@@ -2342,6 +2385,7 @@ EN_PHRASES += fling_catalog.EN_PHRASES
 EN_PHRASES += M.PHRASES          # formats, queues, slideshows (fling_media.py)
 EN_PHRASES += D.PHRASES + [("Найти ТВ…", "Find TVs…")]   # the TV chooser (fling_devices.py)
 EN_PHRASES += TS.PHRASES   # remote access over Tailscale (fling_tailscale.py)
+EN_PHRASES += SV.PHRASES   # Smart View for Samsung TVs (fling_samsung.py)
 EN_PHRASES.sort(key=lambda kv: -len(kv[0]))
 EN_REGEX = [(re.compile(r"(\d+) с\b"), r"\1s")]
 R.bind(sys.modules[__name__])     # fling_remote reuses the helpers below and adds its phrases
@@ -2841,7 +2885,8 @@ class MenuRow(QPushButton):
         lay.setSpacing(8)
         self.ic = QLabel()
         self.ic.setFixedWidth(15)
-        self.ic.setVisible(bool(icon))
+        if not icon:                 # never setVisible(True) here: parentless = a flashing window
+            self.ic.hide()
         self.ic.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.t = label(title, 12.5)
         self.t.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -3806,9 +3851,14 @@ class Morph(QWidget):
                          Qt.WindowType.NoDropShadowWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.a, self.b, self.ra, self.rb, self.done = a, b, ra, rb, done
         self.t = 0.0
-        self.setGeometry(ra)
+        # The window covers both rectangles and never moves: only the painting animates, in
+        # fractional pixels. Moving + resizing a layered window every frame rounded its edges
+        # differently each time (worst at 125/150 % scaling), so the whole morph shook.
+        self.box = ra.united(rb)
+        self.setGeometry(self.box)
         from PyQt6.QtCore import QVariantAnimation
         self.anim = QVariantAnimation(self)
         self.anim.setStartValue(0.0); self.anim.setEndValue(1.0); self.anim.setDuration(ms)
@@ -3822,11 +3872,14 @@ class Morph(QWidget):
 
     def _step(self, v):
         self.t = float(v)
-        lerp = lambda x, y: int(round(x + (y - x) * self.t))
-        ra, rb = self.ra, self.rb
-        self.setGeometry(lerp(ra.x(), rb.x()), lerp(ra.y(), rb.y()),
-                         lerp(ra.width(), rb.width()), lerp(ra.height(), rb.height()))
         self.update()
+
+    def _cur(self) -> QRectF:
+        """The morphing rectangle now, in this window's coordinates (fractional)."""
+        lerp = lambda x, y: x + (y - x) * self.t
+        ra, rb, o = self.ra, self.rb, self.box.topLeft()
+        return QRectF(lerp(ra.x(), rb.x()) - o.x(), lerp(ra.y(), rb.y()) - o.y(),
+                      lerp(ra.width(), rb.width()), lerp(ra.height(), rb.height()))
 
     def _end(self):
         self.done()
@@ -3837,7 +3890,7 @@ class Morph(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        r = self._cur().adjusted(0.5, 0.5, -0.5, -0.5)
         clip = QPainterPath(); clip.addRoundedRect(r, 10, 10)
         bg = QColor(T.bg); bg.setAlphaF(1.0)
         p.setPen(QPen(T.fg_a(0.16), 1)); p.setBrush(bg)
@@ -3849,7 +3902,7 @@ class Morph(QWidget):
                 continue
             w = pm.width() / pm.devicePixelRatio(); h = pm.height() / pm.devicePixelRatio()
             p.setOpacity(op)
-            p.drawPixmap(QRectF(self.width() - w, self.height() - h, w, h), pm, QRectF(pm.rect()))
+            p.drawPixmap(QRectF(r.right() + 0.5 - w, r.bottom() + 0.5 - h, w, h), pm, QRectF(pm.rect()))
         p.setOpacity(1.0)
 
 
@@ -4617,7 +4670,7 @@ class AdbConsole(QWidget):
         quick.setMenu(qm)
         row2.addWidget(quick)
         row2.addStretch(1)
-        row2.addWidget(small_button("Копировать вывод", lambda: QApplication.clipboard().setText(self.out.toPlainText())))
+        row2.addWidget(small_button("Скопировать вывод", lambda: QApplication.clipboard().setText(self.out.toPlainText())))
         row2.addWidget(small_button("Очистить", lambda: self.out.clear()))
         v.addLayout(row2)
         self.out = QPlainTextEdit()
@@ -5064,12 +5117,28 @@ class Panel(QWidget):
         self.i_host = label("", 11, T.fg_a(0.55))
         self.i_kind = label("", 11, T.green)
         box = QWidget(); bl = QVBoxLayout(box); bl.setContentsMargins(14, 10, 14, 6); bl.setSpacing(3)
-        bl.addWidget(self.i_title)
+        th = QHBoxLayout(); th.setContentsMargins(0, 0, 0, 0); th.setSpacing(6)
+        th.addWidget(self.i_title, 1)
+        # always reachable: not everyone casts browser tabs (Settings → General brings it back)
+        self.i_tabs_x = QToolButton()
+        self.i_tabs_x.setText("✕")
+        self.i_tabs_x.setFont(font(11))
+        self.i_tabs_x.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.i_tabs_x.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.i_tabs_x.setFixedSize(20, 20)
+        self.i_tabs_x.setStyleSheet(f"QToolButton{{border:none;border-radius:10px;color:{Theme.css(T.fg_a(0.4))};"
+                                    f"background:transparent}}QToolButton:hover{{color:{Theme.css(T.fg)};"
+                                    f"background:{Theme.css(T.fg_a(0.1))}}}")
+        self.i_tabs_x.setToolTip("Убрать отправку вкладок из панели — вернуть можно в Настройках")
+        self.i_tabs_x.clicked.connect(self._hide_tabs)
+        th.addWidget(self.i_tabs_x, 0, Qt.AlignmentFlag.AlignTop)
+        bl.addLayout(th)
         self.i_host_row = QWidget()
         hl = QHBoxLayout(self.i_host_row); hl.setContentsMargins(0, 0, 0, 0)
         hl.setSpacing(4); hl.addWidget(self.i_host); hl.addWidget(label("·", 11, T.fg_a(0.55))); hl.addWidget(self.i_kind); hl.addStretch(1)
         bl.addWidget(self.i_host_row)
         il.addWidget(box)
+        self.i_tabbox = box                              # the browser tab's title and site
         il.addWidget(M.QueueStrip(state, "idle"))        # a stopped queue, a slideshow between photos
         self.i_bar = key_bar(
             ("play_on_tv", f"Отправить эту вкладку  ({SHORTCUT_LABEL})", state.cast_tab, 40, True),
@@ -5094,6 +5163,9 @@ class Panel(QWidget):
         eh = QHBoxLayout(); eh.setSpacing(0)
         eh.addWidget(small_button("Установить расширение…", lambda: install_extension(self, state)))
         eh.addStretch(1)
+        hide = small_button("Скрыть", self._hide_tabs)   # not everyone casts tabs: Settings brings it back
+        hide.setToolTip("Убрать отправку вкладок из панели — вернуть можно в Настройках")
+        eh.addWidget(hide)
         el.addLayout(eh)
         il.addWidget(self.i_ext)
         self.i_clip = MenuRow("Отправить скопированную ссылку", icon="clipboard", on=state.cast_clipboard)
@@ -5244,6 +5316,24 @@ class Panel(QWidget):
         v.addWidget(self.house)
         v_main, v = v, hv
         v.addWidget(Separator())
+        # Samsung / Miracast: mirroring and the screen layout, right in the panel
+        self.sv_box = QWidget()
+        sb = QVBoxLayout(self.sv_box); sb.setContentsMargins(0, 0, 0, 0); sb.setSpacing(0)
+        self.sv_mirror = MenuRow("Зеркалировать экран", icon="play_on_tv", accented=True,
+                                 on=lambda: (self.hide(), state.sv.mirror()))
+        sb.addWidget(self.sv_mirror)
+        if P.IS_WIN:
+            lay = QHBoxLayout(); lay.setContentsMargins(14, 2, 14, 6); lay.setSpacing(6)
+            self.sv_layout = {}
+            for title, mode, tip in (("Только ТВ", "external", "Экран только на ТВ, в его разрешении"),
+                                     ("Расширить", "extend", "ТВ — второй экран, в его разрешении"),
+                                     ("Дублировать", "clone", "Одна картинка на обоих экранах (на ТВ может растянуться)")):
+                b = small_button(title, lambda _=False, m=mode: state.sv.layout(m))
+                b.setToolTip(tip)
+                self.sv_layout[mode] = b
+                lay.addWidget(b, 1)
+            sb.addLayout(lay)
+        v.addWidget(self.sv_box)
         self.shot_row = MenuRow("Сделать снимок", icon="camera", on=state.tv_screenshot)
         v.addWidget(self.shot_row)
         self.setup_row = MenuRow("Подключение ТВ…", icon="tv", on=lambda: (self.hide(), self.open_setup()))
@@ -5648,6 +5738,11 @@ class Panel(QWidget):
             self.state._setup_ref = self._setup
         self._setup.show(); self._setup.raise_(); self._setup.activateWindow()
 
+    def _hide_tabs(self):
+        self.state.conf["hide_tabs"] = True
+        save_conf(self.state.conf)
+        self.state.changed.emit()
+
     def _adb_badge_click(self):
         """Footer Android: connect if off, otherwise a menu of everyday ADB actions."""
         if self.state.adb_ok():
@@ -5746,9 +5841,11 @@ class Panel(QWidget):
             self.c_stop_text = None
         elif panel.startswith("idle"):
             yid = youtube_id(url) if url else None
-            self.i_art_box.setVisible(bool(yid))
+            tabs_on = not s.conf.get("hide_tabs")
+            self.i_art_box.setVisible(bool(yid) and tabs_on)
             self.i_art.set_url(f"https://img.youtube.com/vi/{yid}/hqdefault.jpg" if yid else None)
-            no_ext = not s.tab and not s.conf.get("ext_seen") and not P.IS_MAC
+            no_ext = tabs_on and not s.tab and not s.conf.get("ext_seen") and not P.IS_MAC
+            self.i_tabbox.setVisible(tabs_on)
             self.i_title.setText((s.tab or {}).get("title") or (
                 "Fling не видит вкладки браузера" if no_ext else
                 "Нет открытой страницы" if not s.tab else url))
@@ -5769,9 +5866,10 @@ class Panel(QWidget):
             # "No page open" is already the title; the extension hint covers the rest
             why = None if reason == "Нет открытой страницы" else reason
             self.i_why.setText(why or "")
-            self.i_why_box.setVisible(bool(why))
-            self.i_vol_sep.setVisible(not s.tv_paired)
-            self.i_vol.setVisible(not s.tv_paired)
+            self.i_why_box.setVisible(bool(why) and tabs_on)
+            cast_vol = not s.tv_paired and not SV.is_sv(s.device)   # the Cast volume: not on Samsung
+            self.i_vol_sep.setVisible(cast_vol)
+            self.i_vol.setVisible(cast_vol)
             self.i_vol.sync()
 
         # remote
@@ -5787,7 +5885,9 @@ class Panel(QWidget):
         self.pin_ok.setEnabled(len(self.pin_edit.text().strip()) == 6)
         idle_like = p in ("idle", "failed")
         ready = s.remote_ready
-        self.r_setup.setVisible(show_remote and idle_like and not ready and not s.bt_setup)
+        sv = SV.is_sv(s.device)                       # Samsung / Miracast: no Google TV pairing
+        self.sv_box.setVisible(sv)
+        self.r_setup.setVisible(show_remote and idle_like and not ready and not s.bt_setup and not sv)
         self.r_bt.setVisible(show_remote and idle_like and not s.tv_paired and s.bt_setup)
         if s.bt.get("connected"):
             self.r_bt_state.setText(f"✓ Подключено: {s.bt.get('peer') or 'ТВ'}")
@@ -5798,7 +5898,7 @@ class Panel(QWidget):
         else:
             self.r_bt_state.setText("Окно сопряжения закрылось — нажмите «Подключить как Bluetooth-пульт» ещё раз.")
         self.r_ctl.setVisible(show_remote and idle_like and ready)
-        bt_only = ready and not s.tv_paired and not s.adb_ok()
+        bt_only = ready and not s.tv_paired and not s.adb_ok() and not sv
         self.grid_box.setVisible(not bt_only)      # apps open over the network remote or ADB
         self.grid_box.sync()
         self.modes.sync(bt_only)
@@ -5814,6 +5914,9 @@ class Panel(QWidget):
         self.kb_btn.setVisible(True)
         if bt_only:
             self.r_now.setText(f"Bluetooth-пульт · {s.bt.get('peer') or 'ТВ'}")
+            self.r_now.setVisible(True)
+        elif sv:
+            self.r_now.setText(s.sv.status_text())
             self.r_now.setVisible(True)
         elif ready and not s.tv_paired:            # keys go over ADB: the TV doesn't report its app
             self.r_now.setVisible(False)
@@ -5833,6 +5936,9 @@ class Panel(QWidget):
             self.mic.setStyleSheet(f"QPushButton{{border:none;border-radius:5px;background:{Theme.css(bg if on else T.fg_a(0.07))}}}")
             self.mic.setToolTip("Остановить голосовой поиск" if on else "Голосовой поиск")
             self.listening.setVisible(on)
+        else:                                      # no voice search without the network remote
+            self.listening.setVisible(False)
+        self.shot_row.setVisible(not sv)           # screenshots go over ADB: not on Samsung / Miracast
 
         self.err.setText(s.last_error or "")
         self.err_box.setVisible(bool(s.last_error))
@@ -5855,6 +5961,12 @@ class Panel(QWidget):
             self.house.setVisible(True)
         for w in (self.c_rows, self.c_tail, self.i_rows, self.i_clip):
             w.setVisible(not compact)
+        tabs_on = not s.conf.get("hide_tabs")            # Settings → General → Browser tabs
+        if not tabs_on:
+            self.i_rows.setVisible(False)
+        self.c_cast.setVisible(tabs_on)
+        self.i_bar_cast.setVisible(tabs_on)
+        self.c_bar.keys[0].setVisible(tabs_on)
         self.c_bar.setVisible(compact)
         self.i_bar.setVisible(compact)
         if compact:
@@ -5879,6 +5991,7 @@ class Panel(QWidget):
         self.switch.setText("Выбрать")                 # short: the TV's name is right next to it
         # Keep the footer Android in sync (don't restart the Connected! animation every tick)
         if getattr(self, "adb_badge", None):
+            self.adb_badge.setVisible(not SV.is_sv(s.device))   # no ADB on Samsung / Miracast
             want = "ok" if s.adb_ok() else "off"
             if self.adb_badge._state in ("run", "err"):
                 pass
@@ -6714,13 +6827,11 @@ class Tray(QObject):
         castable = s.panel == "idle_castable" or casting
         a = m.addAction("Отправить эту вкладку вместо" if casting else "Отправить эту вкладку", s.cast_tab)
         a.setShortcut(QKeySequence(GLOBAL_SHORTCUT)); a.setEnabled(castable)
+        a.setVisible(not s.conf.get("hide_tabs"))
         m.addAction("Отправить скопированную ссылку", s.cast_clipboard)
         M.fill_tray_menu(m.addMenu("Открыть на ТВ"), s)
         m.addSeparator()
-        dm = m.addMenu("Телевизор" + (f" — {s.device['name']}" if s.device else ""))
-        fill_device_menu(dm, s, None)
-        R.tray_menu(m, s, self.panel)            # scenes and the sleep timer
-        m.addSeparator()
+        # playback of what's on the TV now
         m.addAction("Пауза" if s.is_playing else "Играть", s.toggle_play).setEnabled(casting)
         m.addAction(f"Назад {SEEK} с", lambda: s.seek(-SEEK)).setEnabled(casting)
         m.addAction(f"Вперёд {SEEK} с", lambda: s.seek(SEEK)).setEnabled(casting)
@@ -6728,14 +6839,12 @@ class Tray(QObject):
         for lvl in range(0, 101, 10):
             va = vm.addAction(f"{lvl}%", lambda l=lvl: s.set_volume(l))
             va.setCheckable(True); va.setChecked(abs(s.volume - lvl) < 5)
-        m.addSeparator()
         a = m.addAction("Остановить трансляцию", s.stop); a.setEnabled(casting)
         m.addSeparator()
-        na = m.addAction("Уведомлять о смене видео", self.toggle_notify)
-        na.setCheckable(True); na.setChecked(s.conf.get("notify_track", True))
-        la = m.addAction("Запускать при входе", toggle_login)
-        la.setCheckable(True); la.setChecked(login_enabled())
-        m.addAction("Как пользоваться", lambda: open_help(self.panel))   # guide from the tray menu
+        # the TV and its tools
+        dm = m.addMenu("Телевизор" + (f" — {s.device['name']}" if s.device else ""))
+        fill_device_menu(dm, s, None)
+        R.tray_menu(m, s, self.panel)            # scenes and the sleep timer
         m.addAction("Сделать снимок", s.tv_screenshot)
         tm = m.addMenu("ADB")
         a = tm.addAction("Экран ТВ с мышью", lambda: s.screen.toggle("screen"))
@@ -6743,10 +6852,20 @@ class Tray(QObject):
         a = tm.addAction("Курсор на ТВ (без картинки)", lambda: s.screen.toggle("mouse"))
         a.setCheckable(True); a.setChecked(s.screen.running("mouse"))
         tm.addAction("ADB-консоль…", lambda: open_adb_console(self.panel, s))
-        tm.addAction("Журнал Fling", lambda: P.open_path(P.LOG))
+        m.addSeparator()
+        # options
+        na = m.addAction("Уведомлять о смене видео", self.toggle_notify)
+        na.setCheckable(True); na.setChecked(s.conf.get("notify_track", True))
+        la = m.addAction("Запускать при входе", toggle_login)
+        la.setCheckable(True); la.setChecked(login_enabled())
+        m.addSeparator()
+        # windows (the log is in Settings → About and `fling log`)
         m.addAction("Подключение ТВ…", self.panel.open_setup)
+        if SV.is_sv(s.device):
+            m.addAction("Зеркалировать экран", s.sv.mirror)
         m.addAction("Инструменты…", lambda: fling_tools.open_window())
         m.addAction("Настройки…", lambda: open_settings(self.panel))
+        m.addAction("Как пользоваться", lambda: open_help(self.panel))   # guide from the tray menu
         m.addAction("О программе Fling", lambda: open_settings(self.panel, "about"))
         m.addSeparator()
         m.addAction("Выйти из Fling", QApplication.quit)
@@ -6789,9 +6908,12 @@ def send_to_running(cmd: str) -> bool:
     sock.write(cmd.encode())
     sock.flush()
     sock.waitForBytesWritten(400)
-    sock.waitForReadyRead(800)   # server answers "ok" once it has the command
+    # The server answers "ok" once it has handled the command. No answer means the other
+    # Fling is shutting down (after a theme / language restart): don't hand the command to a
+    # dying process — start this one instead.
+    answered = sock.waitForReadyRead(1500) and b"ok" in bytes(sock.readAll())
     sock.disconnectFromServer()
-    return True
+    return answered
 
 
 class _UiCall(QObject):
@@ -6946,9 +7068,12 @@ def main():
     def excepthook(kind, value, tb):
         traceback.print_exception(kind, value, tb, file=sys.stderr)
     sys.excepthook = excepthook
-    if "--after-restart" in sys.argv:              # language switch: let the old instance exit first
-        sys.argv.remove("--after-restart")
-        time.sleep(1.2)
+    if "--after-restart" in sys.argv:              # theme / language switch: let the old instance exit first
+        i = sys.argv.index("--after-restart")
+        sys.argv.pop(i)
+        old = sys.argv.pop(i) if i < len(sys.argv) and sys.argv[i].isdigit() else None
+        if not (old and P.wait_pid_exit(int(old), 15)):
+            time.sleep(1.2)
     cmd = sys.argv[1] if len(sys.argv) > 1 else "show"
     if cmd.lower().endswith(".apk") and os.path.isfile(cmd):     # "Open with Fling" on an .apk
         cmd = "install-apk"
@@ -6980,6 +7105,13 @@ def main():
     conf0 = load_conf()
     apply_color_scheme(app, conf0)
     T = Theme(app, conf0)
+    if fling_welcome.needed(conf0):               # first run: the language first, then the tour
+        res = fling_welcome.run(sys.modules[__name__], conf0)
+        conf0 = load_conf()
+        conf0["lang"] = res["lang"]
+        conf0["welcome_done"] = VERSION
+        save_conf(conf0)
+        sys.modules[__name__].LANG = lang()        # tr() and install_translation read it
     install_translation()
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
@@ -6991,12 +7123,11 @@ def main():
     tray = Tray(state, panel)
     if "auto" in (conf0.get("theme", "auto"), conf0.get("accent", "auto")):
         follow_system_scheme(app)
-    reopen = conf0.get("reopen_settings")         # restarted by Settings: come back to it
-    if reopen:
+    # Restarted by Settings (theme, accent, language): show the panel in its new look, not
+    # Settings again — reopening Settings left people with only the themes window on screen.
+    if conf0.get("reopen_settings"):
         c = load_conf(); c.pop("reopen_settings", None); save_conf(c)
         state.conf.pop("reopen_settings", None)
-        if cmd == "show":
-            cmd = "settings:" + str(reopen)
 
     def handle(c):
         c = c.strip()
@@ -7010,6 +7141,8 @@ def main():
             open_help(panel)
         elif c == "screenshot":
             state.tv_screenshot()
+        elif c in ("smartview", "mirror"):                   # `fling mirror`: screen to a Samsung / Miracast TV
+            state.sv.mirror()
         elif c.startswith("send\t"):
             state.send_files([f for f in c.split("\t")[1:] if f])
         elif c.split("\t")[0] in ("play", "slideshow", "next", "prev"):   # fling_media verbs
@@ -7087,7 +7220,10 @@ def main():
 
     fling_tools.cleanup()                          # leftovers of an interrupted tool install
     fling_tools.first_run_scan()                   # pick adb / scrcpy copies found on this computer
-    state.atv.connect(state.ip)
+    if SV.is_sv(state.device):                     # the last TV was a Samsung / Miracast one
+        state.sv.select(state.device)
+    else:
+        state.atv.connect(state.ip)
     state.refresh()
     if cmd not in ("tray", "background"):
         QTimer.singleShot(300, lambda: handle(cmd))
@@ -7096,7 +7232,13 @@ def main():
     if not state.conf.get("help_seen"):
         state.conf["help_seen"] = True
         save_conf(state.conf)
-    return app.exec()
+    rc = app.exec()
+    # Quit means quit now. Worker threads (a `catt scan` still running, the YouTube loop)
+    # would otherwise keep the process alive for seconds after the windows are gone; a
+    # restarted Fling then found this dying copy on the socket and exited too. Settings are
+    # written atomically (save_conf), so nothing is half-saved.
+    P.hard_exit(rc)
+    return rc
 
 
 if __name__ == "__main__":

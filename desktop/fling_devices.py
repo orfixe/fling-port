@@ -170,7 +170,8 @@ class TvCard(QFrame):
         name.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         name.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         col.addWidget(name)
-        bits = [b for b in (d.get("model"), d["ip"]) if b and b != d.get("name")]
+        ip = "" if d["ip"].startswith("wfd:") else d["ip"]      # Miracast: no IP, Wi-Fi Direct
+        bits = [b for b in (d.get("model"), ip) if b and b != d.get("name")]
         if paired:
             bits.append(F.tr("пульт связан"))
         if d.get("via") == "tailscale":

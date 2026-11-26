@@ -44,6 +44,39 @@ LOG = os.path.join(CACHE, "app.log")
 NOWIN: dict = {"creationflags": 0x08000000} if IS_WIN else {}   # CREATE_NO_WINDOW
 
 
+_BUILD: dict | None = None
+
+
+def build_info() -> dict:
+    """{"commit", "date", "dirty", "kind"}: build-info.json written by windows/build.ps1 for the
+    installed app, or git for a run from source. Empty values when neither is available."""
+    global _BUILD
+    if _BUILD is not None:
+        return _BUILD
+    info = {"commit": "", "date": "", "dirty": False, "kind": "frozen" if FROZEN else "source"}
+    base = getattr(sys, "_MEIPASS", None) or os.path.dirname(sys.executable)
+    try:
+        import json
+        with open(os.path.join(base, "build-info.json"), encoding="utf-8-sig") as f:
+            info.update(json.load(f))
+    except Exception:
+        git = shutil.which("git")
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if git and os.path.exists(os.path.join(repo, ".git")):
+            try:
+                out = subprocess.run([git, "-C", repo, "log", "-1", "--format=%h %cs"], capture_output=True,
+                                     text=True, timeout=4, **NOWIN).stdout.split()
+                if len(out) == 2:
+                    info["commit"], info["date"] = out
+                st = subprocess.run([git, "-C", repo, "status", "--porcelain", "--untracked-files=no"],
+                                    capture_output=True, text=True, timeout=4, **NOWIN).stdout
+                info["dirty"] = bool(st.strip())
+            except Exception:
+                pass
+    _BUILD = info
+    return info
+
+
 def run(cmd, **kw) -> subprocess.CompletedProcess:
     """subprocess.run that never flashes a console window."""
     return subprocess.run(cmd, **NOWIN, **kw)
@@ -333,12 +366,47 @@ def self_command(*args: str) -> list[str]:
 
 
 def restart_app() -> None:
-    """Start a fresh Fling that waits for this one to exit (used after a language switch)."""
+    """Start a fresh Fling that waits for this one to exit (theme / language switch)."""
+    pid = str(os.getpid())
     if IS_LINUX:
-        popen(["bash", "-c", f"sleep 1; exec {HOME}/.local/bin/fling show"], start_new_session=True)
+        popen(["bash", "-c", f"for i in $(seq 75); do kill -0 {pid} 2>/dev/null || break; sleep 0.2; done; "
+                             f"exec {HOME}/.local/bin/fling show"], start_new_session=True)
         return
     flags = 0x00000008 | 0x00000200 if IS_WIN else 0      # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
-    subprocess.Popen(self_command("--after-restart", "show"), creationflags=flags, close_fds=True)
+    subprocess.Popen(self_command("--after-restart", pid, "show"), creationflags=flags, close_fds=True)
+
+
+def wait_pid_exit(pid: int, timeout: float) -> bool:
+    """Wait until process `pid` has exited; True if it did within `timeout` seconds."""
+    if IS_WIN:
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.OpenProcess(0x00100000, False, pid)           # SYNCHRONIZE
+        if not h:
+            return True                                     # already gone
+        try:
+            return k.WaitForSingleObject(h, int(timeout * 1000)) == 0
+        finally:
+            k.CloseHandle(h)
+    import time
+    end = time.time() + timeout
+    while time.time() < end:
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def hard_exit(code: int) -> None:
+    """Leave right away, without waiting for worker threads (see fling_app.main)."""
+    for f in (sys.stdout, sys.stderr):
+        try:
+            f and f.flush()
+        except Exception:
+            pass
+    os._exit(code or 0)
 
 
 # ---------------------------------------------------------------- guard (Windows)
