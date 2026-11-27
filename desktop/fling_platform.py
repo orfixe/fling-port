@@ -300,6 +300,23 @@ def setup_logging() -> None:
     threading.excepthook = thread_hook
 
 
+def key_name(vk: int) -> str:
+    """The key's label on this keyboard ("Q", "F5", "Tab"), for the "this key does nothing" hint."""
+    if not IS_WIN:
+        return f"0x{vk:02X}"
+    try:
+        import ctypes
+        u = ctypes.windll.user32
+        sc = u.MapVirtualKeyW(vk, 0)
+        ext = vk in (0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x2D, 0x2E, 0x6F, 0x90)
+        buf = ctypes.create_unicode_buffer(32)
+        if u.GetKeyNameTextW((sc << 16) | (1 << 24 if ext else 0), buf, 32) > 0:
+            return buf.value
+    except Exception:
+        pass
+    return f"0x{vk:02X}"
+
+
 def qt_log_handler(mode, ctx, msg) -> None:
     """Qt's own warnings ("QWindowsWindow::setGeometry…", "QPainter…") into the log too."""
     try:
@@ -762,10 +779,16 @@ class RemoteKeyHook:
             VK_ESCAPE, VK_OEM_PLUS, VK_OEM_MINUS, VK_ADD, VK_SUBTRACT,
             VK_OEM_COMMA, VK_OEM_PERIOD} | VK_LETTERS
 
+    # never taken, even in "all keys" mode: modifiers, lock keys, the laptop's volume / media /
+    # brightness keys, Print Screen and the Windows / menu keys stay with Windows
+    PASS = ({0x10, 0x11, 0x12, 0x14, 0x2C, 0x5B, 0x5C, 0x5D, 0x5F, 0x90, 0x91}
+            | set(range(0xA0, 0xA6)) | set(range(0xA6, 0xB8)) | {0xFF})
+
     def __init__(self, on_key):
         self.on_key = on_key
         self.active = False              # set from the Qt thread; read by the hook
         self.keys = set(self.KEYS)       # which of KEYS to swallow right now (Qt thread sets it)
+        self.swallow_all = False         # "all keys" mode: every other key is taken too (Qt thread sets it)
         self._lock = threading.Lock()
         self._thread = None
         self._tid = None
@@ -825,7 +848,8 @@ class RemoteKeyHook:
                 if code == 0 and self.active:
                     kb = ctypes.cast(lparam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
                     vk = kb.vkCode
-                    if vk in self.keys and not kb.flags & LLKHF_INJECTED:
+                    take = vk in self.keys or (self.swallow_all and vk not in self.PASS)
+                    if take and not kb.flags & LLKHF_INJECTED:
                         down = wparam in (WM_KEYDOWN, WM_SYSKEYDOWN)
                         if down and not (held(0x11) or held(0x12) or held(0x5B) or held(0x5C)):
                             repeat = vk in self._down

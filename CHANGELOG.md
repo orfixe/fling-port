@@ -41,7 +41,17 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 - PC: **WASD drove the TV only every other time** on Windows: the keyboard hook that catches
   keys for the tray panel knew the arrows but not W A S D (nor H, M, P, < >), so they worked
-  only when the panel happened to have the focus. The same keys on the Russian layout too.
+  only when the panel happened to have the focus. The same keys on the Russian layout too,
+  and the panel's d-pad now lights up for them as for the arrows.
+
+### Changed
+
+- PC: **one keyboard capture with three modes** (the "Capture ▾" button on the strip): the
+  whole keyboard to the TV (new default — nothing typed leaks into the app behind the panel),
+  only the remote's keys, or none. A key that does nothing on the TV says so; F1, "?" or a few
+  such keys in a row open a guide: which key does what, and the ways out (Esc, the other
+  modes, typing on the TV). Ctrl / Alt / Win shortcuts and the laptop's media keys always stay
+  with Windows. The numpad (8 2 4 6 5 0 3) drives the TV too.
 - Android: an update ended at once with "connection closed" when the connection to GitHub's
   file storage dropped. The APK now comes from two sources, each tried up to 5 times, a dropped
   download resumes where it stopped, the check falls back to github.com when api.github.com

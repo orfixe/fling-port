@@ -2432,6 +2432,22 @@ EN_PHRASES += [   # the report for the developer (fling_report)
     ("Отчёт сохранён в «Загрузки»: %s. Приложите его к сообщению об ошибке на GitHub или отправьте тому, кто попросил.",
      "The report is saved in Downloads: %s. Attach it to an issue on GitHub, or send it to whoever asked for it."),
 ]
+EN_PHRASES += [   # keyboard capture modes and the key guide
+    ("⌨  Клавиатура у ТВ · Esc — закрыть · F1 — подсказка", "⌨  Keyboard drives the TV · Esc closes · F1 help"),
+    ("⌨  Клавиши пульта у ТВ, остальные — у компьютера", "⌨  Remote keys drive the TV, the rest stay with the PC"),
+    ("Вся клавиатура у ТВ", "Whole keyboard to the TV"), ("Только клавиши пульта", "Only the remote's keys"),
+    ("Не захватывать клавиатуру", "Don't capture the keyboard"), ("Не захватывать", "Don't capture"),
+    ("Какие клавиши что делают", "Which key does what"), ("Захват", "Capture"),
+    ("«%s» не управляет ТВ · F1 — подсказка · Esc — закрыть", "“%s” does nothing on the TV · F1 help · Esc closes"),
+    ("Пока открыта панель, клавиатура управляет ТВ", "While the panel is open, the keyboard drives the TV"),
+    ("Стрелки или W A S D — навигация · Enter — OK · Backspace — назад · H — домой · Пробел — пауза · + / − — громкость · M — без звука · < > — перемотка · цифровой блок 8 2 4 6 5 — тоже стрелки и OK.",
+     "Arrows or W A S D — move · Enter — OK · Backspace — back · H — home · Space — pause · + / − — volume · M — mute · < > — seek · numpad 8 2 4 6 5 — arrows and OK too."),
+    ("Хотели печатать в другой программе? Esc закрывает панель и сразу возвращает клавиатуру. Или выберите, как захватывать:",
+     "Meant to type in another app? Esc closes the panel and gives the keyboard back at once. Or choose how to capture:"),
+    ("Печатать на ТВ", "Type on the TV"), ("Понятно", "Got it"),
+    ("Пока панель открыта, клавиатура управляет ТВ: стрелки или WASD, Enter, Пробел, Backspace, H, +/−. Esc закрывает панель. F1 — подсказка.\n«Захват» — вся клавиатура, только клавиши пульта или без захвата. Fling запомнит выбор.",
+     "While the panel is open, the keyboard drives the TV: arrows or WASD, Enter, Space, Backspace, H, +/−. Esc closes the panel. F1 for help.\n“Capture”: the whole keyboard, only the remote's keys, or none. Fling remembers the choice."),
+]
 EN_PHRASES += [   # keyboard captured strip
     ("⌨  Клавиатура захвачена, Esc — выход", "⌨  Keyboard captured, Esc to exit"),
     ("⌨  Клавиатура свободна", "⌨  Keyboard is free"),
@@ -5137,14 +5153,47 @@ class Panel(QWidget):
         self.kb_toggle.clicked.connect(self._toggle_kb_capture)
         kr.addWidget(self.kb_toggle)
         self.kb_row.setToolTip(
-            "Пока панель открыта, стрелки, Enter, Пробел, Backspace, Home и +/− управляют ТВ, "
-            "а не программой, в которой вы были.\n"
-            "Esc закрывает панель.\n"
-            "Нужна клавиатура в другой программе — нажмите «Отключить»: пульт останется "
-            "на кнопках панели. Fling запомнит выбор.")
+            "Пока панель открыта, клавиатура управляет ТВ: стрелки или WASD, Enter, Пробел, "
+            "Backspace, H, +/−. Esc закрывает панель. F1 — подсказка.\n"
+            "«Захват» — вся клавиатура, только клавиши пульта или без захвата. Fling запомнит выбор.")
         self.kb_box = padded(self.kb_row, 10, 2, 10, 4)
         self.kb_box.hide()
         v.addWidget(self.kb_box)
+        # the key guide and the ways out (F1, the menu, or a few keys in a row that do nothing)
+        _tr = globals()["tr"]                 # `tr` is a local name further down in __init__
+        self.kb_help = QWidget()
+        self.kb_help.setObjectName("kbhelp")
+        self.kb_help.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.kb_help.setStyleSheet(f"QWidget#kbhelp{{background:{Theme.css(T.fg_a(0.05))};border-radius:6px}}")
+        hl = QVBoxLayout(self.kb_help); hl.setContentsMargins(10, 8, 10, 8); hl.setSpacing(6)
+        hl.addWidget(label("Пока открыта панель, клавиатура управляет ТВ", 11, T.fg, QFont.Weight.DemiBold, wrap=True))
+        hl.addWidget(label("Стрелки или W A S D — навигация · Enter — OK · Backspace — назад · H — домой · "
+                           "Пробел — пауза · + / − — громкость · M — без звука · < > — перемотка · "
+                           "цифровой блок 8 2 4 6 5 — тоже стрелки и OK.", 10.5, T.fg_a(0.75), wrap=True))
+        hl.addWidget(label("Хотели печатать в другой программе? Esc закрывает панель и сразу возвращает "
+                           "клавиатуру. Или выберите, как захватывать:", 10.5, T.fg_a(0.75), wrap=True))
+        bss = (f"QPushButton{{border:none;border-radius:5px;padding:4px 10px;color:{Theme.css(T.fg)};"
+               f"background:{Theme.css(T.fg_a(0.08))}}}QPushButton:hover{{background:{Theme.css(T.acc_a(0.22))}}}")
+
+        def hbtn(text, fn, bold=False):
+            b = QPushButton(_tr(text))
+            b.setFont(font(10.5, QFont.Weight.DemiBold if bold else QFont.Weight.Normal))
+            b.setCursor(Qt.CursorShape.PointingHandCursor); b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            b.setStyleSheet(bss)
+            b.clicked.connect(fn)
+            return b
+        r1 = QHBoxLayout(); r1.setSpacing(6)
+        r1.addWidget(hbtn("Только клавиши пульта", lambda: self._set_kb_mode("remote")))
+        r1.addWidget(hbtn("Не захватывать", lambda: self._set_kb_mode("off")))
+        r1.addStretch(1)
+        r2 = QHBoxLayout(); r2.setSpacing(6)
+        r2.addWidget(hbtn("Печатать на ТВ", lambda: (self._kb_help(False), self.kb_btn.click())))
+        r2.addStretch(1)
+        r2.addWidget(hbtn("Понятно", lambda: self._kb_help(False), bold=True))
+        hl.addLayout(r1); hl.addLayout(r2)
+        self.kb_help_box = padded(self.kb_help, 10, 0, 10, 4)
+        self.kb_help.hide()
+        v.addWidget(self.kb_help_box)
 
         # setup (catt missing)
         self.setup = QWidget()
@@ -5543,7 +5592,12 @@ class Panel(QWidget):
               0xBC: Qt.Key.Key_Comma, 0xBE: Qt.Key.Key_Period,
               # WASD and the letter keys (the same codes on the Russian layout)
               0x57: Qt.Key.Key_W, 0x41: Qt.Key.Key_A, 0x53: Qt.Key.Key_S, 0x44: Qt.Key.Key_D,
-              0x48: Qt.Key.Key_H, 0x4D: Qt.Key.Key_M, 0x50: Qt.Key.Key_P}
+              0x48: Qt.Key.Key_H, 0x4D: Qt.Key.Key_M, 0x50: Qt.Key.Key_P,
+              0x2E: Qt.Key.Key_Delete,
+              # the numpad (NumLock on): 8 2 4 6 arrows, 5 OK, 0 back, 3 home
+              0x68: Qt.Key.Key_8, 0x62: Qt.Key.Key_2, 0x64: Qt.Key.Key_4, 0x66: Qt.Key.Key_6,
+              0x65: Qt.Key.Key_5, 0x60: Qt.Key.Key_0, 0x63: Qt.Key.Key_3}
+    _HELP_VK = {0x70, 0xBF}              # F1, the "/ ?" key: what the keys do
 
     def _visible_field(self):
         return any(e.isVisible() for e in self.findChildren(QLineEdit))
@@ -5558,49 +5612,95 @@ class Panel(QWidget):
             QTimer.singleShot(0, lambda: P.force_foreground(int(self.winId())))
         self._was_editing = editing
         s = self.state
-        capture = self._kb_capture()
+        mode = self._kb_mode()
+        capture = mode != "off"
+        tv = s.remote_ready or s.panel == "casting"
         if not capture:                      # the user freed the keyboard: only Esc closes the panel
             h.keys = {0x1B}
         elif s.remote_ready:
-            h.keys = set(h.KEYS) | (set(R.DIGIT_VK) if R.numbers_mode(self) else set())
+            h.keys = set(h.KEYS) | set(self._VK_QT) | self._HELP_VK | (set(R.DIGIT_VK) if R.numbers_mode(self) else set())
         elif s.panel == "casting":           # no remote yet: ← / → seek, Space pauses
-            h.keys = {0x25, 0x27, 0x20, 0x1B}
+            h.keys = {0x25, 0x27, 0x20, 0x1B} | self._HELP_VK
         else:
             h.keys = {0x1B}
+        # "all keys": the keyboard belongs to the TV while the panel is open — nothing typed
+        # lands in the app behind it; a key the TV has no use for shows a hint instead
+        h.swallow_all = capture and mode == "all" and tv
         active = self.isVisible() and not editing
         if active != h.active:
-            print(f"remote keys: {'on' if active else 'off'} (capture={capture}, remote={s.remote_ready}, "
+            print(f"remote keys: {'on' if active else 'off'} (mode={mode}, remote={s.remote_ready}, "
                   f"panel={s.panel}, editing={editing})", flush=True)
         h.active = active
         # say so while the keys go to the TV instead of the app the user was in
-        self._show_kb_strip(h.active and (s.remote_ready or s.panel == "casting"), capture)
+        if not h.active:
+            self._kb_help(False)
+        self._show_kb_strip(h.active and tv, mode)
+
+    # Keyboard capture, one switch with three modes (conf "kb_mode"):
+    #   all     the whole keyboard goes to Fling while the panel is open (default): remote keys
+    #           drive the TV, any other key shows what to press instead
+    #   remote  only the remote's keys; the rest still types in the app behind the panel
+    #   off     nothing is taken; the remote is the panel's buttons (Esc still closes it)
+    KB_MODES = (("all", "Вся клавиатура у ТВ"), ("remote", "Только клавиши пульта"), ("off", "Не захватывать клавиатуру"))
+
+    def _kb_mode(self) -> str:
+        c = self.state.conf
+        m = c.get("kb_mode")
+        if m not in ("all", "remote", "off"):
+            m = "all" if c.get("kb_capture", True) else "off"     # the older on/off switch
+        return m
 
     def _kb_capture(self) -> bool:
-        return self.state.conf.get("kb_capture", True)
+        return self._kb_mode() != "off"
 
-    def _toggle_kb_capture(self):
+    def _set_kb_mode(self, m: str):
         s = self.state
-        s.conf["kb_capture"] = not self._kb_capture()
+        s.conf["kb_mode"] = m
+        s.conf.pop("kb_capture", None)
         save_conf(s.conf)
-        if s.conf["kb_capture"]:
+        print("remote keys: mode", m, flush=True)
+        if m != "off":
             self._grab_keys()
         else:
             self._ungrab_keys()
+        self._kb_help(False)
         self._update_keyhook()
 
-    def _show_kb_strip(self, on: bool, capture: bool = True):
+    def _toggle_kb_capture(self):
+        """The strip's button: a menu with the three modes and the key guide."""
+        m = QMenu(self)
+        cur = self._kb_mode()
+        for key, title in self.KB_MODES:
+            a = m.addAction(tr(title), lambda k=key: self._set_kb_mode(k))
+            a.setCheckable(True); a.setChecked(key == cur)
+        m.addSeparator()
+        m.addAction(tr("Какие клавиши что делают"), lambda: self._kb_help(True))
+        m.exec(self.kb_toggle.mapToGlobal(self.kb_toggle.rect().bottomLeft()))
+
+    _KB_TEXT = {"all": "⌨  Клавиатура у ТВ · Esc — закрыть · F1 — подсказка",
+                "remote": "⌨  Клавиши пульта у ТВ, остальные — у компьютера",
+                "off": "⌨  Клавиатура свободна"}
+
+    def _show_kb_strip(self, on: bool, mode="all"):
         strip, box = getattr(self, "kb_strip", None), getattr(self, "kb_box", None)
         if strip is None or box is None:
             return
-        text = "⌨  Клавиатура захвачена, Esc — выход" if capture else "⌨  Клавиатура свободна"
-        if strip.text() != tr(text):
+        if mode is True or mode is False:            # older callers
+            mode = "all" if mode else "off"
+        capture = mode != "off"
+        text = self._KB_TEXT[mode]
+        if getattr(self, "_kb_hint_until", 0) > time.time():
+            text = None                              # a "that key does nothing" hint is showing
+        if text and strip.text() != tr(text):
             strip.setText(text)
+        if getattr(self, "_kb_style", None) != mode:
+            self._kb_style = mode
             col = T.accent if capture else T.fg_a(0.55)
             strip.setStyleSheet(f"color:{Theme.css(col)};background:transparent")
             self.kb_row.setStyleSheet(
                 f"QWidget#kbrow{{background:{Theme.css(T.acc_a(0.12) if capture else T.fg_a(0.05))};"
                 "border-radius:6px}")
-            self.kb_toggle.setText("Отключить" if capture else "Захватить")
+            self.kb_toggle.setText(tr("Захват") + " ▾")
             self.kb_toggle.setStyleSheet(
                 f"QPushButton{{border:none;border-radius:5px;padding:0 8px;color:{Theme.css(col)};"
                 f"background:{Theme.css(T.fg_a(0.07))}}}"
@@ -5608,6 +5708,29 @@ class Panel(QWidget):
         if box.isVisibleTo(self) != on:
             box.setVisible(on)
             QTimer.singleShot(0, self.place)  # the panel grows / shrinks by one line
+
+    def _kb_unknown(self, vk: int):
+        """A key the TV has no use for, pressed while the whole keyboard is captured: say what it
+        is and what to press; a few in a row (the user is probably typing somewhere else) open
+        the guide with the ways out."""
+        now = time.time()
+        recent = [t for t in getattr(self, "_kb_misses", []) if now - t < 6] + [now]
+        self._kb_misses = recent
+        print(f"remote keys: vk {vk:#04x} ({P.key_name(vk)}) does nothing on the TV", flush=True)
+        if len(recent) >= 3:
+            self._kb_misses = []
+            self._kb_help(True)
+            return
+        self._kb_hint_until = now + 3.5
+        self.kb_strip.setText(tr("«%s» не управляет ТВ · F1 — подсказка · Esc — закрыть") % P.key_name(vk))
+        QTimer.singleShot(3600, lambda: (setattr(self, "_kb_hint_until", 0), self._update_keyhook()))
+
+    def _kb_help(self, show: bool):
+        box = getattr(self, "kb_help", None)
+        if box is None or box.isVisibleTo(self) == show:
+            return
+        box.setVisible(show)
+        QTimer.singleShot(0, self.place)
 
     def _hook_key(self, vk, shift, repeat):
         if not self.isVisible():
@@ -5621,8 +5744,13 @@ class Panel(QWidget):
             return
         if not repeat and R.hook_digit(self, vk):    # Numbers page: digit keys type digits
             return
+        if vk in self._HELP_VK and not repeat:
+            self._kb_help(not self.kb_help.isVisibleTo(self))
+            return
         key = self._VK_QT.get(vk)
         if key is None:
+            if not repeat:
+                self._kb_unknown(vk)
             return
         text = " " if vk == 0x20 else ""
         ev = QKeyEvent(QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier, text, repeat)
@@ -5630,6 +5758,8 @@ class Panel(QWidget):
         if not repeat:
             print(f"remote keys: vk {vk:#04x} -> {_REMOTE_BY_QT.get(key)} "
                   f"{'sent' if handled else 'not sent (remote=' + str(self.state.remote_ready) + ')'}", flush=True)
+        if not handled and not repeat and self._kb_mode() == "all":
+            self._kb_unknown(vk)
         if handled:
             name = _REMOTE_BY_QT.get(key)
             if name == "play_pause" and self.state.panel != "casting":
@@ -5691,6 +5821,8 @@ class Panel(QWidget):
             if fw is not None and not (fw is self or self.isAncestorOf(fw)):
                 return super().eventFilter(obj, e)
             if self._handle_key(e):
+                # the panel had the focus (not the hook): light the button up all the same
+                self._flash(_REMOTE_BY_QT.get(e.key()) or _REMOTE_BY_TEXT.get((e.text() or "").lower()))
                 return True
         return super().eventFilter(obj, e)
 
