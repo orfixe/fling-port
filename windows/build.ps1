@@ -97,10 +97,24 @@ Write-Host '==> adb' -ForegroundColor Cyan
 $Out = Join-Path $Work 'out\Fling'
 $Adb = Join-Path $Out 'platform-tools\adb.exe'
 if (-not (Test-Path $Adb)) {
+  # kept between builds (refreshed weekly) and retried: a moment without network must not stop a release
   $zipAdb = Join-Path $Work 'platform-tools.zip'
-  Invoke-WebRequest 'https://dl.google.com/android/repository/platform-tools-latest-windows.zip' -OutFile $zipAdb
+  if (-not (Test-Path $zipAdb) -or (Get-Item $zipAdb).LastWriteTime -lt (Get-Date).AddDays(-7)) {
+    for ($try = 1; ; $try++) {
+      try {
+        Invoke-WebRequest 'https://dl.google.com/android/repository/platform-tools-latest-windows.zip' -OutFile "$zipAdb.part"
+        Move-Item "$zipAdb.part" $zipAdb -Force
+        break
+      } catch {
+        Remove-Item "$zipAdb.part" -Force -ErrorAction SilentlyContinue
+        if (Test-Path $zipAdb) { Write-Host "    offline: using the platform-tools from the last build" -ForegroundColor Yellow; break }
+        if ($try -ge 4) { throw }
+        Write-Host "    download failed ($($_.Exception.Message)), retry $try of 3..." -ForegroundColor Yellow
+        Start-Sleep -Seconds (5 * $try)
+      }
+    }
+  }
   Expand-Archive $zipAdb -DestinationPath $Out -Force
-  Remove-Item $zipAdb -Force
 }
 
 # scrcpy (TV screen + mouse) ships inside, so the first "TV screen" needs no download.
