@@ -1033,6 +1033,7 @@ class SettingsWindow(QWidget):
         row = QHBoxLayout(); row.setSpacing(8)
         row.addWidget(button("Как пользоваться", lambda: F.open_help(self.holder or self)))
         row.addWidget(button("Журнал Fling", lambda: F.P.open_path(F.P.LOG)))
+        row.addWidget(button("Отчёт для разработчика", lambda: F.make_report(self.state)))
         row.addWidget(button("Папка настроек", lambda: F.P.open_path(os.path.dirname(F.CONF))))
         row.addStretch(1)
         v.addLayout(row)
@@ -1193,13 +1194,34 @@ class SettingsWindow(QWidget):
         # updates
         box, lay = card()
         ur = QHBoxLayout(); ur.setSpacing(10)
-        self.b_update = button("Проверить обновления", self._check_updates, icon_name="refresh")
+        up = self._upd = getattr(self.state, "updater", None)
+        self.b_update = button("Проверить обновления",
+                               (lambda: up.check(manual=True)) if up else self._check_updates, icon_name="refresh")
         ur.addWidget(self.b_update)
         self.update_msg = F.label("", 11.5, T.fg_a(0.7), wrap=True)
         self.update_msg.setOpenExternalLinks(True)
         self.update_msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         ur.addWidget(self.update_msg, 1)
         lay.addLayout(ur)
+        if up is not None:
+            br = QHBoxLayout(); br.setSpacing(8)
+            self.b_install = button("Установить", self._upd_install, primary=True)
+            self.b_skip = button("Пропустить эту версию", self._upd_skip)
+            br.addWidget(self.b_install); br.addWidget(self.b_skip); br.addStretch(1)
+            lay.addLayout(br)
+            lay.addWidget(self._hr())
+            conf = self.state.conf
+            lay.addWidget(toggle_row("Проверять обновления автоматически",
+                                     "Раз в день Fling смотрит, не вышла ли новая версия.",
+                                     conf.get("upd_check", True), lambda on: self._upd_set("upd_check", on)))
+            if up.can_install():
+                lay.addWidget(self._hr())
+                lay.addWidget(toggle_row("Устанавливать обновления автоматически",
+                                         "Новая версия скачивается в фоне, проверяется подписью релиза и ставится, "
+                                         "когда панель закрыта и экран ТВ не показывается. Fling перезапустится сам.",
+                                         conf.get("upd_auto", True), lambda on: self._upd_set("upd_auto", on)))
+            up.status.connect(self._upd_status)
+            self._upd_status("found" if up.rel else ("ready" if up.ready else ""))
         v.addWidget(box)
 
         # authors
@@ -1304,6 +1326,60 @@ class SettingsWindow(QWidget):
                 return
             self.update_msg.setText(self.update_text(tag, url))
         reply.finished.connect(done)
+
+    # ---- updates (fling_update.Updater on the tray)
+    def _upd_set(self, key, on):
+        self.state.conf[key] = bool(on)
+        F.save_conf(self.state.conf)
+
+    def _upd_install(self):
+        up = self._upd
+        if up.ready:
+            up.install()
+        elif up.can_install():
+            up.download(now=True)
+        elif up.rel:
+            QDesktopServices.openUrl(QUrl(up.rel["page"]))
+
+    def _upd_skip(self):
+        self._upd.skip()
+        self._upd_status("found")
+
+    def _upd_status(self, st: str):
+        up = self._upd
+        try:
+            self.update_msg.text()
+        except RuntimeError:                     # the window is gone
+            return
+        rel = up.rel
+        self.b_update.setEnabled(st not in ("checking", "downloading"))
+        show = bool(rel) and st in ("found", "ready", "") or st.startswith("error") and bool(rel)
+        self.b_install.setVisible(show and st != "downloading")
+        skipped = bool(rel) and rel["version"] == self.state.conf.get("upd_skip")
+        self.b_skip.setVisible(show and not skipped and not up.ready)
+        if up.ready:
+            self.b_install.setText(F.tr("Установить сейчас"))
+        else:
+            self.b_install.setText(F.tr("Установить") if up.can_install() else F.tr("Скачать"))
+        if st == "checking":
+            text = F.tr("Проверяю…")
+        elif st == "downloading":
+            text = F.tr("Скачиваю и проверяю подпись…")
+        elif st == "latest":
+            text = F.tr("У вас последняя версия.")
+        elif st.startswith("error:"):
+            text = F.tr("Не получилось: ") + st[6:][:200]
+        elif up.ready:
+            text = F.tr("Версия %s скачана и проверена. Установится, когда панель будет закрыта.") % up.ready[0]
+        elif rel:
+            url = rel["page"] if rel["page"].startswith("https://github.com/") else LINKS["releases"]
+            text = (F.tr("Доступна версия ") + rel["version"] + " · "
+                    f'<a href="{url}" style="color:{_css(F.T.accent)}">{F.tr("Что нового")}</a>')
+            if skipped:
+                text += " · " + F.tr("пропущена")
+        else:
+            text = ""
+        self.update_msg.setText(text)
 
     @staticmethod
     def update_text(tag: str, url: str) -> str:

@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <application>
         <receiver android:name=".Updater$Result" android:exported="false" />
+        <receiver android:name=".Updater$Skip" android:exported="false" />
         <service
             android:name=".UpdateService"
             android:exported="false"

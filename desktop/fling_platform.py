@@ -225,17 +225,88 @@ def prepare_qt_env() -> None:
             pass
 
 
+class _LogStream:
+    """print() → the log file with the time at the start of each line, and to the console
+    as well when there is one (running from a terminal). Thread-safe."""
+
+    def __init__(self, f, echo=None):
+        self.f, self.echo = f, echo
+        self._bol = True
+        self._lock = threading.Lock()
+        self.encoding = "utf-8"
+
+    def write(self, s):
+        if not s:
+            return 0
+        import time
+        with self._lock:
+            out = []
+            for part in s.splitlines(keepends=True):
+                if self._bol:
+                    t = time.time()
+                    out.append(time.strftime("%m-%d %H:%M:%S", time.localtime(t)) + f".{int(t * 1000) % 1000:03d} ")
+                out.append(part)
+                self._bol = part.endswith("\n")
+            try:
+                self.f.write("".join(out))
+            except Exception:
+                pass
+            if self.echo is not None:
+                try:
+                    self.echo.write(s)
+                except Exception:
+                    pass
+        return len(s)
+
+    def flush(self):
+        for x in (self.f, self.echo):
+            try:
+                x and x.flush()
+            except Exception:
+                pass
+
+    def isatty(self):
+        return False
+
+    def fileno(self):
+        return self.f.fileno()
+
+
 def setup_logging() -> None:
-    """pythonw.exe / the frozen build have no console: send output to the log file."""
-    if sys.stdout is None or sys.stderr is None or (IS_WIN and FROZEN):
-        try:
-            os.makedirs(CACHE, exist_ok=True)
-            if os.path.exists(LOG) and os.path.getsize(LOG) > 2_000_000:
-                os.replace(LOG, LOG + ".old")
-            f = open(LOG, "a", buffering=1, encoding="utf-8", errors="replace")
-            sys.stdout = sys.stderr = f
-        except Exception:
-            pass
+    """Everything printed goes to the log file (app.log, 2 MB, then app.log.old), with the
+    time; a terminal still shows it. Hard crashes (faulthandler) and exceptions in threads
+    land there too. Settings → About → "Report for the developer" packs it up (fling_report)."""
+    try:
+        os.makedirs(CACHE, exist_ok=True)
+        if os.path.exists(LOG) and os.path.getsize(LOG) > 2_000_000:
+            os.replace(LOG, LOG + ".old")
+        f = open(LOG, "a", buffering=1, encoding="utf-8", errors="replace")
+    except Exception:
+        return
+    console = None if (sys.stdout is None or (IS_WIN and FROZEN)) else sys.stdout
+    sys.stdout = sys.stderr = _LogStream(f, console)
+    print(f"---- Fling start: pid {os.getpid()}, {OS_NAME}, python {sys.version.split()[0]}, "
+          f"{'installed' if FROZEN else 'source'}", flush=True)
+    try:
+        import faulthandler
+        faulthandler.enable(file=f, all_threads=True)          # a crash in Qt / C code: the stacks
+    except Exception:
+        pass
+
+    def thread_hook(a):
+        import traceback
+        print(f"thread {a.thread.name if a.thread else '?'} crashed:", flush=True)
+        traceback.print_exception(a.exc_type, a.exc_value, a.exc_traceback)
+    threading.excepthook = thread_hook
+
+
+def qt_log_handler(mode, ctx, msg) -> None:
+    """Qt's own warnings ("QWindowsWindow::setGeometry…", "QPainter…") into the log too."""
+    try:
+        kind = getattr(mode, "name", str(mode)).replace("Qt", "").replace("Msg", "").lower()
+        print(f"qt {kind}: {msg}", flush=True)
+    except Exception:
+        pass
 
 
 def translucent_ok(conf: dict) -> bool:
@@ -681,8 +752,15 @@ class RemoteKeyHook:
     VK_LEFT, VK_UP, VK_RIGHT, VK_DOWN = 0x25, 0x26, 0x27, 0x28
     VK_RETURN, VK_BACK, VK_SPACE, VK_HOME, VK_ESCAPE = 0x0D, 0x08, 0x20, 0x24, 0x1B
     VK_OEM_PLUS, VK_OEM_MINUS, VK_ADD, VK_SUBTRACT = 0xBB, 0xBD, 0x6B, 0x6D
+    VK_OEM_COMMA, VK_OEM_PERIOD = 0xBC, 0xBE
+    # the letter keys of the remote: W A S D (arrows), H (home), M (mute), P (play/pause).
+    # Virtual-key codes are the key's place on the keyboard, so the Russian layout (Ц Ф Ы В)
+    # gives the same ones. Without them here WASD only worked when the panel happened to have
+    # the focus (after a click on it), i.e. "every other time".
+    VK_LETTERS = {0x57, 0x41, 0x53, 0x44, 0x48, 0x4D, 0x50}
     KEYS = {VK_LEFT, VK_UP, VK_RIGHT, VK_DOWN, VK_RETURN, VK_BACK, VK_SPACE, VK_HOME,
-            VK_ESCAPE, VK_OEM_PLUS, VK_OEM_MINUS, VK_ADD, VK_SUBTRACT}
+            VK_ESCAPE, VK_OEM_PLUS, VK_OEM_MINUS, VK_ADD, VK_SUBTRACT,
+            VK_OEM_COMMA, VK_OEM_PERIOD} | VK_LETTERS
 
     def __init__(self, on_key):
         self.on_key = on_key
@@ -769,10 +847,12 @@ class RemoteKeyHook:
             print("remote keys: SetWindowsHookEx failed", ctypes.get_last_error(), flush=True)
             self._tid = None
             return
+        print("remote keys: hook on", flush=True)
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
             pass
         user32.UnhookWindowsHookEx(hook)
+        print("remote keys: hook off", flush=True)
         self._tid = None
         self._down.clear()
 

@@ -61,7 +61,7 @@ SOCKET = "fling-panel"
 SEEK = 30
 GLOBAL_SHORTCUT = P.GLOBAL_SHORTCUT
 SHORTCUT_LABEL = P.SHORTCUT_LABEL
-VERSION = "0.5.2"
+VERSION = "0.5.3"
 
 # ---------------------------------------------------------------- config
 
@@ -2409,6 +2409,28 @@ EN_PHRASES += [   # guard
      "Установите Fling заново со страницы релизов на GitHub и проверьте компьютер антивирусом.",
      "Fling's files were changed after installation, so Fling was not started. "
      "Install Fling again from the GitHub releases page and scan the computer for malware."),
+]
+EN_PHRASES += [   # updates (fling_update)
+    ("Доступна версия Fling %s — Настройки → О программе.", "Fling %s is available — Settings → About."),
+    ("Обновление Fling не скачалось: ", "The Fling update didn't download: "),
+    ("Fling обновляется до %s и сейчас перезапустится.", "Fling is updating to %s and will restart now."),
+    ("Установить", "Install"), ("Установить сейчас", "Install now"), ("Скачать", "Download"),
+    ("Пропустить эту версию", "Skip this version"), ("пропущена", "skipped"), ("Что нового", "What's new"),
+    ("Проверять обновления автоматически", "Check for updates automatically"),
+    ("Раз в день Fling смотрит, не вышла ли новая версия.", "Once a day Fling looks for a new version."),
+    ("Устанавливать обновления автоматически", "Install updates automatically"),
+    ("Новая версия скачивается в фоне, проверяется подписью релиза и ставится, когда панель закрыта и экран ТВ не показывается. Fling перезапустится сам.",
+     "A new version downloads in the background, is checked against the release signature and installs while the panel is closed and the TV screen isn't shown. Fling restarts by itself."),
+    ("Скачиваю и проверяю подпись…", "Downloading and checking the signature…"),
+    ("Не получилось: ", "Didn't work: "),
+    ("Версия %s скачана и проверена. Установится, когда панель будет закрыта.", "Version %s is downloaded and verified. It installs once the panel is closed."),
+]
+EN_PHRASES += [   # the report for the developer (fling_report)
+    ("Отчёт для разработчика…", "Report for the developer…"),
+    ("Отчёт для разработчика", "Report for the developer"),
+    ("Отчёт не получился: ", "The report failed: "),
+    ("Отчёт сохранён в «Загрузки»: %s. Приложите его к сообщению об ошибке на GitHub или отправьте тому, кто попросил.",
+     "The report is saved in Downloads: %s. Attach it to an issue on GitHub, or send it to whoever asked for it."),
 ]
 EN_PHRASES += [   # keyboard captured strip
     ("⌨  Клавиатура захвачена, Esc — выход", "⌨  Keyboard captured, Esc to exit"),
@@ -5517,7 +5539,11 @@ class Panel(QWidget):
     _VK_QT = {0x25: Qt.Key.Key_Left, 0x26: Qt.Key.Key_Up, 0x27: Qt.Key.Key_Right, 0x28: Qt.Key.Key_Down,
               0x0D: Qt.Key.Key_Return, 0x08: Qt.Key.Key_Backspace, 0x20: Qt.Key.Key_Space,
               0x24: Qt.Key.Key_Home, 0xBB: Qt.Key.Key_Equal, 0x6B: Qt.Key.Key_Plus,
-              0xBD: Qt.Key.Key_Minus, 0x6D: Qt.Key.Key_Minus}
+              0xBD: Qt.Key.Key_Minus, 0x6D: Qt.Key.Key_Minus,
+              0xBC: Qt.Key.Key_Comma, 0xBE: Qt.Key.Key_Period,
+              # WASD and the letter keys (the same codes on the Russian layout)
+              0x57: Qt.Key.Key_W, 0x41: Qt.Key.Key_A, 0x53: Qt.Key.Key_S, 0x44: Qt.Key.Key_D,
+              0x48: Qt.Key.Key_H, 0x4D: Qt.Key.Key_M, 0x50: Qt.Key.Key_P}
 
     def _visible_field(self):
         return any(e.isVisible() for e in self.findChildren(QLineEdit))
@@ -5541,7 +5567,11 @@ class Panel(QWidget):
             h.keys = {0x25, 0x27, 0x20, 0x1B}
         else:
             h.keys = {0x1B}
-        h.active = self.isVisible() and not editing
+        active = self.isVisible() and not editing
+        if active != h.active:
+            print(f"remote keys: {'on' if active else 'off'} (capture={capture}, remote={s.remote_ready}, "
+                  f"panel={s.panel}, editing={editing})", flush=True)
+        h.active = active
         # say so while the keys go to the TV instead of the app the user was in
         self._show_kb_strip(h.active and (s.remote_ready or s.panel == "casting"), capture)
 
@@ -5596,7 +5626,11 @@ class Panel(QWidget):
             return
         text = " " if vk == 0x20 else ""
         ev = QKeyEvent(QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier, text, repeat)
-        if self._handle_key(ev):
+        handled = self._handle_key(ev)
+        if not repeat:
+            print(f"remote keys: vk {vk:#04x} -> {_REMOTE_BY_QT.get(key)} "
+                  f"{'sent' if handled else 'not sent (remote=' + str(self.state.remote_ready) + ')'}", flush=True)
+        if handled:
             name = _REMOTE_BY_QT.get(key)
             if name == "play_pause" and self.state.panel != "casting":
                 name = "ok"
@@ -6863,6 +6897,11 @@ class Tray(QObject):
         self.icon.show()
         if not P.IS_LINUX:                 # no notify-send: show toasts from the tray icon
             P.set_notifier(lambda msg: self.icon.showMessage("Fling", msg, tray_icon(), 4000))
+        # updates: checked by itself; on Windows downloaded, verified and installed when idle
+        import fling_update
+        self.updater = state.updater = fling_update.Updater(sys.modules[__name__], state, P.notify, QApplication.quit)
+        self.icon.messageClicked.connect(lambda: self.updater.rel and open_settings(self.panel, "about"))
+        self.updater.start()
         self._casting = None
         state.changed.connect(self.sync)
         self.timer = QTimer(interval=2000)
@@ -6979,8 +7018,37 @@ class Tray(QObject):
         m.addAction("Настройки…", lambda: open_settings(self.panel))
         m.addAction("Как пользоваться", lambda: open_help(self.panel))   # guide from the tray menu
         m.addAction("О программе Fling", lambda: open_settings(self.panel, "about"))
+        m.addAction("Отчёт для разработчика…", lambda: make_report(self.state))
         m.addSeparator()
         m.addAction("Выйти из Fling", QApplication.quit)
+
+
+def make_report(state=None):
+    """The zip for the developer (fling_report): made in the background, then shown in
+    Explorer with a note where to send it."""
+    import fling_report
+    import traceback
+
+    def done(path, err):
+        if err:
+            P.notify(tr("Отчёт не получился: ") + err)
+            return
+        fling_report.reveal(path)
+        P.notify(tr("Отчёт сохранён в «Загрузки»: %s. Приложите его к сообщению об ошибке на GitHub "
+                    "или отправьте тому, кто попросил.") % os.path.basename(path))
+
+    def work():
+        try:
+            p = fling_report.make(sys.modules[__name__], state)
+            e = None
+        except Exception as ex:
+            p, e = None, repr(ex)
+            traceback.print_exc()
+        if state is not None:
+            state.bridge.call.emit(lambda: done(p, e))
+        else:
+            done(p, e)
+    threading.Thread(target=work, daemon=True, name="fling-report").start()
 
 
 _restarting = False
@@ -7198,6 +7266,8 @@ def main():
         cmd = "\t".join([cmd, " ".join(sys.argv[2:])])
     if cmd in ("play", "slideshow"):               # `fling play file|folder|playlist|link…`, `fling slideshow folder [s]`
         cmd = "\t".join([cmd, *M.cli_args(sys.argv[2:])])
+    from PyQt6.QtCore import qInstallMessageHandler
+    qInstallMessageHandler(P.qt_log_handler)
     app = QApplication(sys.argv)
     app.setApplicationName("Fling")
     app.setDesktopFileName("fling")
@@ -7278,6 +7348,8 @@ def main():
             fling_tools.open_window(tab="catalog")
         elif c == "log":                                     # `fling log`: open app.log
             P.open_path(P.LOG)
+        elif c == "report":                                  # `fling report`: the zip for the developer
+            make_report(state)
         elif c == "install-extension":
             install_extension(None, state)
         elif c.startswith("scene\t"):                        # Task Scheduler: wake the TV on a schedule

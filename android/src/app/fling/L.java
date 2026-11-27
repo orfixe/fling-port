@@ -18,6 +18,7 @@ final class L {
     private static final Map<String, String> EN = new HashMap<>();
 
     static void init(Context ctx) {
+        Diag.init(ctx);                                    // every screen, service and receiver calls init first
         String pref = ctx.getSharedPreferences("fling", Context.MODE_PRIVATE).getString("lang", "auto");
         if ("en".equals(pref)) en = true;
         else if ("ru".equals(pref)) en = false;
@@ -75,9 +76,18 @@ final class L {
         e("Обновление Fling", "Fling update");
         e("Обновление Fling %s", "Fling %s update");
         e("Сообщать о новых версиях", "Tell me about new versions");
+        e("Пропустить эту версию", "Skip this version");
+        e("Отчёт для разработчика", "Report for the developer");
+        e("Журнал работы, сведения о телефоне и настройки без паролей и токенов — приложите к сообщению об ошибке.",
+          "The log, the phone and the settings without passwords or tokens — attach it to a bug report.");
+        e("Отправить отчёт", "Send the report");
+        e("Отчёт не получился: ", "The report failed: ");
+        e("Устанавливать обновления автоматически", "Install updates automatically");
+        e("Новая версия скачивается и ставится сама, пока Fling закрыт. Android может один раз попросить подтверждение.",
+          "A new version downloads and installs by itself while Fling is closed. Android may ask to confirm once.");
         e("Раз в день Fling проверяет GitHub, даже закрытый, и присылает уведомление, когда вышла новая версия.",
           "Once a day Fling checks GitHub, even when closed, and sends a notification when a new version is out.");
-        e("Связь оборвалась, повторяю (%d из 3)…", "The connection dropped, trying again (%d of 3)…");
+        e("Связь оборвалась, повторяю (%d из %d)…", "The connection dropped, trying again (%d of %d)…");
         e("Не найден сервер %s: нет интернета или DNS не отвечает.", "Can't find the server %s: no internet, or DNS isn't answering.");
         e("Сервер %s не ответил вовремя. Попробуйте ещё раз или в другой сети.", "The server %s didn't answer in time. Try again, or on another network.");
         e("Соединение с %s обрывается — так бывает, когда сеть или провайдер его блокирует. Попробуйте другую сеть (Wi‑Fi ↔ мобильный интернет) или VPN, либо скачайте в браузере.",

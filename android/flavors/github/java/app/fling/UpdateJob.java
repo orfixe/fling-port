@@ -12,8 +12,14 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 /** The daily update check, also while Fling is closed: Android runs it about once a day when
- *  there is a network (and again after a reboot). A newer version comes as a notification with
- *  "Update"; each version is announced once. Off in Settings → "Tell me about new versions".
+ *  there is a network (and again after a reboot).
+ *
+ *  A newer version (not skipped) is installed right here when "Install updates automatically"
+ *  is on, Fling may install apps and isn't on screen: the job downloads it (350 KB, well within
+ *  a job's time) and hands it to the installer. Android 12+ installs it without asking once
+ *  Fling has updated itself before (it is then the app's installer); otherwise "Tap to install"
+ *  appears. Else the version comes as a notification with "Update" / "Skip this version",
+ *  once per version. Off in Settings → "Tell me about new versions".
  *
  *  Not a push service: nothing is sent to the phone; it asks GitHub, as the app itself does. */
 public final class UpdateJob extends JobService {
@@ -45,6 +51,20 @@ public final class UpdateJob extends JobService {
                 if (c.rel == null) { retry = true; return; }       // offline / GitHub down: later today
                 String have = Updater.installedVersion(this);
                 if (!Updater.newer(c.rel.version, have) || !c.rel.hasApk()) return;
+                if (c.rel.version.equals(prefs.getString("upd_skip", ""))) return;        // the user skipped it
+                if (prefs.getBoolean("upd_auto", true) && getPackageManager().canRequestPackageInstalls()
+                        && !Updater.onScreen() && !CastService.running) {   // not while the TV plays from the phone
+                    java.io.File apk = new java.io.File(getCacheDir(), "fling-update.apk");
+                    try {
+                        Updater.fetchAsset(prefs, c.rel, apk, pct -> {}, msg -> {}, () -> stopped);
+                        if (stopped) return;
+                        Updater.install(this, apk, c.rel.version);  // Updater.Result: done, or "tap to install"
+                        return;
+                    } catch (Exception e) {                        // fall back to asking
+                        apk.delete();
+                        if (stopped) { retry = true; return; }
+                    }
+                }
                 if (c.rel.version.equals(prefs.getString("upd_announced", ""))) return;   // said once
                 Updater.notifyAvailable(this, c.rel);
                 prefs.edit().putString("upd_announced", c.rel.version).apply();
@@ -56,5 +76,7 @@ public final class UpdateJob extends JobService {
         return true;
     }
 
-    @Override public boolean onStopJob(JobParameters p) { return true; }
+    private volatile boolean stopped;
+
+    @Override public boolean onStopJob(JobParameters p) { stopped = true; return true; }
 }

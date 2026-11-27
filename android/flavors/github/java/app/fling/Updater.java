@@ -124,7 +124,8 @@ final class Updater {
                 busy = false;
                 if (a.isFinishing()) return;
                 String have = installedVersion(a);
-                if (c.rel != null && newer(c.rel.version, have)) offer(c.rel, have);
+                boolean skipped = c.rel != null && c.rel.version.equals(prefs.getString("upd_skip", ""));
+                if (c.rel != null && newer(c.rel.version, have) && (manual || !skipped)) offer(c.rel, have);
                 else if (!manual) return;
                 else if (c.rel != null) toast(L.f("У вас последняя версия (%s).", have));
                 else if (c.err == null && c.code == 403 && token(prefs).isEmpty())
@@ -142,9 +143,25 @@ final class Updater {
         new AlertDialog.Builder(a)
                 .setTitle(L.f("Доступна версия %s", r.version))
                 .setMessage(L.f("У вас %s. Обновление скачается в фоне — ход загрузки будет в уведомлении, Fling можно закрыть. Связь с ТВ и настройки сохранятся.", have))
-                .setPositiveButton(L.t("Обновить"), (d, w) -> download(r))
+                .setPositiveButton(L.t("Обновить"), (d, w) -> { prefs.edit().remove("upd_skip").apply(); download(r); })
+                .setNeutralButton(L.t("Пропустить эту версию"), (d, w) -> skip(a, r.version))
                 .setNegativeButton(L.t("Позже"), null)
                 .show();
+    }
+
+    /** "Skip this version": no more offers or notifications for it; the next one comes as usual. */
+    static void skip(Context ctx, String version) {
+        prefs(ctx).edit().putString("upd_skip", version).apply();
+        NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+        if (nm != null) nm.cancel(N_AVAILABLE);
+    }
+
+    /** "Skip this version" in the notification. */
+    public static final class Skip extends BroadcastReceiver {
+        @Override public void onReceive(Context ctx, Intent i) {
+            String v = i.getStringExtra("version");
+            if (v != null) skip(ctx, v);
+        }
     }
 
     /** The repository is private: ask for a GitHub token (read-only, this repository only). */
@@ -212,9 +229,11 @@ final class Updater {
             if (c.code == 200) c.rel = Release.parse(readAll(h.getInputStream()));
             h.disconnect();
         } catch (Exception e) {
+            Diag.log("update", "api.github.com: " + e);
             try { c.rel = Release.fromWeb(); }
-            catch (Exception e2) { c.err = why(e, "api.github.com"); }
+            catch (Exception e2) { c.err = why(e, "api.github.com"); Diag.log("update", "github.com: " + e2); }
         }
+        Diag.log("update", "latest: " + (c.rel != null ? c.rel.version : "none (HTTP " + c.code + ")"));
         if (c.rel != null) prefs.edit().putLong("upd_checked", System.currentTimeMillis()).apply();
         return c;
     }
@@ -246,6 +265,8 @@ final class Updater {
         return host + ": " + (m == null ? e.getClass().getSimpleName() : m);
     }
 
+    private static final int TRIES = 5;                   // per source
+
     interface Progress { void at(int pct); }
     interface Status { void say(String msg); }
     interface Cancelled { boolean now(); }
@@ -262,7 +283,7 @@ final class Updater {
         Exception last = null; String lastHost = "github.com";
         String[] host = {""};
         for (String url : urls) {
-            for (int attempt = 1; attempt <= 3; attempt++) {
+            for (int attempt = 1; attempt <= TRIES; attempt++) {
                 if (stop.now()) throw new InterruptedException();
                 try {
                     fetchOnce(prefs, url, r.apkSize, out, p, host, stop);
@@ -279,9 +300,9 @@ final class Updater {
                     break;                                       // this source answers no: the next one
                 } catch (Exception e) {
                     last = e; lastHost = host[0].isEmpty() ? Uri.parse(url).getHost() : host[0];
-                    if (attempt < 3) {
-                        s.say(L.f("Связь оборвалась, повторяю (%d из 3)…", attempt + 1));
-                        Thread.sleep(1500L * attempt);
+                    if (attempt < TRIES) {
+                        s.say(L.f("Связь оборвалась, повторяю (%d из %d)…", attempt + 1, TRIES));
+                        Thread.sleep(Math.min(15000L, 3000L * attempt));   // the storage drops connections in bursts
                     }
                 }
             }
@@ -377,6 +398,7 @@ final class Updater {
             L.init(ctx);
             int st = i.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
             String version = i.getStringExtra("version");
+            Diag.log("update", "installer: status " + st + " for " + version + " " + i.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE));
             if (st == PackageInstaller.STATUS_PENDING_USER_ACTION) {
                 Intent confirm = i.getParcelableExtra(Intent.EXTRA_INTENT);
                 if (confirm == null) return;
@@ -439,6 +461,9 @@ final class Updater {
                 .setContentText(L.f("У вас %s. Нажмите «Обновить» — скачается в фоне.", have))
                 .setAutoCancel(true)
                 .addAction(new Notification.Action.Builder(null, L.t("Обновить"), UpdateService.pending(ctx, r)).build())
+                .addAction(new Notification.Action.Builder(null, L.t("Пропустить эту версию"),
+                        PendingIntent.getBroadcast(ctx, 12, new Intent(ctx, Skip.class).putExtra("version", r.version),
+                                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT)).build())
                 .build();
         post(ctx, N_AVAILABLE, n);
     }
@@ -457,6 +482,7 @@ final class Updater {
 
     /** r != null: the download failed, offer it again and the browser. */
     static void notifyFailed(Context ctx, Release r, String why) {
+        Diag.log("update", "failed: " + why);
         Notification.Builder b = note(ctx, CH_UPDATES)
                 .setContentTitle(L.t("Обновление не скачалось"))
                 .setContentText(why)

@@ -100,6 +100,9 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; Value
 [Run]
 Filename: "{app}\Fling.exe"; Parameters: "show"; Description: "{cm:LaunchFling}"; \
   Flags: nowait postinstall skipifsilent
+; an automatic update (fling_update runs this setup with /VERYSILENT /relaunch=1): Fling closed
+; itself for it, so start it again, quietly in the tray
+Filename: "{app}\Fling.exe"; Parameters: "tray"; Flags: nowait; Check: RelaunchAfterUpdate
 
 [UninstallRun]
 ; ask a running Fling to quit before its files go
@@ -108,6 +111,11 @@ Filename: "{sys}\reg.exe"; Parameters: "delete HKCU\Software\Microsoft\Windows\C
   Flags: runhidden; RunOnceId: "DropAutostart"
 
 [Code]
+function RelaunchAfterUpdate: Boolean;
+begin
+  Result := WizardSilent and (ExpandConstant('{param:relaunch|0}') = '1');
+end;
+
 function NeedsAddPath(Dir: string): Boolean;
 var
   Path: string;

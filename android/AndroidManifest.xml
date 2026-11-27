@@ -88,6 +88,15 @@
 
         <receiver android:name=".SleepTimer" android:exported="false" />
 
+        <!-- the report for the developer (Diag.report): shared from cache/reports only -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
+
         <service
             android:name=".PauseTile"
             android:exported="true"

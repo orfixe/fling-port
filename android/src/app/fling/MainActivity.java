@@ -302,6 +302,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 main.post(() -> {
                     if (!h.equals(host)) { main.post(probe); return; }
                     boolean was = Boolean.TRUE.equals(reachable);
+                    if (reachable == null || reachable != (m >= 0))
+                        Diag.log("tv", (m >= 0 ? "answers in " + m + " ms" : "doesn't answer") + (tn ? " (tailnet)" : ""));
                     reachable = m >= 0;
                     viaTailnet = tn;
                     pathMs = m;
@@ -421,6 +423,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private boolean isSamsung() { return sam.handles(host); }
 
     @Override public void onSamsung(String state, String message) {
+        Diag.log("samsung", state + (message == null || message.isEmpty() ? "" : ": " + message));
         main.post(() -> {
             if (!"info".equals(state)) samState = state;
             if (message != null && !message.isEmpty()) {
@@ -444,13 +447,14 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     @Override public void onError(String message) { main.post(() -> showError(message)); }
 
     /** The remote or Cast couldn't (re)connect on its own: check the TV at once, the status line shows it. */
-    @Override public void onOffline(String message) { main.post(() -> { if (resumed) { main.removeCallbacks(probe); main.post(probe); } }); }
+    @Override public void onOffline(String message) { Diag.log("tv", "offline: " + message); main.post(() -> { if (resumed) { main.removeCallbacks(probe); main.post(probe); } }); }
 
     @Override public void onPower(Boolean on) { main.post(() -> { tvOn = on; sync(); }); }
 
     @Override public void onApp(String pkg) { main.post(() -> { tvApp = pkg; sync(); }); }
 
     @Override public void onPairing(String state, String message) {
+        Diag.log("pair", state + (message == null || message.isEmpty() ? "" : ": " + message));
         main.post(() -> {
             pairState = state;
             pairMsg = message == null ? "" : message;
@@ -546,6 +550,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     }
 
     private void notice(String m, boolean err) {
+        if (m != null && !m.isEmpty()) Diag.log("ui", (err ? "error: " : "say: ") + m);
         if (notice == null || destroyed || m == null || m.isEmpty()) return;
         main.removeCallbacks(hideNotice);
         notice.setText(m);

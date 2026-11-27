@@ -407,6 +407,7 @@ public final class LiveActivity extends Activity implements SurfaceHolder.Callba
     }
 
     private void showError(String text) {
+        Diag.log("live", "error: " + text);
         status.setVisibility(View.VISIBLE);
         spinner.setVisibility(View.GONE);
         retry.setVisibility(View.VISIBLE);

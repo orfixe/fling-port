@@ -310,8 +310,11 @@ public class SettingsActivity extends Activity {
             c.addView(ui.row(L.t("Проверить обновления"), "refresh", Updater.installedVersion(this), false, v -> updater.check(true)));
             c.addView(toggle(L.t("Сообщать о новых версиях"), L.t("Раз в день Fling проверяет GitHub, даже закрытый, и присылает уведомление, когда вышла новая версия."),
                     "upd_notify", true, () -> Updater.background(this)));
+            c.addView(toggle(L.t("Устанавливать обновления автоматически"), L.t("Новая версия скачивается и ставится сама, пока Fling закрыт. Android может один раз попросить подтверждение."),
+                    "upd_auto", true));
         }   // trailing: the version, short enough for 320 dp
         c.addView(ui.row(L.t("Как пользоваться"), "help", null, false, v -> Help.show(this, ui)));
+        c.addView(ui.row(L.t("Отчёт для разработчика"), "send", null, false, v -> Diag.report(this)));
         c.addView(ui.row(L.t("Показать подсказки снова"), "refresh", null, false, v -> {
             getSharedPreferences("fling", MODE_PRIVATE).edit().putBoolean("help_seen", false).apply();
             finish();                                    // the main screen runs the tips when it comes back

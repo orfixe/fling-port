@@ -10,8 +10,25 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-11-27
+
 ### Added
 
+- PC: **updates by themselves.** Fling checks GitHub once a day. On Windows a new version is
+  downloaded in the background, checked against the release signature (fling-guard) and the
+  signed checksum list, and installed while the panel is closed and no TV screen is shown;
+  Fling restarts by itself. Settings → About: Install / Skip this version, and switches for
+  checking and installing automatically. Linux and source runs get a notification.
+- PC: **a report for the developer** — Settings, the tray menu or `fling report` make
+  `fling-report-<date>.zip` in Downloads: version, system, screens, settings and the log, with
+  passwords, tokens, keys, e-mails, MACs, public IPs and the user name removed. The log now has
+  the time on every line, Qt warnings, and the stacks of crashes.
+- Android: **a report for the developer** (Settings → About), shared through the share sheet:
+  the app's own log (errors, the TV's connection, pairing, updates, crashes) and its logcat,
+  cleaned the same way.
+- Android: **Skip this version** in the update window and notification, and **Install updates
+  automatically**: the daily check downloads and installs the update while Fling is closed
+  (Android 12+ without asking once Fling has updated itself before).
 - Android: **updates download in the background**, with the progress in a notification
   (and Cancel); Fling can be closed meanwhile. When the file is in, Android's install screen
   opens at once if Fling is on screen, otherwise a "Tap to install" notification waits.
@@ -22,8 +39,11 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ### Fixed
 
+- PC: **WASD drove the TV only every other time** on Windows: the keyboard hook that catches
+  keys for the tray panel knew the arrows but not W A S D (nor H, M, P, < >), so they worked
+  only when the panel happened to have the focus. The same keys on the Russian layout too.
 - Android: an update ended at once with "connection closed" when the connection to GitHub's
-  file storage dropped. The APK now comes from two sources, each tried 3 times, a dropped
+  file storage dropped. The APK now comes from two sources, each tried up to 5 times, a dropped
   download resumes where it stopped, the check falls back to github.com when api.github.com
   can't be reached, and a failure says which server and what to try, with Try again and
   Download in the browser.
@@ -534,7 +554,8 @@ unchanged.
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.2...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/orfixe/fling-port/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/orfixe/fling-port/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/orfixe/fling-port/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/orfixe/fling-port/compare/v0.4.1...v0.5.0
