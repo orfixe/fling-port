@@ -51,6 +51,9 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ### Changed
 
+- PC and Android: **the first screen (language)** no longer mixes Russian and English on one
+  line: "Fling", then two cards, each entirely in its own language (Русский · Продолжить на
+  русском / English · Continue in English); a tap goes on.
 - PC: **one keyboard capture with three modes** (the "Capture ▾" button on the strip): the
   whole keyboard to the TV (new default — nothing typed leaks into the app behind the panel),
   only the remote's keys, or none. A key that does nothing on the TV says so; F1, "?" or a few

@@ -42,18 +42,14 @@ final class Welcome {
         logoBox.addView(logo, new FrameLayout.LayoutParams(ui.dp(96), ui.dp(96), Gravity.CENTER));
         col.addView(logoBox, new LinearLayout.LayoutParams(ui.dp(240), ui.dp(220)));
 
-        TextView title = ui.text("Добро пожаловать · Welcome", 24, ui.fg, true);
+        TextView title = ui.text("Fling", 28, ui.fg, true);          // the same in both languages
         title.setGravity(Gravity.CENTER);
-        col.addView(title, ui.margins(Ui.lp(-1, -2), 0, 8, 0, 0));
-        TextView sub = ui.text("Выберите язык · Choose your language\n"
-                + "Его можно сменить в Настройках · You can change it in Settings", 14, ui.fgA(0.6f), false);
-        sub.setGravity(Gravity.CENTER);
-        sub.setLineSpacing(0, 1.25f);
-        col.addView(sub, ui.margins(Ui.lp(-1, -2), 0, 10, 0, 22));
+        col.addView(title, ui.margins(Ui.lp(-1, -2), 0, 8, 0, 24));
 
         final boolean[] closing = {false};
         Runnable[] finish = new Runnable[1];
-        for (String[] lang : new String[][]{{"ru", "Русский", "Russian"}, {"en", "English", "Английский"}}) {
+        // each card entirely in its own language — nothing mixed on one line
+        for (String[] lang : new String[][]{{"ru", "Русский", "Продолжить на русском"}, {"en", "English", "Continue in English"}}) {
             boolean on = lang[0].equals(L.english() ? "en" : "ru");
             LinearLayout b = ui.col();
             b.setGravity(Gravity.CENTER);

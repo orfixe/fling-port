@@ -362,11 +362,23 @@ class Welcome(QWidget):
         lh.setContentsMargins(0, 4, 0, 0)
         lh.setSpacing(12)
         self.lang_btns = {}
-        for code, name, sub in (("ru", "Русский", "Russian"), ("en", "English", "Английский")):
-            b = QPushButton(f"{name}\n{sub}")
-            b.setFont(F.font(15, QFont.Weight.DemiBold))
-            b.setFixedHeight(76)
+        # each card entirely in its own language — nothing mixed on one line
+        for code, name, sub in (("ru", "Русский", "Продолжить на русском"),
+                                ("en", "English", "Continue in English")):
+            b = QPushButton()
+            b.setFixedHeight(84)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
+            bl = QVBoxLayout(b)
+            bl.setContentsMargins(12, 10, 12, 10)
+            bl.setSpacing(2)
+            for text, size, weight, alpha in ((name, 17, QFont.Weight.DemiBold, 1.0),
+                                              (sub, 11.5, QFont.Weight.Normal, 0.6)):
+                lab = QLabel(text)
+                lab.setFont(F.font(size, weight))
+                lab.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                lab.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+                lab.setStyleSheet(f"color:{_css(T.fg_a(alpha))};background:transparent")
+                bl.addWidget(lab)
             b.clicked.connect(lambda _=False, c=code: self._pick_lang(c))
             self.lang_btns[code] = b
             lh.addWidget(b, 1)
@@ -428,17 +440,18 @@ class Welcome(QWidget):
             self.skip.setText(self._s(UI["skip"]))
             self.back.setText(self._s(UI["back"]))
             self.back.setVisible(self.page > 0)
+            self.next.setVisible(not lang_page)         # the language cards themselves go on
             last = self.page == len(PAGES) - 1
             self.next.setText(self._s(UI["start"] if last else UI["next"]))
             self.logo.setVisible(lang_page)
             self.title.setAlignment(Qt.AlignmentFlag.AlignHCenter if lang_page else Qt.AlignmentFlag.AlignLeft)
             self.body.setAlignment((Qt.AlignmentFlag.AlignHCenter if lang_page else Qt.AlignmentFlag.AlignLeft)
                                    | Qt.AlignmentFlag.AlignTop)
+            self.body.setVisible(not lang_page)         # no empty gap above the language cards
             if lang_page:
                 self.art.setVisible(False)
-                self.title.setText("Добро пожаловать · Welcome")
-                self.body.setText("Выберите язык · Choose your language\n"
-                                  "Его можно сменить в Настройках · You can change it in Settings")
+                self.title.setText("Fling")             # the same in both languages
+                self.body.setText("")
                 self._lang_css()
                 self.skip.setVisible(False)
             else:
