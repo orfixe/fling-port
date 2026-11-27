@@ -70,6 +70,9 @@ Name: "flingcmd"; Description: "{cm:FlingCommand}"
 [InstallDelete]
 ; leftovers of an older build in the same folder
 Type: filesandordirs; Name: "{app}\_internal"
+; older builds left the extension of every past version here; fling-guard counts a file that
+; isn't in the signed list as tampering and closed Fling 0.5.3 for it — start the folder afresh
+Type: filesandordirs; Name: "{app}\extension"
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs

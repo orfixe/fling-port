@@ -10,6 +10,15 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-11-27
+
+### Fixed
+
+- PC: **Fling 0.5.3 closed right after starting on computers that had Fling since 0.3.1–0.3.2.**
+  The extension folder kept the Firefox zip of every past version; the oldest ones weren't in
+  the signed file list, so fling-guard took them for tampering and closed Fling. The setup now
+  makes that folder afresh, and the build ships this version's zip only.
+
 ## [0.5.3] - 2026-11-27
 
 ### Added
@@ -572,7 +581,8 @@ unchanged.
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.3...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.4...HEAD
+[0.5.4]: https://github.com/orfixe/fling-port/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/orfixe/fling-port/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/orfixe/fling-port/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/orfixe/fling-port/compare/v0.5.0...v0.5.1

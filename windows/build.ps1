@@ -166,9 +166,14 @@ if (-not (Test-Path (Join-Path $ScrDir 'scrcpy.exe'))) {
   Remove-Item $zipScr, $tmpScr -Recurse -Force
 }
 
-# the Chrome / Edge extension ships inside, for "Load unpacked"
-Copy-Item (Join-Path $Repo 'extension\dist\chrome') (Join-Path $Out 'extension\chrome') -Recurse -Force
-Copy-Item (Join-Path $Repo 'extension\dist\fling-firefox-*.zip') (Join-Path $Out 'extension') -Force
+# the Chrome / Edge extension ships inside, for "Load unpacked", and this version's Firefox zip.
+# The folder is made afresh: out\Fling is kept between builds, and every older zip that piled up
+# there used to ship too (and was signed into the file list).
+$ExtOut = Join-Path $Out 'extension'
+Remove-Item $ExtOut -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $ExtOut | Out-Null
+Copy-Item (Join-Path $Repo 'extension\dist\chrome') (Join-Path $ExtOut 'chrome') -Recurse -Force
+Copy-Item (Join-Path $Repo "extension\dist\fling-firefox-$Ver.zip") $ExtOut -Force
 # "Install the extension..." in the app drives the browser with this script
 Copy-Item (Join-Path $PSScriptRoot 'install-extension.ps1') $Out -Force
 # authorship and licenses travel with the program
