@@ -10,6 +10,28 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-27
+
+### Changed
+
+- Android: **messages appear in one line at the bottom of the screen**, over the content, so
+  they are seen wherever the page is scrolled: neutral for progress and confirmations, red for
+  a failed action; tap to dismiss. This replaces the orange banner at the top of the page and
+  the toasts.
+- Android: the **language is chosen in Settings** (and at the first launch) only, no longer
+  with a third switch at the bottom of the main screen.
+- Android: hints are grey, not orange; a failed pairing is shown in red.
+
+### Fixed
+
+- Android: a TV that is off or away no longer shows an error each time the app opens: the
+  status line under the title turns red and the TV is checked again at once (tap it to check
+  again).
+- Android: the TV dot was green whenever a TV was chosen; it is now green when the TV answers,
+  red when it doesn't and grey before the first check, as on the PC.
+- Android: "Sent to TV" was shown before the TV answered; it now says "Sending to the TV…" and
+  a failure follows as an error.
+
 ## [0.5.1] - 2026-11-26
 
 ### Added
@@ -491,7 +513,8 @@ unchanged.
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.0...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/orfixe/fling-port/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/orfixe/fling-port/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/orfixe/fling-port/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/orfixe/fling-port/compare/v0.4.0...v0.4.1
