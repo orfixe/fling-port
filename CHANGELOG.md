@@ -12,6 +12,16 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [0.5.4] - 2026-11-27
 
+### Changed
+
+- PC, LIVE: **less delay.** The TV's encoder is asked for low latency (realtime priority, at
+  most one frame held; a TV that refuses gets the plain start and is remembered), and "auto"
+  runs at 60 frames/s — the encoder holds frames, so twice the frames is about half the wait.
+  "Smooth" is now **"Fast"**: 960 px at 60 frames/s, the least delay.
+- PC, LIVE: the number next to the quality said "1 ms" while the picture lagged: it is the
+  network only. It now reads "network 1 ms", and its tooltip explains the rest of the delay
+  (the TV compressing each frame, which the TV doesn't report).
+
 ### Fixed
 
 - PC: **Fling 0.5.3 closed right after starting on computers that had Fling since 0.3.1–0.3.2.**

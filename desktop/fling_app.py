@@ -2112,6 +2112,13 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Экран ТВ закрылся: ", "The TV screen closed: "),
     ("Касания", "Taps"), ("Только смотреть", "Just watch"),
     ("Качество: авто", "Quality: auto"), ("Чётко", "Sharp"), ("Плавно", "Smooth"), ("Экономно", "Saver"),
+    ("Быстро", "Fast"), ("сеть", "network"),
+    ("1280 px, 60 кадров/с — само снижается, если сеть не успевает", "1280 px, 60 frames/s — steps down by itself if the network can't keep up"),
+    ("1920 px, 30 кадров/с — чётче, но задержка больше", "1920 px, 30 frames/s — sharper, but more delay"),
+    ("960 px, 60 кадров/с — самая маленькая задержка, для игр", "960 px, 60 frames/s — the least delay, for games"),
+    ("960 px, 2 Мбит/с — когда сеть медленная", "960 px, 2 Mbit/s — for a slow network"),
+    ("Это только задержка сети. Картинка ещё ждёт, пока телевизор сожмёт кадр — обычно 50–150 мс, сколько именно, ТВ не сообщает. Меньше всего — в «Быстро».",
+     "This is the network delay only. The picture also waits for the TV to compress each frame — usually 50–150 ms, which the TV doesn't report. The least in “Fast”."),
     ("Начинает с хорошего и само снижается, если сеть не успевает",
      "Starts at high quality and steps down by itself when the network can't keep up"),
     ("1920 px, 8 Мбит/с — для быстрой сети", "1920 px, 8 Mbit/s — for a fast network"),
@@ -3657,8 +3664,14 @@ def scrcpy_download() -> str:
 
 # LIVE picture quality: (max size, max fps, video bit rate). "auto" starts as "clear-ish"
 # and steps down to "saver" by itself when the network can't keep up.
-QUALITY = {"auto": (1280, 30, "4M"), "clear": (1920, 30, "8M"),
-           "smooth": (1280, 60, "6M"), "saver": (960, 30, "2M")}
+# (max size, frames/s, bit rate). 60 frames/s where the network allows: the TV's hardware
+# encoder holds a frame or two before it sends them, so twice the frames is about half that wait.
+QUALITY = {"auto": (1280, 60, "6M"), "clear": (1920, 30, "8M"),
+           "smooth": (960, 60, "4M"), "saver": (960, 30, "2M")}
+# Ask the TV's encoder for low latency: realtime priority and at most one frame held
+# (MediaCodec KEY_PRIORITY / KEY_LATENCY). A TV whose encoder refuses them gets the plain
+# start again, and Fling remembers that TV (conf "live_plain").
+LOW_LATENCY = "priority:int=0,latency:int=1"
 
 
 class TvScreen(QObject):
@@ -3767,6 +3780,8 @@ class TvScreen(QObject):
                             ("saver" if TS.prefers_saver(self.state) else "auto"), QUALITY["auto"])
             # no extra buffering anywhere: --video-buffer=0 shows each frame as soon as it's decoded
             args += [f"--max-size={q[0]}", f"--max-fps={q[1]}", f"--video-bit-rate={q[2]}", "--video-buffer=0"]
+            if ip not in self.state.conf.get("live_plain", []):
+                args.append(f"--video-codec-options={LOW_LATENCY}")
         if mode == "live":
             args.append("--print-fps")           # LiveWindow reads it: frames shown / skipped
         if mode == "live":                       # born off-screen and frameless, then moved into Fling
@@ -3805,6 +3820,18 @@ class TvScreen(QObject):
                 self._quiet.discard(id(p))
                 return
             quick = time.monotonic() - started < 15
+            low = any(a.startswith("--video-codec-options=") for a in args)
+            tl = text.lower()
+            if quick and low and ("mediacodec" in tl or "codecexception" in tl or "illegalargument" in tl
+                                  or ("encoder" in tl and "error" in tl)):
+                # this TV's encoder won't take the low-latency options: start it plain, and remember
+                plain = self.state.conf.setdefault("live_plain", [])
+                if ip not in plain:
+                    plain.append(ip)
+                    save_conf(self.state.conf)
+                print("scrcpy: the TV's encoder refused the low-latency options; plain start", flush=True)
+                self._start(exe, ip, mode, mouse)
+                return
             if quick and mouse == "uhid" and "uhid" in text.lower():
                 self._start(exe, ip, mode, "sdk")    # no UHID on this TV: taps instead of a cursor
                 return
@@ -4290,10 +4317,10 @@ class LiveWindow(QWidget):
             self.restart()
 
     # --- picture quality and how it's doing
-    QUALITY_NAMES = (("auto", "Качество: авто", "Начинает с хорошего и само снижается, если сеть не успевает"),
-                     ("clear", "Чётко", "1920 px, 8 Мбит/с — для быстрой сети"),
-                     ("smooth", "Плавно", "60 кадров/с — для игр и прокрутки"),
-                     ("saver", "Экономно", "960 px, 2 Мбит/с — когда картинка запаздывает"))
+    QUALITY_NAMES = (("auto", "Качество: авто", "1280 px, 60 кадров/с — само снижается, если сеть не успевает"),
+                     ("clear", "Чётко", "1920 px, 30 кадров/с — чётче, но задержка больше"),
+                     ("smooth", "Быстро", "960 px, 60 кадров/с — самая маленькая задержка, для игр"),
+                     ("saver", "Экономно", "960 px, 2 Мбит/с — когда сеть медленная"))
 
     def _quality(self) -> str:
         q = self.state.conf.get("live_quality", "auto")
@@ -4363,7 +4390,8 @@ class LiveWindow(QWidget):
             elif skip_part > 0.08:
                 level = max(level, 1)
         col = {0: "#30d158", 1: "#ffd60a", 2: "#ff453a"}[level]
-        label_ = (f"{rtt:.0f} {_ms}" if rtt is not None else "—")
+        # only the network: the picture also waits for the TV's encoder (it doesn't report it)
+        label_ = (tr("сеть") + f" {rtt:.0f} {_ms}" if rtt is not None else "—")
         qname = next(t for k, t, _ in self.QUALITY_NAMES if k == self._quality())
         self.health.setText(f"{label_}  ·  {tr(qname)}")
         details = [tr("Сеть до ТВ") + ": " + (f"{rtt:.0f} {_ms}" if rtt is not None else tr("нет ответа"))
@@ -4372,8 +4400,10 @@ class LiveWindow(QWidget):
             details.append(tr("Кадров") + f": {fps}/{_s}" + (f", {tr('пропущено')} {skip_part:.0%}" if skipped else "")
                            + ("" if fps else " " + tr("(экран ТВ не меняется — это нормально)")))
         self._health_details = " · ".join(details)
-        self.health.setToolTip(tr("Как идёт картинка") + "\n" + self._health_details +
-                               "\n" + tr("Нажмите — выбрать качество."))
+        self.health.setToolTip(tr("Как идёт картинка") + "\n" + self._health_details + "\n" +
+                               tr("Это только задержка сети. Картинка ещё ждёт, пока телевизор сожмёт кадр — "
+                                  "обычно 50–150 мс, сколько именно, ТВ не сообщает. Меньше всего — в «Быстро».")
+                               + "\n" + tr("Нажмите — выбрать качество."))
         self._paint_health_dot(col)
         self._bad = self._bad + 1 if level == 2 else 0
         if level == 2 and self._bad >= 2:
