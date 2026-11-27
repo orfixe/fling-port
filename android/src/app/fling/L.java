@@ -48,6 +48,9 @@ final class L {
     static {
         // first-run tips (Tour)
         e("Пропустить", "Skip");
+        // messages (MainActivity.notice)
+        e("Ошибка", "Error");
+        e("Проверяю связь с ТВ…", "Checking the connection to the TV…");
         // Smart View for Samsung (Samsung.java)
         e("Зеркалировать экран", "Mirror screen");
         e("Включить ТВ по сети", "Turn the TV on over the network");

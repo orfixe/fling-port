@@ -29,7 +29,7 @@ final class Help {
             {"Настройки", "• Шестерёнка вверху экрана.\n• Тема: как в системе, светлая, тёмная или чёрная (AMOLED).\n• Цвет акцента, на Android 12 и новее — цвета обоев (Material You).\n• Уведомление с кнопками, кнопки громкости, «Не гасить экран» и язык."},
             {"Снимок экрана ТВ", "• «Сделать снимок» снимает экран телевизора.\n• Файл попадёт в «Галерею», папка Pictures/Fling.\n• Если снимок чёрный, видео защищено (так бывает у YouTube и Netflix). Меню и главный экран получаются нормально.\n• Чтобы снимок получился, включите отладку ADB."},
             {"LIVE: экран ТВ на телефоне", "• «● LIVE» вверху показывает экран телевизора на телефоне и даёт управлять им — дома и через Tailscale.\n• Нужна отладка ADB (раздел «Название и обложка с ТВ»).\n• В первый раз Fling скачает scrcpy-server с GitHub и проверит его контрольную сумму."},
-            {"Если что-то не работает", "• ТВ не находится — проверьте, что телефон и ТВ в одной сети Wi‑Fi, или нажмите «Добавить ТВ по IP…».\n• Пауза на YouTube не работает — нажмите «Связать с ТВ».\n• Старая или чужая обложка — включите отладку ADB.\n• Чёрный снимок — видео защищено.\n• Язык: переключатель RU | EN внизу экрана."}
+            {"Если что-то не работает", "• ТВ не находится — проверьте, что телефон и ТВ в одной сети Wi‑Fi, или нажмите «Добавить ТВ по IP…».\n• Пауза на YouTube не работает — нажмите «Связать с ТВ».\n• Старая или чужая обложка — включите отладку ADB.\n• Чёрный снимок — видео защищено.\n• Язык: ⚙ Настройки → Язык."}
     };
 
     /** English sections, same order as RU. */
@@ -48,7 +48,7 @@ final class Help {
             {"Settings", "• The gear at the top of the screen.\n• Theme: system default, light, dark or black (AMOLED).\n• Accent colour; on Android 12 and later, wallpaper colours (Material You).\n• Playback notification, volume keys, “Keep the screen on” and language."},
             {"Screenshot", "• “Take screenshot” captures the TV screen.\n• It is saved in Gallery, folder Pictures/Fling.\n• A black picture means the video is copy-protected (YouTube and Netflix do this). Menus and the home screen come out fine.\n• To get a real screenshot, turn on ADB debugging."},
             {"LIVE: the TV screen on the phone", "• “● LIVE” at the top shows the TV screen on the phone and lets you control it — at home and over Tailscale.\n• It needs ADB debugging (“Title and artwork from the TV”).\n• The first time, Fling downloads scrcpy-server from GitHub and checks its checksum."},
-            {"If something doesn’t work", "• TV not found — check that the phone and the TV are on the same Wi‑Fi, or tap “Add TV by IP…”.\n• Pause on YouTube does nothing — tap “Pair with TV”.\n• Wrong or old artwork — turn on ADB debugging.\n• Black screenshot — the video is copy-protected.\n• Language: the RU | EN switch at the bottom."}
+            {"If something doesn’t work", "• TV not found — check that the phone and the TV are on the same Wi‑Fi, or tap “Add TV by IP…”.\n• Pause on YouTube does nothing — tap “Pair with TV”.\n• Wrong or old artwork — turn on ADB debugging.\n• Black screenshot — the video is copy-protected.\n• Language: ⚙ Settings → Language."}
     };
 
     /** Shows the guide as a scrollable dialog styled like the rest of the app. */

@@ -116,7 +116,6 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private Boolean tvOn;
     private String tvApp;
     private boolean voice;
-    private String error;
     private String link, linkTitle;
     private boolean pendingAutoCast;
     private boolean resumed;
@@ -128,10 +127,10 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     // views
     private LinearLayout root;
     private ScrollView scroll;
-    private View helpView, langRowView, gearView;
+    private View helpView, gearView;
     private View prevKey, nextKey, seekBack, seekFwd, gap1, gap2, hwHint;
     private Ui.Row sleepRow;
-    private TextView errorView, subtitleHeader;
+    private TextView notice, subtitleHeader;            // notice: the message line at the bottom
     private LinearLayout nowCard, linkCard, tvCard;
     private Ui.Artwork nowArt, linkArt;
     private Ui.RefreshButton nowRefresh, linkRefresh;
@@ -424,9 +423,10 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         main.post(() -> {
             if (!"info".equals(state)) samState = state;
             if (message != null && !message.isEmpty()) {
-                if (state.equals("waiting") || state.equals("info")) toast(message); else showError(message);
+                if (state.equals("waiting") || state.equals("info")) say(message);
+                else if (!state.equals("offline")) showError(message);    // offline: the status line says it
             }
-            if (state.equals("ready")) error = null;
+            if (state.equals("ready")) hideNotice.run();
             sync();
         });
     }
@@ -442,6 +442,9 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     @Override public void onError(String message) { main.post(() -> showError(message)); }
 
+    /** The remote or Cast couldn't (re)connect on its own: check the TV at once, the status line shows it. */
+    @Override public void onOffline(String message) { main.post(() -> { if (resumed) { main.removeCallbacks(probe); main.post(probe); } }); }
+
     @Override public void onPower(Boolean on) { main.post(() -> { tvOn = on; sync(); }); }
 
     @Override public void onApp(String pkg) { main.post(() -> { tvApp = pkg; sync(); }); }
@@ -450,7 +453,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         main.post(() -> {
             pairState = state;
             pairMsg = message == null ? "" : message;
-            if (state.equals("idle") && paired()) { pinEdit.setText(""); error = null; }
+            if (state.equals("idle") && paired()) { pinEdit.setText(""); hideNotice.run(); }
             sync();
         });
     }
@@ -480,7 +483,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private void tvScreenshot() {
         final String h = host;
         if (h == null) { showError(L.t("Устройство не выбрано")); return; }
-        showError(L.t("Делаю снимок экрана ТВ…"));
+        say(L.t("Делаю снимок экрана ТВ…"));
         bg(() -> {
             try {
                 byte[] png = adb.shellBytes(h, "exec:screencap -p");
@@ -515,7 +518,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                             .setView(iv)
                             .setPositiveButton("OK", null)
                             .show();
-                    showError(null);
+                    hideNotice.run();
                 });
             } catch (Exception e) {
                 String st = Adb.lastState;
@@ -527,15 +530,48 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         });
     }
 
+    // ---------------------------------------------------------------- messages
+    // One line at the bottom of the screen, over the content and above the navigation bar, so it
+    // is seen wherever the page is scrolled: say() for progress and confirmations (neutral, short),
+    // showError() for a failed action (red, stays longer). Tap to dismiss. The TV being off or away
+    // is not a message: the status line under the title shows it (onOffline).
+
+    private void say(String m) { notice(m, false); }
+
     private void showError(String m) {
-        if (m != null && DevicePicker.error(m)) return;   // the chooser is open: say it there
-        error = m;
-        sync();
-        main.removeCallbacks(clearError);
-        if (m != null) main.postDelayed(clearError, 9000);
+        if (m == null) { hideNotice.run(); return; }
+        if (DevicePicker.error(m)) return;                // the chooser is open: say it there
+        notice(m, true);
     }
 
-    private final Runnable clearError = () -> { error = null; sync(); };
+    private void notice(String m, boolean err) {
+        if (notice == null || destroyed || m == null || m.isEmpty()) return;
+        main.removeCallbacks(hideNotice);
+        notice.setText(m);
+        android.graphics.drawable.GradientDrawable bg = ui.round(ui.card, 14);
+        bg.setStroke(ui.dp(1), err ? Ui.alpha(ui.red, 0.55f) : ui.hairline);
+        notice.setBackground(bg);
+        android.graphics.drawable.GradientDrawable dot = ui.oval(err ? ui.red : ui.accent);
+        dot.setSize(ui.dp(8), ui.dp(8));
+        notice.setCompoundDrawablesRelativeWithIntrinsicBounds(dot, null, null, null);
+        notice.setContentDescription((err ? L.t("Ошибка") + ": " : "") + m);
+        if (notice.getVisibility() != View.VISIBLE) {
+            notice.setVisibility(View.VISIBLE);
+            notice.setAlpha(0f);
+            notice.setTranslationY(ui.dp(24));
+        }
+        notice.animate().alpha(1f).translationY(0).setDuration(180).start();
+        notice.announceForAccessibility(notice.getContentDescription());
+        // long enough to read: errors longer than confirmations
+        long ms = Math.min(12000, (err ? 5000 : 2500) + 45L * m.length());
+        main.postDelayed(hideNotice, ms);
+    }
+
+    private final Runnable hideNotice = () -> {
+        if (notice == null || notice.getVisibility() != View.VISIBLE) return;
+        notice.animate().alpha(0f).translationY(ui.dp(24)).setDuration(160)
+                .withEndAction(() -> notice.setVisibility(View.GONE)).start();
+    };
 
     // ================================================================ intents / links
 
@@ -589,7 +625,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     /** Phone files to CastService, which serves them over Wi-Fi and plays them on the TV, in order. */
     private void castLocal(ArrayList<Uri> uris, String type) {
-        if (host == null) { pendingLocal = uris; pendingLocalType = type; showError(L.t("Ищу телевизор…")); return; }
+        if (host == null) { pendingLocal = uris; pendingLocalType = type; say(L.t("Ищу телевизор…")); return; }
         pendingLocal = null;
         if (isSamsung()) {                                 // a Samsung plays phone files over DLNA (the first one)
             final String h = host;
@@ -699,7 +735,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     /** Where a link goes: Cast for streams, the TV's own apps for everything else. */
     private void castLink(String url, String title) {
-        if (host == null) { pendingAutoCast = true; showError(L.t("Ищу телевизор…")); return; }
+        if (host == null) { pendingAutoCast = true; say(L.t("Ищу телевизор…")); return; }
         String id = youtubeId(url);
         if (isSamsung()) {
             final String h = host;
@@ -712,8 +748,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 atv.launch(host, url);                     // YouTube → its app; other pages → the TV's browser
             }
             addRecent(url, title);
-            error = null;
-            toast(L.t("Отправлено на ТВ"));
+            say(L.t("Отправляю на ТВ…"));
             sync();
             return;
         }
@@ -727,12 +762,11 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             atv.launch(host, url);
         }
         addRecent(url, title);
-        error = null;
-        toast(L.t("Отправлено на ТВ"));
+        say(L.t("Отправляю на ТВ…"));
         sync();
     }
 
-    private void toast(String s) { android.widget.Toast.makeText(this, s, android.widget.Toast.LENGTH_SHORT).show(); }
+    private void toast(String s) { say(s); }          // one place for messages: the line at the bottom
 
     // recent links (last 5)
     private List<String[]> recents() {
@@ -1190,8 +1224,20 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             int max = ui.dp(480);
             if (r - l > max && v.getLayoutParams().width != max) { v.getLayoutParams().width = max; v.requestLayout(); }
         });
-        setContentView(scroll);
-        scroll.setOnApplyWindowInsetsListener((v, ins) -> {
+        FrameLayout frame = new FrameLayout(this);
+        frame.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
+        notice = ui.text("", 14, ui.fg, false);
+        notice.setLineSpacing(0, 1.15f);
+        notice.setCompoundDrawablePadding(ui.dp(10));
+        notice.setGravity(Gravity.CENTER_VERTICAL);
+        notice.setPadding(ui.dp(14), ui.dp(12), ui.dp(14), ui.dp(12));
+        notice.setElevation(ui.dp(6));
+        notice.setVisibility(View.GONE);
+        notice.setOnClickListener(v -> hideNotice.run());
+        FrameLayout.LayoutParams np = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        frame.addView(notice, np);
+        setContentView(frame);
+        frame.setOnApplyWindowInsetsListener((v, ins) -> {
             int top, bottom, left, right;
             if (Build.VERSION.SDK_INT >= 30) {
                 android.graphics.Insets i = ins.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout() | WindowInsets.Type.ime());
@@ -1200,7 +1246,11 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 top = ins.getSystemWindowInsetTop(); bottom = ins.getSystemWindowInsetBottom();
                 left = ins.getSystemWindowInsetLeft(); right = ins.getSystemWindowInsetRight();
             }
-            v.setPadding(left, top, right, bottom);
+            scroll.setPadding(left, top, right, bottom);
+            int side = ui.dp(14);
+            np.setMargins(left + side, 0, right + side, bottom + ui.dp(14));
+            np.width = getResources().getConfiguration().screenWidthDp > 520 ? ui.dp(480) : -1;   // tablets: the column's width
+            notice.setLayoutParams(np);
             return Build.VERSION.SDK_INT >= 30 ? WindowInsets.CONSUMED : ins.consumeSystemWindowInsets();
         });
 
@@ -1223,6 +1273,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         pathChip.setBackground(ui.round(ui.fgA(ui.dark ? 0.1f : 0.06f), 12));
         LinearLayout.LayoutParams pc = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         pc.topMargin = ui.dp(8);
+        pathChip.setOnClickListener(v -> { main.removeCallbacks(probe); main.post(probe); say(L.t("Проверяю связь с ТВ…")); });
         ht.addView(pathChip, pc);
         header.addView(ht, Ui.lpW(1));
         liveKey = ui.text("● LIVE", 13, ui.red, true);                // same name as the desktop's LIVE
@@ -1244,12 +1295,6 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         gearView = gear;
         header.addView(gear, ui.margins(Ui.lp(ui.dp(36), ui.dp(36)), 8, 0, 0, 0));
         root.addView(header);
-
-        errorView = ui.text("", 14, ui.orange, false);
-        errorView.setBackground(ui.round(Ui.alpha(ui.orange, 0.12f), 12));
-        errorView.setPadding(ui.dp(14), ui.dp(10), ui.dp(14), ui.dp(10));
-        errorView.setOnClickListener(v -> { error = null; sync(); });
-        root.addView(errorView, ui.margins(Ui.lp(-1, -2), 0, 0, 0, 12));
 
         buildNowCard();
         buildLinkCard();
@@ -1309,7 +1354,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         ctl.addView(nextKey, ui.margins(Ui.lp(ui.dp(42), ui.dp(42)), 12, 0, 0, 0));
         nowCard.addView(ctl);
 
-        nowHint = ui.text("", 13, ui.orange, false);
+        nowHint = ui.text("", 13, ui.fgA(0.6f), false);
+        nowHint.setLineSpacing(0, 1.15f);
         nowCard.addView(nowHint, ui.margins(Ui.lp(-1, -2), 4, 2, 4, 6));
 
         LinearLayout vol = ui.row();
@@ -1454,7 +1500,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         setupBox.addView(pairRow);
         tvCard.addView(setupBox);
 
-        pinFail = ui.text("", 14, ui.orange, false);
+        pinFail = ui.text("", 14, ui.red, false);
         tvCard.addView(pinFail, ui.margins(Ui.lp(-1, -2), 10, 4, 10, 4));
 
         // paired controls (RemoteView.swift)
@@ -1634,17 +1680,6 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                     android.net.Uri.parse("https://github.com/tatianathevisionary/fling"))); } catch (Exception ignored) {}
         });
         root.addView(credit, ui.margins(Ui.lp(-1, -2), 0, 2, 0, 0));
-
-        // language: RU | EN (saved; "auto" until the user picks)
-        LinearLayout langRow = new LinearLayout(this);
-        langRow.setGravity(Gravity.CENTER);
-        LinearLayout seg = ui.segmented(new String[]{"RU", "EN"}, L.english() ? 1 : 0, idx -> {
-            String want = idx == 1 ? "en" : "ru";
-            if ((idx == 1) != L.english()) { L.setLang(this, want); recreate(); }
-            else L.setLang(this, want);
-        });
-        langRow.addView(seg, Ui.lp(ui.dp(120), -2));
-        root.addView(langRow, ui.margins(Ui.lp(-1, -2), 0, 10, 0, 0));
         // version + "check for updates" (Updater: newest GitHub release)
         TextView upd = BuildConfig.SELF_UPDATE
                 ? ui.text(L.f("Версия %s · Проверить обновления", Updater.installedVersion(this)), 12, ui.accent, false)
@@ -1653,7 +1688,6 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         upd.setPadding(0, ui.dp(10), 0, ui.dp(10));
         if (BuildConfig.SELF_UPDATE) upd.setOnClickListener(v -> updater.check(true));
         root.addView(upd, ui.margins(Ui.lp(-1, -2), 0, 4, 0, 0));
-        langRowView = seg;
     }
 
     /** Short tips, one at a time, over the real screen (Tour); the long guide stays one tap away. */
@@ -1669,7 +1703,6 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 L.t("В YouTube или браузере: «Поделиться» → «На телевизор». Или скопируйте ссылку и вставьте её здесь.")));
         steps.add(new Tour.Step(nowCard, L.t("Что играет"),
                 L.t("Пауза, ±30 секунд и громкость того, что идёт на ТВ.")));
-        steps.add(new Tour.Step(langRowView, L.t("Язык"), L.t("Русский или английский — переключается здесь.")));
         steps.add(new Tour.Step(liveKey, "LIVE",
                 L.t("Экран ТВ на телефоне: смотрите и управляйте — дома и через Tailscale.")));
         steps.add(new Tour.Step(gearView, L.t("Настройки"),
@@ -1716,15 +1749,12 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         pathChip.setVisibility(path == null ? View.GONE : View.VISIBLE);
         if (path != null) {
             pathChip.setText(path);
-            int dot = !Boolean.TRUE.equals(reachable) ? ui.orange : viaTailnet ? ui.accent : ui.green;
+            int dot = !Boolean.TRUE.equals(reachable) ? ui.red : viaTailnet ? ui.accent : ui.green;
             android.graphics.drawable.GradientDrawable d = ui.oval(dot);
             d.setSize(ui.dp(8), ui.dp(8));
             pathChip.setCompoundDrawablesRelativeWithIntrinsicBounds(d, null, null, null);
         }
         liveKey.setAlpha(host != null && "ok".equals(Adb.lastState) ? 1f : 0.45f);
-
-        errorView.setText(error == null ? "" : error);
-        errorView.setVisibility(error == null ? View.GONE : View.VISIBLE);
 
         // now playing
         boolean media = st != null && st.hasMedia();
@@ -1790,8 +1820,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             linkHost.setText(hostOf(link));
             boolean direct = isDirectMedia(link), yt = youtubeId(link) != null;
             if (direct) { linkKind.setText(L.t("видеофайл · Chromecast")); linkKind.setTextColor(ui.green); }
-            else if (yt) { linkKind.setText(paired ? L.t("откроется в YouTube на ТВ") : L.t("сначала «Связать с ТВ»")); linkKind.setTextColor(paired ? ui.green : ui.orange); }
-            else { linkKind.setText(paired ? L.t("откроется на ТВ") : L.t("сначала «Связать с ТВ»")); linkKind.setTextColor(paired ? ui.fgA(0.55f) : ui.orange); }
+            else if (yt) { linkKind.setText(paired ? L.t("откроется в YouTube на ТВ") : L.t("сначала «Связать с ТВ»")); linkKind.setTextColor(paired ? ui.green : ui.fgA(0.55f)); }
+            else { linkKind.setText(paired ? L.t("откроется на ТВ") : L.t("сначала «Связать с ТВ»")); linkKind.setTextColor(ui.fgA(0.55f)); }
             linkCastRow.setEnabled(host != null && (direct || paired));
             linkCastRow.title.setText(media ? L.t("Отправить вместо текущего") : L.t("Отправить на ТВ"));
         }
@@ -1829,7 +1859,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                     ? (samState.equals("ready") ? "Samsung · Smart View"
                        : samState.equals("waiting") ? L.t("Нажмите «Разрешить» на экране ТВ")
                        : samState.equals("denied") ? L.t("ТВ не разрешил подключение")
-                       : samState.equals("error") ? L.t("ТВ не отвечает") : L.t("Подключаюсь…"))
+                       : samState.equals("error") || samState.equals("offline") ? L.t("ТВ не отвечает") : L.t("Подключаюсь…"))
                     : tvApp != null ? L.f("Сейчас: %s", appName(tvApp)) : Boolean.FALSE.equals(tvOn) ? L.t("ТВ выключен") : tvOn == null ? L.t("Подключаюсь…") : L.t("Главный экран");
             tvNow.setText(now);
             for (TextView c : chips) ui.setChipActive(c, c.getTag().equals(tvApp));
@@ -1845,7 +1875,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         }
 
         // footer
-        android.graphics.drawable.GradientDrawable g = ui.oval(host != null ? ui.green : ui.fgA(0.3f));
+        android.graphics.drawable.GradientDrawable g = ui.oval(host == null || reachable == null ? ui.fgA(0.3f)
+                : reachable ? ui.green : ui.red);
         devDot.setBackground(g);
         devNameView.setText(host == null ? L.t("Устройство не найдено") : nz(devName, host));
     }

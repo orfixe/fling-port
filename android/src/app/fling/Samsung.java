@@ -210,7 +210,7 @@ final class Samsung {
                 openNow(h, true);
             } catch (Exception tls) {
                 try { openNow(h, false); }                   // a 2016 set without the TLS port
-                catch (Exception e) { l.onSamsung("error", L.t("ТВ не отвечает — он выключен или в другой сети.")); }
+                catch (Exception e) { l.onSamsung("offline", L.t("ТВ не отвечает — он выключен или в другой сети.")); }
             }
         });
     }

@@ -32,6 +32,8 @@ final class Cast {
     interface Listener {
         void onStatus(Status s);
         void onError(String message);
+        /** A background (re)connect failed: the TV is off or away. Shown as status, not as an error. */
+        default void onOffline(String message) {}
     }
 
     static final class Status {
@@ -112,7 +114,7 @@ final class Cast {
 
     void connect(String host) {
         io.execute(() -> {
-            try { ensure(host); } catch (Exception e) { fail(e); }
+            try { ensure(host); } catch (Exception e) { markDown(); l.onOffline(message(e)); }
         });
     }
 

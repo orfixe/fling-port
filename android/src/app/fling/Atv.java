@@ -32,6 +32,8 @@ final class Atv {
         void onApp(String pkg);
         void onPairing(String state, String message);   // starting | pin | verifying | idle | failed
         void onError(String message);
+        /** A background (re)connect failed: the TV is off or away. Shown as status, not as an error. */
+        default void onOffline(String message) {}
         void onVoice(boolean on);
     }
 
@@ -197,7 +199,10 @@ final class Atv {
         if (sam(host)) { sam.connect(host); return; }
         if (!paired(host)) return;
         io.execute(() -> {
-            try { connectNow(host); } catch (Exception e) { l.onError(message(e)); }
+            try { connectNow(host); } catch (Exception e) {
+                // the TV refusing this phone needs the user (pair again); the TV being away doesn't
+                if (e instanceof javax.net.ssl.SSLException) l.onError(message(e)); else l.onOffline(message(e));
+            }
         });
     }
 
