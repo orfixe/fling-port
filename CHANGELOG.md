@@ -39,6 +39,11 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ### Fixed
 
+- Browser extension: on some YouTube videos it **didn't offer to cast the tab** — the popup's
+  "Cast" stayed disabled with "not a web page", and the app's panel never heard of the tab.
+  Finding the page's player waits for every frame, and some ad / embed frames never answer;
+  that wait now gives up after 1.5 s (then asks the top frame alone), and the tab is
+  reported either way.
 - PC: **WASD drove the TV only every other time** on Windows: the keyboard hook that catches
   keys for the tray panel knew the arrows but not W A S D (nor H, M, P, < >), so they worked
   only when the panel happened to have the focus. The same keys on the Russian layout too,

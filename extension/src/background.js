@@ -115,7 +115,7 @@ async function reportActiveTab(force = false) {
   const key = `${tab.url}\n${tab.title}`;
   if (!force && key === lastReported) return;
   let media = null;
-  try { media = await probeTab(tab.id); } catch (e) { media = null; }
+  try { media = await probeTab(tab.id); } catch (e) { media = null; }   // the tab is reported either way
   const r = await fling("/v1/tab", {
     url: tab.url, title: tab.title || "", browser: browserName(),
     media: media ? {
@@ -199,12 +199,19 @@ function pauseMedia() {
   }
 }
 
+// executeScript waits for every frame, and some never answer (ad and embed iframes on some
+// YouTube videos, frames still loading): without a limit the popup's "Cast" stayed disabled and
+// the app never heard of the tab. So: all frames for a moment, then the top frame alone.
+function withTimeout(p, ms) {
+  return Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error("timeout")), ms))]);
+}
+
 async function inject(tabId, func) {
   try {
-    return await api.scripting.executeScript({ target: { tabId, allFrames: true }, func });
+    return await withTimeout(api.scripting.executeScript({ target: { tabId, allFrames: true }, func }), 1500);
   } catch (e) {
-    try {   // some frames refused (cross-origin player): the top frame alone still helps
-      return await api.scripting.executeScript({ target: { tabId }, func });
+    try {   // some frames refused (cross-origin player) or never answered: the top frame alone still helps
+      return await withTimeout(api.scripting.executeScript({ target: { tabId }, func }), 1000);
     } catch (e2) {
       return [];
     }
