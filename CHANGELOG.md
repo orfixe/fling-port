@@ -30,6 +30,13 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   most one frame held; a TV that refuses gets the plain start and is remembered), and "auto"
   runs at 60 frames/s — the encoder holds frames, so twice the frames is about half the wait.
   "Smooth" is now **"Fast"**: 960 px at 60 frames/s, the least delay.
+- PC, LIVE: **the mouse lands where it points.** The default is now "Mouse": the computer's
+  own pointer over the picture, each click exactly there. The TV's own cursor (the old
+  default) moves from relative steps with Android's acceleration and can't stay in step with
+  the picture — it's still there as "TV cursor" for apps that need it.
+- PC, LIVE: **the keyboard goes to the TV** as soon as the picture opens and after a click on
+  the toolbar (before, only after a click on the picture). Letters scrcpy can't type —
+  Russian, accented — go through the TV remote instead.
 - PC, LIVE: the number next to the quality said "1 ms" while the picture lagged: it is the
   network only. It now reads "network 1 ms", and its tooltip explains the rest of the delay
   (the TV compressing each frame, which the TV doesn't report).

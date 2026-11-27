@@ -2210,7 +2210,11 @@ EN_PHRASES = [  # longest first is applied automatically
      "Click in the window — the mouse becomes a pointer on the TV. Alt gives the mouse back."),
     ("Щелчки в окне — нажатия на ТВ.", "Clicks in the window tap the TV."),
     ("Экран ТВ закрылся: ", "The TV screen closed: "),
-    ("Касания", "Taps"), ("Только смотреть", "Just watch"),
+    ("Касания", "Taps"), ("Только смотреть", "Just watch"), ("Мышь", "Mouse"), ("Курсор ТВ", "TV cursor"),
+    ("Курсор компьютера над картинкой: щелчок попадает ровно туда, куда наведён. Правая кнопка — «Назад», колёсико — прокрутка.",
+     "The computer's pointer over the picture: a click lands exactly where it points. Right button — Back, wheel — scroll."),
+    ("ТВ рисует свой курсор (для приложений, которым он нужен). Он движется сам по себе и может не совпадать с картинкой. Уведите мышь за край картинки (или Alt) — она вернётся.",
+     "The TV draws its own cursor (for apps that need one). It moves on its own and may not match the picture. Move the mouse past the picture's edge (or press Alt) to get it back."),
     ("Качество: авто", "Quality: auto"), ("Чётко", "Sharp"), ("Плавно", "Smooth"), ("Экономно", "Saver"),
     ("Быстро", "Fast"), ("сеть", "network"),
     ("1280 px, 60 кадров/с — само снижается, если сеть не успевает", "1280 px, 60 frames/s — steps down by itself if the network can't keep up"),
@@ -3816,7 +3820,8 @@ class TvScreen(QObject):
         self.busy = False
         self.live_geom = None        # (x, y, w, h) in physical pixels: where the live video goes
         self.live_audio = False      # live picture: TV sound on this PC too (scrcpy audio, Android 11+)
-        self.live_mouse = "uhid"     # live picture: uhid = captured pointer, sdk = taps, view = no control
+        self.live_mouse = "sdk"      # live picture: sdk = the PC's mouse, exactly where it points (default);
+                                     # uhid = the TV's own cursor (relative, drifts from the picture); view
         self.live_kb = "on"          # live picture: keyboard to the TV (on) or kept on the PC (off)
         self.live_quality = "auto"   # live picture: auto / clear / smooth / saver (QUALITY)
         self.output = []             # what the running scrcpy printed so far
@@ -3929,10 +3934,30 @@ class TvScreen(QObject):
         p.setArguments(args)
         out = []
         self.output = out
+        pending = []                             # characters scrcpy couldn't type, waiting to go by the remote
+
+        def flush_text():
+            if pending:
+                s = "".join(pending)
+                pending.clear()
+                print(f"live: typing {len(s)} char(s) scrcpy can't inject via the TV remote", flush=True)
+                self.state.tv_text(s)
+
         def read():
-            out.append(bytes(p.readAllStandardOutput()).decode(errors="replace"))
+            chunk = bytes(p.readAllStandardOutput()).decode(errors="replace")
+            out.append(chunk)
             if len(out) > 600:                   # --print-fps adds a line a second: keep the start + the recent
                 del out[50:350]
+            # scrcpy's keyboard injects ASCII only: Russian letters (and the like) come back as
+            # "Could not inject char u+0444". The Android TV remote types any text: send them that way.
+            if mode == "live":
+                for hexcode in re.findall(r"Could not inject char u\+([0-9a-fA-F]{4,6})", chunk):
+                    try:
+                        pending.append(chr(int(hexcode, 16)))
+                    except ValueError:
+                        pass
+                if pending:
+                    QTimer.singleShot(120, flush_text)
         p.readyReadStandardOutput.connect(read)
         started = time.monotonic()
 
@@ -4214,10 +4239,16 @@ class LiveWindow(QWidget):
     moves / resizes, and the owner is released before scrcpy stops."""
 
     SIZES = {"S": (640, 360), "M": (854, 480), "L": (1280, 720)}
-    MOUSE = (("uhid", "cursor", "Курсор на ТВ",
-              "Щёлкните по картинке — мышь станет курсором на ТВ. Уведите её за край картинки (или Alt) — она вернётся."),
-             ("sdk", "tap", "Касания",
-              "Мышь не захватывается: щелчок по картинке — нажатие в этом месте ТВ."),
+    # "sdk" first and the default: the PC's own pointer over the picture, every click and hover
+    # lands exactly where it points. "uhid" makes the TV draw its own cursor from relative moves
+    # with Android's acceleration — it can't stay in step with the picture, so it's the option
+    # for apps that need a real Android cursor.
+    MOUSE = (("sdk", "tap", "Мышь",
+              "Курсор компьютера над картинкой: щелчок попадает ровно туда, куда наведён. "
+              "Правая кнопка — «Назад», колёсико — прокрутка."),
+             ("uhid", "cursor", "Курсор ТВ",
+              "ТВ рисует свой курсор (для приложений, которым он нужен). Он движется сам по себе и может "
+              "не совпадать с картинкой. Уведите мышь за край картинки (или Alt) — она вернётся."),
              ("view", "eye", "Только смотреть",
               "Только картинка: мышь и клавиатура остаются у компьютера."))
 
@@ -4410,8 +4441,8 @@ class LiveWindow(QWidget):
     # --- input choices (remembered; scrcpy takes them only at start, so switching restarts it)
     def _input_labels(self):
         c = self.state.conf
-        mouse = c.get("live_mouse", "uhid")
-        mouse = mouse if mouse in self.mouse_btns else "uhid"
+        mouse = c.get("live_mouse", "sdk")
+        mouse = mouse if mouse in self.mouse_btns else "sdk"
         for key, b in self.mouse_btns.items():
             b.setChecked(key == mouse)
         kb_on = c.get("live_kb", "on") != "off"
@@ -4434,7 +4465,7 @@ class LiveWindow(QWidget):
 
     def _set_input(self, name, value):
         self._input_labels()                      # undo the button's own toggle until saved
-        if self.state.conf.get(name, {"live_mouse": "uhid", "live_kb": "on"}.get(name)) == value:
+        if self.state.conf.get(name, {"live_mouse": "sdk", "live_kb": "on"}.get(name)) == value:
             return
         self.state.conf[name] = value
         save_conf(self.state.conf)
@@ -4728,9 +4759,15 @@ class LiveWindow(QWidget):
         self.msg.show()
         self._status(tr("Подключаюсь к экрану ТВ…"))
         sc = self.state.screen
+        c = self.state.conf
+        if c.get("live_mouse_v") != 2:            # 0.5.4: "uhid" was the default and drifted: move to "sdk" once
+            if c.get("live_mouse", "uhid") == "uhid":
+                c["live_mouse"] = "sdk"
+            c["live_mouse_v"] = 2
+            save_conf(c)
         sc.live_geom = self._geom()
         sc.live_audio = bool(self.state.conf.get("live_audio"))
-        sc.live_mouse = self.state.conf.get("live_mouse", "uhid")
+        sc.live_mouse = self.state.conf.get("live_mouse", "sdk")
         sc.live_kb = self.state.conf.get("live_kb", "on")
         q = self._quality()
         sc.live_quality = ("saver" if q == "auto" and (getattr(self, "_auto_saver", False)
@@ -4769,6 +4806,7 @@ class LiveWindow(QWidget):
                                                ctypes.c_void_p(int(self.winId())))
         self.container = int(hwnd)
         self.msg.hide()                           # it was born in place: no move needed now
+        QTimer.singleShot(100, self._focus_picture)   # the keyboard goes to the TV from the start
         saver_auto = self.state.screen.live_quality == "saver" and self._quality() == "auto"
         self._status("" if not saver_auto else
                      tr("Через Tailscale — качество «Экономно». Другое можно выбрать справа вверху.")
@@ -4816,6 +4854,21 @@ class LiveWindow(QWidget):
     def moveEvent(self, e):
         super().moveEvent(e)
         self._place()
+
+    def _keys_to_tv(self) -> bool:
+        c = self.state.conf
+        return c.get("live_kb", "on") != "off" and c.get("live_mouse", "sdk") != "view"
+
+    def _focus_picture(self):
+        """Typing in LIVE goes to the TV: the picture's window (scrcpy) gets the keyboard, not
+        this one — before, keys reached the TV only after a click on the picture."""
+        if self.container and self.isVisible() and self._keys_to_tv() and self.isActiveWindow():
+            P.force_foreground(self.container)
+
+    def changeEvent(self, e):
+        super().changeEvent(e)
+        if e.type() == QEvent.Type.ActivationChange and self.isActiveWindow():
+            QTimer.singleShot(60, self._focus_picture)
 
     def _drop_container(self):
         """Let go of scrcpy's window first: SDL crashes when its owner disappears under it."""
