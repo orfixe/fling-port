@@ -51,6 +51,15 @@ final class L {
         // messages (MainActivity.notice)
         e("Ошибка", "Error");
         e("Проверяю связь с ТВ…", "Checking the connection to the TV…");
+        // updates (Updater)
+        e("Обновление не скачалось", "The update didn't download");
+        e("Повторить", "Try again");
+        e("Скачать в браузере", "Download in the browser");
+        e("Связь оборвалась, повторяю (%d из 3)…", "The connection dropped, trying again (%d of 3)…");
+        e("Не найден сервер %s: нет интернета или DNS не отвечает.", "Can't find the server %s: no internet, or DNS isn't answering.");
+        e("Сервер %s не ответил вовремя. Попробуйте ещё раз или в другой сети.", "The server %s didn't answer in time. Try again, or on another network.");
+        e("Соединение с %s обрывается — так бывает, когда сеть или провайдер его блокирует. Попробуйте другую сеть (Wi‑Fi ↔ мобильный интернет) или VPN, либо скачайте в браузере.",
+          "The connection to %s keeps dropping — this happens when the network or the provider blocks it. Try another network (Wi‑Fi ↔ mobile data) or a VPN, or download in the browser.");
         // Smart View for Samsung (Samsung.java)
         e("Зеркалировать экран", "Mirror screen");
         e("Включить ТВ по сети", "Turn the TV on over the network");

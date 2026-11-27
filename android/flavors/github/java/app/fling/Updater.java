@@ -46,6 +46,7 @@ import java.util.concurrent.Executors;
 final class Updater {
     static final String REPO = "orfixe/fling-port";
     private static final String API = "https://api.github.com/repos/" + REPO;
+    private static final String WEB = "https://github.com/" + REPO;    // the fallback: no API, another host
     private static final long DAY = 24L * 60 * 60 * 1000;
 
     private final Activity a;
@@ -82,7 +83,11 @@ final class Updater {
                 code = c.getResponseCode();
                 if (code == 200) r = Release.parse(readAll(c.getInputStream()));
                 c.disconnect();
-            } catch (Exception e) { err = e.getMessage(); }
+            } catch (Exception e) {
+                // api.github.com unreachable (network, filter): github.com/…/releases/latest names the tag too
+                try { r = Release.fromWeb(); }
+                catch (Exception e2) { err = why(e, "api.github.com"); }
+            }
             final Release rel = r; final String why = err; final int status = code;
             main.post(() -> {
                 busy = false;
@@ -103,7 +108,7 @@ final class Updater {
     // ---- UI
 
     private void offer(Release r, String have) {
-        if (r.apkId == 0) { toast(L.f("В версии %s нет файла Fling.apk.", r.version)); return; }
+        if (r.apkId == 0 && (r.tag == null || r.tag.isEmpty())) { toast(L.f("В версии %s нет файла Fling.apk.", r.version)); return; }
         new AlertDialog.Builder(a)
                 .setTitle(L.f("Доступна версия %s", r.version))
                 .setMessage(L.f("У вас %s. Скачать и установить обновление? Связь с ТВ и настройки сохранятся.", have))
@@ -162,16 +167,45 @@ final class Updater {
             File apk = new File(a.getCacheDir(), "fling-update.apk");
             String err = null;
             try {
-                fetchAsset(r, apk, pct -> main.post(() -> progress.setMessage(L.f("Скачиваю… %d%%", pct))));
+                fetchAsset(r, apk, pct -> main.post(() -> progress.setMessage(L.f("Скачиваю… %d%%", pct))),
+                        msg -> main.post(() -> progress.setMessage(msg)));
                 main.post(() -> progress.setMessage(L.t("Открываю установку…")));
                 install(apk);
             } catch (Exception e) { err = e.getMessage() != null ? e.getMessage() : e.toString(); }
             final String why = err;
             main.post(() -> {
                 try { progress.dismiss(); } catch (Exception ignored) {}
-                if (why != null) toast(L.t("Обновление не скачалось: ") + why);
+                if (why != null && !a.isFinishing()) failed(r, why);
             });
         });
+    }
+
+    /** The download failed every way: say why, and offer the browser (it may take another route). */
+    private void failed(Release r, String why) {
+        new AlertDialog.Builder(a)
+                .setTitle(L.t("Обновление не скачалось"))
+                .setMessage(why)
+                .setPositiveButton(L.t("Повторить"), (d, w) -> download(r))
+                .setNeutralButton(L.t("Скачать в браузере"), (d, w) -> {
+                    try { a.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(r.apkUrl()))); } catch (Exception ignored) {}
+                })
+                .setNegativeButton(L.t("Отмена"), null)
+                .show();
+    }
+
+    /** An exception as a sentence: what failed, with which server, and what to try. */
+    static String why(Exception e, String host) {
+        if (e instanceof java.net.UnknownHostException)
+            return L.f("Не найден сервер %s: нет интернета или DNS не отвечает.", host);
+        if (e instanceof java.net.SocketTimeoutException)
+            return L.f("Сервер %s не ответил вовремя. Попробуйте ещё раз или в другой сети.", host);
+        if (e instanceof javax.net.ssl.SSLException || e instanceof java.io.EOFException
+                || e instanceof java.net.SocketException || e instanceof java.net.ProtocolException
+                || String.valueOf(e.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("closed"))
+            return L.f("Соединение с %s обрывается — так бывает, когда сеть или провайдер его блокирует. "
+                    + "Попробуйте другую сеть (Wi‑Fi ↔ мобильный интернет) или VPN, либо скачайте в браузере.", host);
+        String m = e.getMessage();
+        return host + ": " + (m == null ? e.getClass().getSimpleName() : m);
     }
 
     private void toast(String s) { Toast.makeText(a, s, Toast.LENGTH_LONG).show(); }
@@ -191,34 +225,95 @@ final class Updater {
     }
 
     interface Progress { void at(int pct); }
+    interface Status { void say(String msg); }
 
-    /** Release asset → file. GitHub answers with a redirect to a signed storage URL, which must be
-     *  fetched without our Authorization header (the storage rejects two kinds of auth). */
-    private void fetchAsset(Release r, File out, Progress p) throws Exception {
-        HttpURLConnection c = open(API + "/releases/assets/" + r.apkId, "application/octet-stream");
-        c.setInstanceFollowRedirects(false);
-        int code = c.getResponseCode();
-        if (code / 100 == 3) {
+    /** Release asset → file. Two sources — the API asset, then the github.com download link — and
+     *  each is tried 3 times; a dropped connection resumes where it stopped (Range). GitHub
+     *  redirects both to a signed storage URL, fetched without our Authorization header (the
+     *  storage rejects two kinds of auth). Android checks the APK's signature on install. */
+    private void fetchAsset(Release r, File out, Progress p, Status s) throws Exception {
+        java.util.List<String> urls = new java.util.ArrayList<>();
+        if (r.apkId != 0) urls.add(API + "/releases/assets/" + r.apkId);
+        urls.add(r.apkUrl());
+        if (out.exists()) out.delete();
+        Exception last = null; String lastHost = "github.com";
+        for (String url : urls) {
+            for (int attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    fetchOnce(url, r.apkSize, out, p);
+                    if (r.apkSize > 0 && out.length() != r.apkSize) {
+                        out.delete();
+                        throw new java.io.EOFException(L.t("файл скачался не полностью"));
+                    }
+                    return;
+                } catch (HttpStatus e) {
+                    last = e; lastHost = e.host;
+                    out.delete();
+                    break;                                       // this source answers no: the next one
+                } catch (Exception e) {
+                    last = e; lastHost = hostOf(e, url);
+                    if (attempt < 3) {
+                        s.say(L.f("Связь оборвалась, повторяю (%d из 3)…", attempt + 1));
+                        try { Thread.sleep(1500L * attempt); } catch (InterruptedException ie) { throw e; }
+                    }
+                }
+            }
+        }
+        out.delete();
+        throw new Exception(last instanceof HttpStatus ? last.getMessage() : why(last, lastHost));
+    }
+
+    /** A server answered, but not with the file. */
+    private static final class HttpStatus extends Exception {
+        final String host;
+        HttpStatus(String host, int code) { super(host + ": HTTP " + code); this.host = host; }
+    }
+
+    private String currentHost = "";
+
+    private String hostOf(Exception e, String fallback) {
+        return currentHost.isEmpty() ? Uri.parse(fallback).getHost() : currentHost;
+    }
+
+    /** One try: follows the redirects by hand (the token goes to api.github.com only) and appends
+     *  to what an earlier try already wrote. */
+    private void fetchOnce(String url, long size, File out, Progress p) throws Exception {
+        long have = out.exists() ? out.length() : 0;
+        HttpURLConnection c = null;
+        int code = 0;
+        for (int hop = 0; hop < 6; hop++) {
+            URL u = new URL(url);
+            currentHost = u.getHost();
+            c = (HttpURLConnection) u.openConnection();
+            c.setInstanceFollowRedirects(false);
+            c.setConnectTimeout(15000); c.setReadTimeout(30000);
+            c.setRequestProperty("User-Agent", "Fling-Android");
+            c.setRequestProperty("Accept", "application/octet-stream");
+            if (u.getHost().equals("api.github.com")) {
+                c.setRequestProperty("X-GitHub-Api-Version", "2022-11-28");
+                if (!token().isEmpty()) c.setRequestProperty("Authorization", "Bearer " + token());
+            }
+            if (have > 0) c.setRequestProperty("Range", "bytes=" + have + "-");
+            code = c.getResponseCode();
+            if (code / 100 != 3) break;
             String loc = c.getHeaderField("Location");
             c.disconnect();
-            c = (HttpURLConnection) new URL(loc).openConnection();
-            c.setConnectTimeout(10000); c.setReadTimeout(30000);
-            c.setRequestProperty("User-Agent", "Fling-Android");
-            code = c.getResponseCode();
+            if (loc == null) throw new HttpStatus(currentHost, code);
+            url = new URL(u, loc).toString();
         }
-        if (code != 200) throw new Exception("HTTP " + code);
-        long total = c.getContentLengthLong() > 0 ? c.getContentLengthLong() : r.apkSize;
-        try (InputStream in = c.getInputStream(); OutputStream o = new FileOutputStream(out)) {
+        if (code == 200) have = 0;                                 // the whole file (no resume): start over
+        else if (code != 206) { c.disconnect(); throw new HttpStatus(currentHost, code); }
+        long total = size > 0 ? size : have + Math.max(0, c.getContentLengthLong());
+        try (InputStream in = c.getInputStream(); OutputStream o = new FileOutputStream(out, have > 0)) {
             byte[] buf = new byte[64 * 1024];
-            long done = 0; int last = -1, n;
+            long done = have; int last = -1, n;
             while ((n = in.read(buf)) > 0) {
                 o.write(buf, 0, n);
                 done += n;
-                int pct = total > 0 ? (int) (100 * done / total) : 0;
+                int pct = total > 0 ? (int) Math.min(100, 100 * done / total) : 0;
                 if (pct != last) { last = pct; p.at(pct); }
             }
-        } finally { c.disconnect(); }
-        if (r.apkSize > 0 && out.length() != r.apkSize) throw new Exception(L.t("файл скачался не полностью"));
+        } finally { c.disconnect(); currentHost = ""; }
     }
 
     private static String readAll(InputStream in) throws Exception {
@@ -273,16 +368,40 @@ final class Updater {
     // ---- release info
 
     static final class Release {
-        String version; long apkId; long apkSize;
+        String version, tag, url; long apkId; long apkSize;
+
+        /** The github.com link to the APK (the browser and the fallback download use it). */
+        String apkUrl() {
+            return url != null && !url.isEmpty() ? url : WEB + "/releases/download/" + tag + "/Fling.apk";
+        }
+
+        /** Without the API: github.com/…/releases/latest redirects to …/releases/tag/<tag>. */
+        static Release fromWeb() throws Exception {
+            HttpURLConnection c = (HttpURLConnection) new URL(WEB + "/releases/latest").openConnection();
+            c.setInstanceFollowRedirects(false);
+            c.setConnectTimeout(10000); c.setReadTimeout(20000);
+            c.setRequestProperty("User-Agent", "Fling-Android");
+            int code = c.getResponseCode();
+            String loc = c.getHeaderField("Location");
+            c.disconnect();
+            if (code / 100 != 3 || loc == null || !loc.contains("/releases/tag/")) throw new Exception("HTTP " + code);
+            Release r = new Release();
+            r.tag = Uri.decode(loc.substring(loc.lastIndexOf('/') + 1));
+            r.version = r.tag.replaceFirst("^[vV]", "");
+            return r;
+        }
 
         static Release parse(String json) throws Exception {
             JSONObject o = new JSONObject(json);
             Release r = new Release();
-            r.version = o.optString("tag_name", "").replaceFirst("^[vV]", "");
+            r.tag = o.optString("tag_name", "");
+            r.version = r.tag.replaceFirst("^[vV]", "");
             JSONArray as = o.optJSONArray("assets");
             for (int k = 0; as != null && k < as.length(); k++) {
                 JSONObject x = as.getJSONObject(k);
-                if ("Fling.apk".equals(x.optString("name"))) { r.apkId = x.optLong("id"); r.apkSize = x.optLong("size"); }
+                if ("Fling.apk".equals(x.optString("name"))) {
+                    r.apkId = x.optLong("id"); r.apkSize = x.optLong("size"); r.url = x.optString("browser_download_url");
+                }
             }
             return r;
         }
