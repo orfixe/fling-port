@@ -235,6 +235,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         discovery.start();
         sam.discover(() -> main.post(() -> onDevices(lastFound)));   // Samsung TVs (SSDP) join the same list
         connectDevice();
+        updater.resumed();                                           // back from "Install unknown apps": offer the update again
         if (BuildConfig.SELF_UPDATE) updater.checkDaily();             // quiet; speaks only if newer (GitHub build)
         main.post(poll);
         main.post(tick);

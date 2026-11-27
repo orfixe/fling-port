@@ -55,6 +55,28 @@ final class L {
         e("Обновление не скачалось", "The update didn't download");
         e("Повторить", "Try again");
         e("Скачать в браузере", "Download in the browser");
+        e("Обновление уже скачивается — ход загрузки в уведомлении.", "The update is already downloading — see the notification.");
+        e("У вас %s. Обновление скачается в фоне — ход загрузки будет в уведомлении, Fling можно закрыть. Связь с ТВ и настройки сохранятся.",
+          "You have %s. The update downloads in the background — the progress is in a notification, and you can close Fling. Pairing and settings are kept.");
+        e("Чтобы Fling мог поставить своё обновление, разрешите ему «Установку неизвестных приложений». Когда вернётесь, Fling сразу предложит обновиться.",
+          "To install its update, Fling needs “Install unknown apps”. Allow it — when you come back, Fling offers the update right away.");
+        e("Скачиваю обновление в фоне — ход загрузки в уведомлении.", "Downloading the update in the background — see the notification.");
+        e("установка отменена.", "the installation was cancelled.");
+        e("Обновления Fling", "Fling updates");
+        e("Новая версия вышла, скачана или не скачалась.", "A new version is out, downloaded, or didn't download.");
+        e("Загрузка обновления", "Update download");
+        e("Ход загрузки новой версии.", "The progress of a new version's download.");
+        e("Доступна версия Fling %s", "Fling %s is available");
+        e("У вас %s. Нажмите «Обновить» — скачается в фоне.", "You have %s. Tap Update — it downloads in the background.");
+        e("Обновление скачано", "Update downloaded");
+        e("Fling %s скачан", "Fling %s is downloaded");
+        e("Нажмите, чтобы установить.", "Tap to install.");
+        e("Подключаюсь к GitHub…", "Connecting to GitHub…");
+        e("Обновление Fling", "Fling update");
+        e("Обновление Fling %s", "Fling %s update");
+        e("Сообщать о новых версиях", "Tell me about new versions");
+        e("Раз в день Fling проверяет GitHub, даже закрытый, и присылает уведомление, когда вышла новая версия.",
+          "Once a day Fling checks GitHub, even when closed, and sends a notification when a new version is out.");
         e("Связь оборвалась, повторяю (%d из 3)…", "The connection dropped, trying again (%d of 3)…");
         e("Не найден сервер %s: нет интернета или DNS не отвечает.", "Can't find the server %s: no internet, or DNS isn't answering.");
         e("Сервер %s не ответил вовремя. Попробуйте ещё раз или в другой сети.", "The server %s didn't answer in time. Try again, or on another network.");
@@ -243,7 +265,8 @@ final class L {
         e("Пауза на ТВ", "Pause on TV");
         e("ТВ", "TV");
         e("Откройте Fling", "Open Fling");
-        e("Обновить", "Refresh");
+        e("Обновить", "Update");
+        e("Обновить данные", "Refresh");
         e("Свайп — навигация · тап — OK", "Swipe to move · tap for OK");
         e("долгое нажатие — назад", "long press for Back");
         e("Язык", "Language");

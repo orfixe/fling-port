@@ -3,14 +3,20 @@
 // Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 package app.fling;
 
+import android.Manifest;
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.AlertDialog;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInstaller;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -37,17 +43,24 @@ import java.util.concurrent.Executors;
 
 /** Updates Fling itself from the newest GitHub release of the port (asset "Fling.apk").
  *
- *  A public repository needs no token. While it is private, GitHub answers 404 without one:
- *  then the user pastes their own read-only token once; it stays in this phone's prefs and is
- *  never built into the APK. A 403 without a token is GitHub's hourly limit, not "private".
+ *  - Checking: once a day in the background (UpdateJob, also when Fling is closed) and when the
+ *    app opens; a newer version comes as a notification ("Update" downloads it).
+ *  - Downloading: in the background (UpdateService), with the progress in a notification; the
+ *    app can be closed meanwhile. Two sources, retries, a dropped connection resumes.
+ *  - Installing: PackageInstaller. Android shows its own confirm screen: at once when Fling is on
+ *    screen, otherwise from the "Tap to install" notification (Android doesn't let an app in the
+ *    background open a screen). The update goes over the old app (same signing key), keeping
+ *    pairing and settings.
  *
- *  The download is installed with PackageInstaller: Android shows its own confirm screen,
- *  and the update goes over the old app (same signing key), keeping pairing and settings. */
+ *  A public repository needs no token; a 404 asks for one (a private fork). */
 final class Updater {
     static final String REPO = "orfixe/fling-port";
     private static final String API = "https://api.github.com/repos/" + REPO;
     private static final String WEB = "https://github.com/" + REPO;    // the fallback: no API, another host
-    private static final long DAY = 24L * 60 * 60 * 1000;
+    static final long DAY = 24L * 60 * 60 * 1000;
+
+    static final String CH_UPDATES = "updates", CH_PROGRESS = "update_progress";
+    static final int N_AVAILABLE = 4101, N_PROGRESS = 4102, N_READY = 4103, N_FAILED = 4104;
 
     private final Activity a;
     private final Ui ui;
@@ -65,8 +78,36 @@ final class Updater {
         catch (Exception e) { return "0"; }
     }
 
+    static SharedPreferences prefs(Context ctx) { return ctx.getSharedPreferences("fling", Context.MODE_PRIVATE); }
+
+    /** The daily background check on or off (Settings), and notifications that are out of date:
+     *  "version X is ready" once X is installed. Called when the app starts and from Settings. */
+    static void background(Context ctx) {
+        SharedPreferences p = prefs(ctx);
+        if (p.getBoolean("upd_notify", true)) UpdateJob.schedule(ctx); else UpdateJob.cancel(ctx);
+        String have = installedVersion(ctx), ready = p.getString("upd_ready", "");
+        if (!ready.isEmpty() && !newer(ready, have)) {
+            NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+            if (nm != null) { nm.cancel(N_READY); nm.cancel(N_AVAILABLE); }
+            p.edit().remove("upd_ready").apply();
+        }
+    }
+
+    /** From the screens' onResume: back from Android's settings with the permission given →
+     *  the "Update" window comes up again by itself. */
+    void resumed() {
+        // kept in prefs: Android may restart Fling while its settings screen is open
+        Release r = Release.ofJson(prefs.getString("upd_await", ""));
+        if (r == null || a.isFinishing()) return;
+        if (!a.getPackageManager().canRequestPackageInstalls()) return;   // not given (yet): keep waiting
+        prefs.edit().remove("upd_await").apply();
+        if (!newer(r.version, installedVersion(a))) return;
+        main.post(() -> { if (!a.isFinishing()) offer(r, installedVersion(a)); });
+    }
+
     /** Quietly once a day from onResume: says something only when there is a newer version. */
     void checkDaily() {
+        background(a);
         long last = prefs.getLong("upd_checked", 0);
         if (System.currentTimeMillis() - last < DAY) return;
         check(false);
@@ -75,32 +116,21 @@ final class Updater {
     /** `manual`: the user asked, so report "up to date" and errors too. */
     void check(boolean manual) {
         if (busy) return;
+        if (UpdateService.running) { if (manual) toast(L.t("Обновление уже скачивается — ход загрузки в уведомлении.")); return; }
         busy = true;
         bg.execute(() -> {
-            Release r = null; String err = null; int code = 0;
-            try {
-                HttpURLConnection c = open(API + "/releases/latest", "application/vnd.github+json");
-                code = c.getResponseCode();
-                if (code == 200) r = Release.parse(readAll(c.getInputStream()));
-                c.disconnect();
-            } catch (Exception e) {
-                // api.github.com unreachable (network, filter): github.com/…/releases/latest names the tag too
-                try { r = Release.fromWeb(); }
-                catch (Exception e2) { err = why(e, "api.github.com"); }
-            }
-            final Release rel = r; final String why = err; final int status = code;
+            Check c = latest(prefs);
             main.post(() -> {
                 busy = false;
-                if (rel != null) prefs.edit().putLong("upd_checked", System.currentTimeMillis()).apply();
                 if (a.isFinishing()) return;
                 String have = installedVersion(a);
-                if (rel != null && newer(rel.version, have)) offer(rel, have);
+                if (c.rel != null && newer(c.rel.version, have)) offer(c.rel, have);
                 else if (!manual) return;
-                else if (rel != null) toast(L.f("У вас последняя версия (%s).", have));
-                else if (rel == null && why == null && status == 403 && token().isEmpty())
+                else if (c.rel != null) toast(L.f("У вас последняя версия (%s).", have));
+                else if (c.err == null && c.code == 403 && token(prefs).isEmpty())
                     toast(L.t("GitHub ограничил число проверок с этого адреса. Попробуйте через час."));   // 60 an hour without a token
-                else if (rel == null && why == null && (status == 404 || status == 401 || status == 403)) askToken(!token().isEmpty());
-                else toast(L.t("Не удалось проверить обновления: ") + (why != null ? why : "HTTP " + status));
+                else if (c.err == null && (c.code == 404 || c.code == 401 || c.code == 403)) askToken(!token(prefs).isEmpty());
+                else toast(L.t("Не удалось проверить обновления: ") + (c.err != null ? c.err : "HTTP " + c.code));
             });
         });
     }
@@ -108,10 +138,10 @@ final class Updater {
     // ---- UI
 
     private void offer(Release r, String have) {
-        if (r.apkId == 0 && (r.tag == null || r.tag.isEmpty())) { toast(L.f("В версии %s нет файла Fling.apk.", r.version)); return; }
+        if (!r.hasApk()) { toast(L.f("В версии %s нет файла Fling.apk.", r.version)); return; }
         new AlertDialog.Builder(a)
                 .setTitle(L.f("Доступна версия %s", r.version))
-                .setMessage(L.f("У вас %s. Скачать и установить обновление? Связь с ТВ и настройки сохранятся.", have))
+                .setMessage(L.f("У вас %s. Обновление скачается в фоне — ход загрузки будет в уведомлении, Fling можно закрыть. Связь с ТВ и настройки сохранятся.", have))
                 .setPositiveButton(L.t("Обновить"), (d, w) -> download(r))
                 .setNegativeButton(L.t("Позже"), null)
                 .show();
@@ -121,7 +151,7 @@ final class Updater {
     private void askToken(boolean rejected) {          // rejected: a saved token got no access
         EditText e = ui.field("github_pat_…", true);
         e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
-        e.setText(token());
+        e.setText(token(prefs));
         FrameLayout f = new FrameLayout(a);
         f.setPadding(ui.dp(20), ui.dp(8), ui.dp(20), 0);
         f.addView(e);
@@ -144,53 +174,61 @@ final class Updater {
                 .show();
     }
 
+    /** "Update": the permissions it needs, then the download in the background. */
     private void download(Release r) {
         // Android 8+: Fling needs "Install unknown apps" once; the system asks on its own screen
         if (!a.getPackageManager().canRequestPackageInstalls()) {
             new AlertDialog.Builder(a)
                     .setTitle(L.t("Разрешите установку"))
-                    .setMessage(L.t("Чтобы Fling мог поставить своё обновление, разрешите ему «Установку неизвестных приложений» и нажмите «Обновить» ещё раз."))
+                    .setMessage(L.t("Чтобы Fling мог поставить своё обновление, разрешите ему «Установку неизвестных приложений». Когда вернётесь, Fling сразу предложит обновиться."))
                     .setPositiveButton(L.t("Открыть настройки"), (d, w) -> {
+                        prefs.edit().putString("upd_await", r.json()).apply();   // resumed(): offer it again once allowed
                         try { a.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                Uri.parse("package:" + a.getPackageName()))); } catch (Exception ignored) {}
+                                Uri.parse("package:" + a.getPackageName()))); } catch (Exception e) { prefs.edit().remove("upd_await").apply(); }
                     })
                     .setNegativeButton(L.t("Отмена"), null)
                     .show();
             return;
         }
-        AlertDialog progress = new AlertDialog.Builder(a)
-                .setTitle(L.f("Обновление до %s", r.version))
-                .setMessage(L.t("Скачиваю…"))
-                .setCancelable(false)
-                .show();
-        bg.execute(() -> {
-            File apk = new File(a.getCacheDir(), "fling-update.apk");
-            String err = null;
-            try {
-                fetchAsset(r, apk, pct -> main.post(() -> progress.setMessage(L.f("Скачиваю… %d%%", pct))),
-                        msg -> main.post(() -> progress.setMessage(msg)));
-                main.post(() -> progress.setMessage(L.t("Открываю установку…")));
-                install(apk);
-            } catch (Exception e) { err = e.getMessage() != null ? e.getMessage() : e.toString(); }
-            final String why = err;
-            main.post(() -> {
-                try { progress.dismiss(); } catch (Exception ignored) {}
-                if (why != null && !a.isFinishing()) failed(r, why);
-            });
-        });
+        // Android 13+: the progress and "tap to install" are notifications
+        if (Build.VERSION.SDK_INT >= 33 && a.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            a.requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 4100);
+        UpdateService.start(a, r);
+        toast(L.t("Скачиваю обновление в фоне — ход загрузки в уведомлении."));
     }
 
-    /** The download failed every way: say why, and offer the browser (it may take another route). */
-    private void failed(Release r, String why) {
-        new AlertDialog.Builder(a)
-                .setTitle(L.t("Обновление не скачалось"))
-                .setMessage(why)
-                .setPositiveButton(L.t("Повторить"), (d, w) -> download(r))
-                .setNeutralButton(L.t("Скачать в браузере"), (d, w) -> {
-                    try { a.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(r.apkUrl()))); } catch (Exception ignored) {}
-                })
-                .setNegativeButton(L.t("Отмена"), null)
-                .show();
+    private void toast(String s) { Toast.makeText(a, s, Toast.LENGTH_LONG).show(); }
+
+    // ================================================================ shared: UI, UpdateJob, UpdateService
+
+    static final class Check { Release rel; String err; int code; }
+
+    /** The newest release: the API, then the releases page when api.github.com can't be reached. */
+    static Check latest(SharedPreferences prefs) {
+        Check c = new Check();
+        try {
+            HttpURLConnection h = open(prefs, API + "/releases/latest", "application/vnd.github+json");
+            c.code = h.getResponseCode();
+            if (c.code == 200) c.rel = Release.parse(readAll(h.getInputStream()));
+            h.disconnect();
+        } catch (Exception e) {
+            try { c.rel = Release.fromWeb(); }
+            catch (Exception e2) { c.err = why(e, "api.github.com"); }
+        }
+        if (c.rel != null) prefs.edit().putLong("upd_checked", System.currentTimeMillis()).apply();
+        return c;
+    }
+
+    private static String token(SharedPreferences prefs) { return prefs.getString("gh_token", ""); }
+
+    private static HttpURLConnection open(SharedPreferences prefs, String url, String accept) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setConnectTimeout(10000); c.setReadTimeout(20000);
+        c.setRequestProperty("Accept", accept);
+        c.setRequestProperty("User-Agent", "Fling-Android");
+        c.setRequestProperty("X-GitHub-Api-Version", "2022-11-28");
+        if (!token(prefs).isEmpty()) c.setRequestProperty("Authorization", "Bearer " + token(prefs));
+        return c;
     }
 
     /** An exception as a sentence: what failed, with which server, and what to try. */
@@ -208,53 +246,42 @@ final class Updater {
         return host + ": " + (m == null ? e.getClass().getSimpleName() : m);
     }
 
-    private void toast(String s) { Toast.makeText(a, s, Toast.LENGTH_LONG).show(); }
-
-    // ---- network
-
-    private String token() { return prefs.getString("gh_token", ""); }
-
-    private HttpURLConnection open(String url, String accept) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-        c.setConnectTimeout(10000); c.setReadTimeout(20000);
-        c.setRequestProperty("Accept", accept);
-        c.setRequestProperty("User-Agent", "Fling-Android");
-        c.setRequestProperty("X-GitHub-Api-Version", "2022-11-28");
-        if (!token().isEmpty()) c.setRequestProperty("Authorization", "Bearer " + token());
-        return c;
-    }
-
     interface Progress { void at(int pct); }
     interface Status { void say(String msg); }
+    interface Cancelled { boolean now(); }
 
     /** Release asset → file. Two sources — the API asset, then the github.com download link — and
      *  each is tried 3 times; a dropped connection resumes where it stopped (Range). GitHub
      *  redirects both to a signed storage URL, fetched without our Authorization header (the
      *  storage rejects two kinds of auth). Android checks the APK's signature on install. */
-    private void fetchAsset(Release r, File out, Progress p, Status s) throws Exception {
+    static void fetchAsset(SharedPreferences prefs, Release r, File out, Progress p, Status s, Cancelled stop) throws Exception {
         java.util.List<String> urls = new java.util.ArrayList<>();
         if (r.apkId != 0) urls.add(API + "/releases/assets/" + r.apkId);
         urls.add(r.apkUrl());
         if (out.exists()) out.delete();
         Exception last = null; String lastHost = "github.com";
+        String[] host = {""};
         for (String url : urls) {
             for (int attempt = 1; attempt <= 3; attempt++) {
+                if (stop.now()) throw new InterruptedException();
                 try {
-                    fetchOnce(url, r.apkSize, out, p);
+                    fetchOnce(prefs, url, r.apkSize, out, p, host, stop);
                     if (r.apkSize > 0 && out.length() != r.apkSize) {
                         out.delete();
                         throw new java.io.EOFException(L.t("файл скачался не полностью"));
                     }
                     return;
+                } catch (InterruptedException e) {
+                    throw e;
                 } catch (HttpStatus e) {
                     last = e; lastHost = e.host;
                     out.delete();
                     break;                                       // this source answers no: the next one
                 } catch (Exception e) {
-                    last = e; lastHost = hostOf(e, url);
+                    last = e; lastHost = host[0].isEmpty() ? Uri.parse(url).getHost() : host[0];
                     if (attempt < 3) {
                         s.say(L.f("Связь оборвалась, повторяю (%d из 3)…", attempt + 1));
-                        try { Thread.sleep(1500L * attempt); } catch (InterruptedException ie) { throw e; }
+                        Thread.sleep(1500L * attempt);
                     }
                 }
             }
@@ -269,21 +296,16 @@ final class Updater {
         HttpStatus(String host, int code) { super(host + ": HTTP " + code); this.host = host; }
     }
 
-    private String currentHost = "";
-
-    private String hostOf(Exception e, String fallback) {
-        return currentHost.isEmpty() ? Uri.parse(fallback).getHost() : currentHost;
-    }
-
     /** One try: follows the redirects by hand (the token goes to api.github.com only) and appends
-     *  to what an earlier try already wrote. */
-    private void fetchOnce(String url, long size, File out, Progress p) throws Exception {
+     *  to what an earlier try already wrote. host[0]: the server being talked to, for messages. */
+    private static void fetchOnce(SharedPreferences prefs, String url, long size, File out, Progress p,
+                                  String[] host, Cancelled stop) throws Exception {
         long have = out.exists() ? out.length() : 0;
         HttpURLConnection c = null;
         int code = 0;
         for (int hop = 0; hop < 6; hop++) {
             URL u = new URL(url);
-            currentHost = u.getHost();
+            host[0] = u.getHost();
             c = (HttpURLConnection) u.openConnection();
             c.setInstanceFollowRedirects(false);
             c.setConnectTimeout(15000); c.setReadTimeout(30000);
@@ -291,29 +313,30 @@ final class Updater {
             c.setRequestProperty("Accept", "application/octet-stream");
             if (u.getHost().equals("api.github.com")) {
                 c.setRequestProperty("X-GitHub-Api-Version", "2022-11-28");
-                if (!token().isEmpty()) c.setRequestProperty("Authorization", "Bearer " + token());
+                if (!token(prefs).isEmpty()) c.setRequestProperty("Authorization", "Bearer " + token(prefs));
             }
             if (have > 0) c.setRequestProperty("Range", "bytes=" + have + "-");
             code = c.getResponseCode();
             if (code / 100 != 3) break;
             String loc = c.getHeaderField("Location");
             c.disconnect();
-            if (loc == null) throw new HttpStatus(currentHost, code);
+            if (loc == null) throw new HttpStatus(host[0], code);
             url = new URL(u, loc).toString();
         }
         if (code == 200) have = 0;                                 // the whole file (no resume): start over
-        else if (code != 206) { c.disconnect(); throw new HttpStatus(currentHost, code); }
+        else if (code != 206) { c.disconnect(); throw new HttpStatus(host[0], code); }
         long total = size > 0 ? size : have + Math.max(0, c.getContentLengthLong());
         try (InputStream in = c.getInputStream(); OutputStream o = new FileOutputStream(out, have > 0)) {
             byte[] buf = new byte[64 * 1024];
             long done = have; int last = -1, n;
             while ((n = in.read(buf)) > 0) {
+                if (stop.now()) throw new InterruptedException();
                 o.write(buf, 0, n);
                 done += n;
                 int pct = total > 0 ? (int) Math.min(100, 100 * done / total) : 0;
                 if (pct != last) { last = pct; p.at(pct); }
             }
-        } finally { c.disconnect(); currentHost = ""; }
+        } finally { c.disconnect(); host[0] = ""; }
     }
 
     private static String readAll(InputStream in) throws Exception {
@@ -327,11 +350,12 @@ final class Updater {
 
     // ---- install
 
-    private void install(File apk) throws Exception {
-        PackageInstaller pi = a.getPackageManager().getPackageInstaller();
+    static void install(Context ctx, File apk, String version) throws Exception {
+        PackageInstaller pi = ctx.getPackageManager().getPackageInstaller();
         PackageInstaller.SessionParams sp = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-        sp.setAppPackageName(a.getPackageName());
+        sp.setAppPackageName(ctx.getPackageName());
         sp.setSize(apk.length());
+        if (Build.VERSION.SDK_INT >= 31) sp.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED);
         int id = pi.createSession(sp);
         try (PackageInstaller.Session s = pi.openSession(id)) {
             try (InputStream in = new FileInputStream(apk); OutputStream o = s.openWrite("fling.apk", 0, apk.length())) {
@@ -339,30 +363,112 @@ final class Updater {
                 while ((n = in.read(buf)) > 0) o.write(buf, 0, n);
                 s.fsync(o);
             }
-            Intent done = new Intent(a, Result.class);
+            Intent done = new Intent(ctx, Result.class).putExtra("version", version);
             int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0);
-            PendingIntent pend = PendingIntent.getBroadcast(a, id, done, flags);
+            PendingIntent pend = PendingIntent.getBroadcast(ctx, id, done, flags);
             s.commit(pend.getIntentSender());
         }
     }
 
-    /** PackageInstaller's answer: show Android's confirm screen, or say why it failed. */
+    /** PackageInstaller's answer: Android's confirm screen (at once if Fling is on screen, else
+     *  from a notification), or why it failed. */
     public static final class Result extends BroadcastReceiver {
         @Override public void onReceive(Context ctx, Intent i) {
+            L.init(ctx);
             int st = i.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
+            String version = i.getStringExtra("version");
             if (st == PackageInstaller.STATUS_PENDING_USER_ACTION) {
                 Intent confirm = i.getParcelableExtra(Intent.EXTRA_INTENT);
-                if (confirm != null) {
-                    confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    try { ctx.startActivity(confirm); } catch (Exception ignored) {}
-                }
+                if (confirm == null) return;
+                confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                notifyReady(ctx, version, confirm);             // stays until installed (or tapped)
+                if (onScreen()) try { ctx.startActivity(confirm); } catch (Exception ignored) {}
             } else if (st != PackageInstaller.STATUS_SUCCESS) {
                 String msg = i.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
                 if (st == PackageInstaller.STATUS_FAILURE_CONFLICT || st == PackageInstaller.STATUS_FAILURE_INCOMPATIBLE)
                     msg = L.t("подпись нового APK не совпадает с установленным — удалите старый Fling и поставьте новый вручную.");
-                Toast.makeText(ctx, L.t("Обновление не установилось: ") + (msg != null ? msg : st), Toast.LENGTH_LONG).show();
+                else if (st == PackageInstaller.STATUS_FAILURE_ABORTED)
+                    msg = L.t("установка отменена.");
+                notifyFailed(ctx, null, L.t("Обновление не установилось: ") + (msg != null ? msg : st));
             }
         }
+    }
+
+    /** Fling has a screen in front of the user (it may then open the installer itself). */
+    static boolean onScreen() {
+        ActivityManager.RunningAppProcessInfo info = new ActivityManager.RunningAppProcessInfo();
+        ActivityManager.getMyMemoryState(info);
+        return info.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND;
+    }
+
+    // ---- notifications
+
+    static void channels(Context ctx) {
+        NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+        if (nm == null) return;
+        NotificationChannel u = new NotificationChannel(CH_UPDATES, L.t("Обновления Fling"), NotificationManager.IMPORTANCE_DEFAULT);
+        u.setDescription(L.t("Новая версия вышла, скачана или не скачалась."));
+        nm.createNotificationChannel(u);
+        NotificationChannel p = new NotificationChannel(CH_PROGRESS, L.t("Загрузка обновления"), NotificationManager.IMPORTANCE_LOW);
+        p.setDescription(L.t("Ход загрузки новой версии."));
+        p.setShowBadge(false);
+        nm.createNotificationChannel(p);
+    }
+
+    static Notification.Builder note(Context ctx, String channel) {
+        channels(ctx);
+        Intent open = new Intent(ctx, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        return new Notification.Builder(ctx, channel)
+                .setSmallIcon(R.drawable.ic_n_update)
+                .setColor(ctx.getColor(R.color.acc_blue))
+                .setContentIntent(PendingIntent.getActivity(ctx, 0, open, PendingIntent.FLAG_IMMUTABLE));
+    }
+
+    private static void post(Context ctx, int id, Notification n) {
+        NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+        if (nm == null) return;
+        if (Build.VERSION.SDK_INT >= 33 && ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return;
+        nm.notify(id, n);
+    }
+
+    /** "Version X is out" with "Update": the download starts in the background. */
+    static void notifyAvailable(Context ctx, Release r) {
+        String have = installedVersion(ctx);
+        Notification n = note(ctx, CH_UPDATES)
+                .setContentTitle(L.f("Доступна версия Fling %s", r.version))
+                .setContentText(L.f("У вас %s. Нажмите «Обновить» — скачается в фоне.", have))
+                .setAutoCancel(true)
+                .addAction(new Notification.Action.Builder(null, L.t("Обновить"), UpdateService.pending(ctx, r)).build())
+                .build();
+        post(ctx, N_AVAILABLE, n);
+    }
+
+    static void notifyReady(Context ctx, String version, Intent confirm) {
+        prefs(ctx).edit().putString("upd_ready", version == null ? "" : version).apply();
+        int flags = PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT;
+        Notification n = note(ctx, CH_UPDATES)
+                .setContentTitle(version == null ? L.t("Обновление скачано") : L.f("Fling %s скачан", version))
+                .setContentText(L.t("Нажмите, чтобы установить."))
+                .setContentIntent(PendingIntent.getActivity(ctx, 1, confirm, flags))
+                .setAutoCancel(true)
+                .build();
+        post(ctx, N_READY, n);
+    }
+
+    /** r != null: the download failed, offer it again and the browser. */
+    static void notifyFailed(Context ctx, Release r, String why) {
+        Notification.Builder b = note(ctx, CH_UPDATES)
+                .setContentTitle(L.t("Обновление не скачалось"))
+                .setContentText(why)
+                .setStyle(new Notification.BigTextStyle().bigText(why))
+                .setAutoCancel(true);
+        if (r != null) {
+            b.addAction(new Notification.Action.Builder(null, L.t("Повторить"), UpdateService.pending(ctx, r)).build());
+            Intent web = new Intent(Intent.ACTION_VIEW, Uri.parse(r.apkUrl())).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            b.addAction(new Notification.Action.Builder(null, L.t("Скачать в браузере"),
+                    PendingIntent.getActivity(ctx, 2, web, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT)).build());
+        }
+        post(ctx, N_FAILED, b.build());
     }
 
     // ---- release info
@@ -370,9 +476,48 @@ final class Updater {
     static final class Release {
         String version, tag, url; long apkId; long apkSize;
 
+        boolean hasApk() { return apkId != 0 || (tag != null && !tag.isEmpty()); }
+
         /** The github.com link to the APK (the browser and the fallback download use it). */
         String apkUrl() {
             return url != null && !url.isEmpty() ? url : WEB + "/releases/download/" + tag + "/Fling.apk";
+        }
+
+        String json() {
+            try {
+                return new JSONObject().put("version", version).put("tag", tag).put("url", url)
+                        .put("id", apkId).put("size", apkSize).toString();
+            } catch (Exception e) { return ""; }
+        }
+
+        static Release ofJson(String s) {
+            if (s == null || s.isEmpty()) return null;
+            try {
+                JSONObject o = new JSONObject(s);
+                Release r = new Release();
+                r.version = o.getString("version");
+                r.tag = o.optString("tag", null);
+                r.url = o.optString("url", null);
+                r.apkId = o.optLong("id");
+                r.apkSize = o.optLong("size");
+                return r;
+            } catch (Exception e) { return null; }
+        }
+
+        Intent into(Intent i) {
+            return i.putExtra("upd_version", version).putExtra("upd_tag", tag).putExtra("upd_url", url)
+                    .putExtra("upd_id", apkId).putExtra("upd_size", apkSize);
+        }
+
+        static Release from(Intent i) {
+            if (i == null || i.getStringExtra("upd_version") == null) return null;
+            Release r = new Release();
+            r.version = i.getStringExtra("upd_version");
+            r.tag = i.getStringExtra("upd_tag");
+            r.url = i.getStringExtra("upd_url");
+            r.apkId = i.getLongExtra("upd_id", 0);
+            r.apkSize = i.getLongExtra("upd_size", 0);
+            return r;
         }
 
         /** Without the API: github.com/…/releases/latest redirects to …/releases/tag/<tag>. */

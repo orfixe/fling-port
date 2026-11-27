@@ -298,11 +298,19 @@ public class SettingsActivity extends Activity {
         c.addView(seg, Ui.lp(-1, -2));
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        if (updater != null) updater.resumed();          // back from "Install unknown apps": offer the update again
+    }
+
     private void buildAbout() {
         section(L.t("О приложении"));
         LinearLayout c = card();
-        if (BuildConfig.SELF_UPDATE)                     // the GitHub build; Play updates the app itself
-            c.addView(ui.row(L.t("Проверить обновления"), "refresh", Updater.installedVersion(this), false, v -> updater.check(true)));   // trailing: the version, short enough for 320 dp
+        if (BuildConfig.SELF_UPDATE) {                   // the GitHub build; Play updates the app itself
+            c.addView(ui.row(L.t("Проверить обновления"), "refresh", Updater.installedVersion(this), false, v -> updater.check(true)));
+            c.addView(toggle(L.t("Сообщать о новых версиях"), L.t("Раз в день Fling проверяет GitHub, даже закрытый, и присылает уведомление, когда вышла новая версия."),
+                    "upd_notify", true, () -> Updater.background(this)));
+        }   // trailing: the version, short enough for 320 dp
         c.addView(ui.row(L.t("Как пользоваться"), "help", null, false, v -> Help.show(this, ui)));
         c.addView(ui.row(L.t("Показать подсказки снова"), "refresh", null, false, v -> {
             getSharedPreferences("fling", MODE_PRIVATE).edit().putBoolean("help_seen", false).apply();

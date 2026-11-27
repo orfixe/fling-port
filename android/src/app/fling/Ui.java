@@ -622,7 +622,7 @@ final class Ui {
         RefreshButton(Runnable onTap) {
             super(ctx);
             setClickable(true);
-            setContentDescription(L.t("Обновить"));
+            setContentDescription(L.t("Обновить данные"));
             setOutlineProvider(ViewOutlineProvider.BACKGROUND);
             setBackground(new RippleDrawable(ColorStateList.valueOf(0x55FFFFFF), null, oval(0xFFFFFFFF)));
             setOnClickListener(v -> { spin(); onTap.run(); });

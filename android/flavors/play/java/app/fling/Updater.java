@@ -19,5 +19,9 @@ final class Updater {
 
     void checkDaily() {}
 
+    void resumed() {}
+
+    static void background(Context ctx) {}
+
     void check(boolean manual) {}
 }

@@ -10,6 +10,27 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+### Added
+
+- Android: **updates download in the background**, with the progress in a notification
+  (and Cancel); Fling can be closed meanwhile. When the file is in, Android's install screen
+  opens at once if Fling is on screen, otherwise a "Tap to install" notification waits.
+- Android: **a notification when a new version is out**: once a day Fling checks GitHub, also
+  while closed and after a reboot; "Update" in the notification starts the download. Each
+  version is announced once; Settings → "Tell me about new versions" turns it off. (Not a push
+  service: nothing is sent to the phone, it asks GitHub.)
+
+### Fixed
+
+- Android: an update ended at once with "connection closed" when the connection to GitHub's
+  file storage dropped. The APK now comes from two sources, each tried 3 times, a dropped
+  download resumes where it stopped, the check falls back to github.com when api.github.com
+  can't be reached, and a failure says which server and what to try, with Try again and
+  Download in the browser.
+- Android: after allowing "Install unknown apps" for the first update, the "Update" window now
+  comes back by itself instead of asking to tap "Check for updates" again.
+- Android (English): the update button read "Refresh".
+
 ## [0.5.2] - 2026-11-27
 
 ### Changed
