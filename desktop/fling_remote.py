@@ -280,7 +280,7 @@ class Remote(QObject):
     def launch(self, app: dict):
         s = self.s
         if not s.ip:
-            s._set(last_error="Устройство не выбрано")
+            s._set(last_error="Телевизор не выбран — нажмите «Выбрать» внизу панели.")
             return
         if s.tv_paired:
             s.atv.launch(s.ip, app.get("link") or app.get("pkg"))

@@ -742,7 +742,7 @@ class Media(QObject):
                 s._set(last_error="Нечего отправить")
             return
         if not s.ip:
-            s._set(last_error="Устройство не выбрано")
+            s._set(last_error="Телевизор не выбран — нажмите «Выбрать» внизу панели.")
             return
         if r["apk"]:
             s.tv_install_apk(r["apk"])
@@ -1226,7 +1226,7 @@ class Media(QObject):
             return
         ip = s.ip
         if not ip:
-            s._set(last_error="Устройство не выбрано")
+            s._set(last_error="Телевизор не выбран — нажмите «Выбрать» внизу панели.")
             return
         self._halt()
         gen = self.gen

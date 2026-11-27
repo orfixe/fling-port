@@ -10,6 +10,21 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-11-27
+
+### Fixed
+
+- PC: **"The TV no longer trusts this computer" kept coming back, in grey, with no way out.**
+  When the TV has forgotten this computer (after a TV reset or update), Fling now drops its
+  "paired" mark, so the panel shows "Pair with TV" at once, and says what happened and what
+  to press.
+- PC: errors on the panel are **red** (they were grey like hints); "…in progress" notes stay grey.
+- PC: messages in plain words instead of raw errors: "No TV chosen — click Choose at the
+  bottom of the panel", "The remote isn't answering: the TV is off or on another network…",
+  "The TV screen didn't open: …" (no "scrcpy"), "There's no link on the clipboard", and
+  clearer menu items ("Cast this tab instead of the current video", "TV screen in its own
+  window", "Mouse on the TV, no picture", "Turn the TV on").
+
 ## [0.5.4] - 2026-11-27
 
 ### Changed
@@ -610,7 +625,8 @@ unchanged.
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.4...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.5...HEAD
+[0.5.5]: https://github.com/orfixe/fling-port/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/orfixe/fling-port/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/orfixe/fling-port/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/orfixe/fling-port/compare/v0.5.1...v0.5.2

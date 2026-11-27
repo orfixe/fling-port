@@ -61,7 +61,7 @@ SOCKET = "fling-panel"
 SEEK = 30
 GLOBAL_SHORTCUT = P.GLOBAL_SHORTCUT
 SHORTCUT_LABEL = P.SHORTCUT_LABEL
-VERSION = "0.5.4"
+VERSION = "0.5.5"
 
 # ---------------------------------------------------------------- config
 
@@ -504,6 +504,12 @@ class ATV(QObject):
         def done(f):
             e = f.exception()
             if e:
+                if type(e).__name__ == "InvalidAuth" and self.host:
+                    try:
+                        os.remove(os.path.join(DATA, "atv", self.host, "paired"))
+                    except OSError:
+                        pass
+                    self.pairing.emit("idle", "")      # the panel now shows "Pair with TV"
                 self.error.emit(self.message(e))
         fut.add_done_callback(done)
         return fut
@@ -511,14 +517,16 @@ class ATV(QObject):
     @staticmethod
     def message(e: Exception) -> str:
         n = type(e).__name__
+        print(f"remote: {n}: {e}", flush=True)       # the details go to the log, not to the user
         if n == "InvalidAuth":
-            return "Телевизор больше не доверяет этому компьютеру — свяжите его с ТВ заново."
+            return ("Телевизор забыл этот компьютер — так бывает после сброса или обновления ТВ. "
+                    "Нажмите «Связать с ТВ» и введите код с экрана телевизора.")
         if n == "CannotConnect":
-            return f"Не удалось связаться с ТВ ({e})."
+            return "Пульт не отвечает: телевизор выключен или в другой сети. Fling подключится сам, когда ТВ появится."
         if n == "ConnectionClosed":
-            return "Телевизор закрыл соединение."
+            return "Связь с пультом ТВ прервалась. Fling подключится заново сам."
         if isinstance(e, (asyncio.TimeoutError, TimeoutError)):
-            return "Телевизор не ответил."
+            return "Телевизор не ответил вовремя. Попробуйте ещё раз."
         if n == "VoiceSessionInProgress":
             return "Голосовой поиск уже идёт."
         return str(e) or n
@@ -1119,7 +1127,7 @@ class State(QObject):
         """Grab the TV screen over ADB → ~/Pictures/Fling/tv-*.png and open it."""
         ip = self.ip
         if not ip:
-            self._set(last_error="Устройство не выбрано")
+            self._set(last_error="Телевизор не выбран — нажмите «Выбрать» внизу панели.")
             return
         def work():
             if not P.adb_available():
@@ -1186,7 +1194,7 @@ class State(QObject):
         """Copy a file to the TV's Download folder (ADB), in its own thread; then() after success."""
         ip, name = self.ip, os.path.basename(path)
         if not ip:
-            self._set(last_error="Устройство не выбрано")
+            self._set(last_error="Телевизор не выбран — нажмите «Выбрать» внизу панели.")
             return
         try:
             if os.path.getsize(path) > SEND_MAX:
@@ -1234,7 +1242,7 @@ class State(QObject):
         if not paths:
             return
         if not ip:
-            self._set(last_error="Устройство не выбрано")
+            self._set(last_error="Телевизор не выбран — нажмите «Выбрать» внизу панели.")
             return
         name = os.path.basename(paths[0])
 
@@ -1292,7 +1300,7 @@ class State(QObject):
         """Everyday ADB actions once the TV is authorised."""
         ip = self.ip
         if not ip:
-            self._set(last_error="Устройство не выбрано")
+            self._set(last_error="Телевизор не выбран — нажмите «Выбрать» внизу панели.")
             return
         serial = _adb_serial(ip)
 
@@ -1343,7 +1351,7 @@ class State(QObject):
 
         def done(r, e):
             if e or not r:
-                self._set(last_error=f"ADB: {e or 'ошибка'}")
+                self._set(last_error=f"Команда ADB не сработала: {e or 'ТВ не ответил'}")
                 return
             if not r.get("ok"):
                 self._set(last_error=f"ADB: {r.get('msg')}")
@@ -1804,7 +1812,7 @@ class State(QObject):
     def _catt(self, args, timeout=25, after=None):
         ip = self.ip
         if not ip:
-            self._set(last_error="Устройство не выбрано")
+            self._set(last_error="Телевизор не выбран — нажмите «Выбрать» внизу панели.")
             return
         def done(r, e):
             self.last_error = str(e) if e else None
@@ -1834,7 +1842,7 @@ class State(QObject):
             self._set(last_error="Уже отправляю…")
             return
         if not self.ip:
-            self._set(last_error="Устройство не выбрано")
+            self._set(last_error="Телевизор не выбран — нажмите «Выбрать» внизу панели.")
             return
         if TS.cast_blocked(self.device):              # a tailnet TV whose Cast port doesn't answer
             self._set(last_error=TS.cast_blocked(self.device))
@@ -1881,7 +1889,7 @@ class State(QObject):
         if txt.startswith("file://"):
             txt = QUrl(txt).toLocalFile()
         if not txt:
-            self._set(last_error="Буфер обмена пуст")
+            self._set(last_error="В буфере обмена нет ссылки.")
             return
         self.cast(txt, notify)
 
@@ -2091,7 +2099,7 @@ class State(QObject):
 
     def start_pairing(self):
         if not self.ip:
-            self._set(last_error="Устройство не выбрано")
+            self._set(last_error="Телевизор не выбран — нажмите «Выбрать» внизу панели.")
             return
         self.atv.start_pairing(self.ip)
 
@@ -2187,7 +2195,7 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Отправка файла", "Sending a file"), ("Файл не скопировался на ТВ: ", "The file wasn't copied to the TV: "),
     ("Файл на ТВ: Download/", "File on the TV: Download/"), ("Копирую на ТВ: ", "Copying to the TV: "),
     # TV screen (scrcpy), ADB console
-    ("Экран ТВ с мышью", "TV screen with mouse"), ("Курсор на ТВ (без картинки)", "Cursor on the TV (no picture)"),
+    ("Экран ТВ в отдельном окне", "TV screen in its own window"), ("Мышь на ТВ без картинки", "Mouse on the TV, no picture"),
     ("Курсор на ТВ", "Cursor on the TV"),
     ("ADB-консоль…", "ADB console…"), ("Журнал Fling", "Fling log"),
     ("Fling — экран ТВ", "Fling — TV screen"), ("Fling — курсор: щёлкните здесь, Alt — вернуть мышь", "Fling — cursor: click here, Alt gives the mouse back"),
@@ -2320,7 +2328,7 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Снимок экрана ТВ: ", "TV screenshot: "),
     ("Уведомлять о смене видео", "Notify when the video changes"), ("Сейчас на ТВ: ", "Now on TV: "), ("Возобновить на ТВ с ", "Resume on TV at "),
     ("Отмена", "Cancel"), ("Отправить скопированную ссылку", "Cast copied link"),
-    ("Отправить эту вкладку вместо", "Cast this tab instead"), ("Отправить эту вкладку", "Cast this tab"),
+    ("Отправить эту вкладку вместо текущего видео", "Cast this tab instead of the current video"), ("Отправить эту вкладку", "Cast this tab"),
     ("Не в сети — Fling не достаёт до этого ТВ", "Offline — Fling can't reach this TV"),
     ("Нажмите, чтобы переключить телевизор", "Click to switch TVs"), ("Проверяю связь…", "Checking…"),
     ("Не в сети", "Offline"), ("В сети", "Online"),
@@ -2332,7 +2340,7 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Один раз свяжите Fling с ТВ, чтобы открыть приложения, стрелки и ввод текста.",
      "Pair once with the TV to unlock apps, the d-pad and typing."),
     ("Связать с YouTube на ТВ — видеть, что играет", "Link YouTube on the TV — see what's playing"),
-    ("Связать с YouTube — видеть, что играет", "Link YouTube — see what's playing"),
+    ("Связать с YouTube, чтобы видеть, что играет", "Link YouTube to see what's playing"),
     ("Включить", "Turn on"),
     ("Связать", "Pair"), ("Скопировать команду установки", "Copy install command"),
     ("Слушаю — нажмите микрофон ещё раз, когда закончите.", "Listening — click the mic again when done."),
@@ -2348,8 +2356,8 @@ EN_PHRASES = [  # longest first is applied automatically
     ("Телевизор не ответил. Убедитесь, что он включён, и попробуйте снова.",
      "The TV did not respond. Make sure it is awake, then try again."),
     ("Телевизор не ответил.", "The TV didn't respond."),
-    ("Устройство не выбрано", "No device selected"), ("Уже отправляю…", "Already sending…"),
-    ("Уже отправляю…", "Already sending…"), ("Устройство не найдено", "No device found"),
+    ("Телевизор не выбран — нажмите «Выбрать» внизу панели.", "No device selected"), ("Уже отправляю…", "Already sending…"),
+    ("Уже отправляю…", "Already sending…"), ("Телевизор не найден", "No TV found"),
     ("Устройство", "Device"), ("Это не веб-страница", "Not a web page"),
     ("catt не ответил вовремя и был остановлен. Попробуйте ещё раз.", "catt did not finish in time and was stopped. Try again."),
     ("catt не установлен", "catt is not installed"), ("Fling нужен catt", "Fling needs catt"),
@@ -2542,6 +2550,18 @@ EN_PHRASES += [   # the report for the developer (fling_report)
     ("Отчёт не получился: ", "The report failed: "),
     ("Отчёт сохранён в «Загрузки»: %s. Приложите его к сообщению об ошибке на GitHub или отправьте тому, кто попросил.",
      "The report is saved in Downloads: %s. Attach it to an issue on GitHub, or send it to whoever asked for it."),
+]
+EN_PHRASES += [   # plain-words errors
+    ("Телевизор не выбран — нажмите «Выбрать» внизу панели.", "No TV chosen — click “Choose” at the bottom of the panel."),
+    ("Телевизор забыл этот компьютер — так бывает после сброса или обновления ТВ. Нажмите «Связать с ТВ» и введите код с экрана телевизора.",
+     "The TV has forgotten this computer — it happens after a TV reset or update. Click “Pair with TV” and type the code from the TV screen."),
+    ("Пульт не отвечает: телевизор выключен или в другой сети. Fling подключится сам, когда ТВ появится.",
+     "The remote isn't answering: the TV is off or on another network. Fling reconnects by itself when the TV is back."),
+    ("Связь с пультом ТВ прервалась. Fling подключится заново сам.", "The connection to the TV remote dropped. Fling reconnects by itself."),
+    ("Телевизор не ответил вовремя. Попробуйте ещё раз.", "The TV didn't answer in time. Try again."),
+    ("Экран ТВ не открылся: ", "The TV screen didn't open: "),
+    ("В буфере обмена нет ссылки.", "There's no link on the clipboard."),
+    ("Включить ТВ", "Turn the TV on"),
 ]
 EN_PHRASES += [   # the TV list by kind, and the switch suggestion
     ("Android TV и Google TV", "Android TV and Google TV"), ("Повтор экрана (Miracast)", "Screen mirroring (Miracast)"),
@@ -3858,7 +3878,7 @@ class TvScreen(QObject):
         s = self.state
         ip = s.ip
         if not ip:
-            s._set(last_error="Устройство не выбрано")
+            s._set(last_error="Телевизор не выбран — нажмите «Выбрать» внизу панели.")
             return
         if self.busy:
             return
@@ -3995,7 +4015,7 @@ class TvScreen(QObject):
             if err == QProcess.ProcessError.FailedToStart:
                 if self.proc is p:
                     self.proc, self.mode = None, None
-                self.state._set(last_error=tr("Экран ТВ: scrcpy не запустился — ") + p.errorString())
+                self.state._set(last_error=tr("Экран ТВ не открылся: ") + p.errorString())
                 self.changed.emit()
 
         p.errorOccurred.connect(failed)
@@ -5425,7 +5445,7 @@ class Panel(QWidget):
         bl.addWidget(self.c_title); bl.addWidget(self.c_host)
         cl.addWidget(box)
         # YouTube-on-TV link: the only source of what native YouTube really plays
-        self.yt_row = MenuRow("Связать с YouTube — видеть, что играет", icon="tv", accented=True,
+        self.yt_row = MenuRow("Связать с YouTube, чтобы видеть, что играет", icon="tv", accented=True,
                               on=self._yt_entry)
         cl.addWidget(padded(self.yt_row, 0, 6, 0, 0))
         self.yt_box = QWidget()
@@ -5458,7 +5478,7 @@ class Panel(QWidget):
             ("fwd", f"Вперёд {SEEK} с  (→)", lambda: state.seek(SEEK), 32, False),
             ("next", "Следующее видео", state.yt_next, 28, False),
             ("stop", "Остановить трансляцию  (Ctrl+.)", state.stop, 28, False),
-            ("play_on_tv", "Отправить эту вкладку вместо", state.cast_tab, 28, False))
+            ("play_on_tv", "Отправить эту вкладку вместо текущего видео", state.cast_tab, 28, False))
         self.c_bar_prev, _, self.c_bar_play, _, self.c_bar_next, _, _ = self.c_bar.keys
         cl.addWidget(self.c_bar)
         self.c_rows = QWidget()
@@ -5586,7 +5606,7 @@ class Panel(QWidget):
         sl = QVBoxLayout(self.r_setup); sl.setContentsMargins(0, 0, 0, 4); sl.setSpacing(0)
         sl.addWidget(padded(label("Один раз свяжите Fling с ТВ, чтобы открыть приложения, стрелки и ввод текста.",
                                   11, T.fg_a(0.55), wrap=True), 14, 10, 14, 6))
-        sl.addWidget(MenuRow("Включить", icon="power", on=state.wake))
+        sl.addWidget(MenuRow("Включить ТВ", icon="power", on=state.wake))
         pair = MenuRow("Связать с ТВ", icon="tv_plus", accented=True, on=state.start_pairing)
         pair.set_icon_color(T.green)
         sl.addWidget(pair)
@@ -6246,8 +6266,8 @@ class Panel(QWidget):
                 ("Усыпить", "sleep"),
                 ("Домой", "home"),
                 ("Снимок экрана", "screenshot"),
-                ("Экран ТВ с мышью", "screen"),
-                ("Курсор на ТВ (без картинки)", "mouse"),
+                ("Экран ТВ в отдельном окне", "screen"),
+                ("Мышь на ТВ без картинки", "mouse"),
                 ("ADB-консоль…", "console"),
                 (None, None),
                 ("Настройки", "settings"),
@@ -6435,6 +6455,8 @@ class Panel(QWidget):
         self.shot_row.setVisible(not sv)           # screenshots go over ADB: not on Samsung / Miracast
 
         self.err.setText(s.last_error or "")
+        busy = (s.last_error or "").rstrip().endswith("…")
+        self.err.setStyleSheet(f"color:{Theme.css(T.fg_a(0.6) if busy else T.red)};background:transparent")
         self.err_box.setVisible(bool(s.last_error))
         if s.last_error and s.last_error != getattr(self, "_err_shown", None):
             # a message is a hint, not a state: it goes away by itself after 10 s
@@ -6478,7 +6500,7 @@ class Panel(QWidget):
         self.dev_name.setToolTip(tip); self.dot.setToolTip(tip)
         dup = bool(s.device) and sum(1 for x in s.devices if x["name"] == s.device["name"]) > 1
         self.dev_name.setText((s.device["name"] + (f" ({s.device['ip']})" if dup else "")) if s.device
-                              else ("Ищу ТВ…" if s.scanning else "Устройство не найдено"))
+                              else ("Ищу ТВ…" if s.scanning else "Телевизор не найден"))
         alt = s.suggest
         if alt and s.device:
             self.suggest_btn.setText(tr("«{a}» не в сети — переключиться на «{b}»")
@@ -7481,7 +7503,7 @@ class Tray(QObject):
         m.clear()
         casting = s.panel == "casting"
         castable = s.panel == "idle_castable" or casting
-        a = m.addAction("Отправить эту вкладку вместо" if casting else "Отправить эту вкладку", s.cast_tab)
+        a = m.addAction("Отправить эту вкладку вместо текущего видео" if casting else "Отправить эту вкладку", s.cast_tab)
         a.setShortcut(QKeySequence(GLOBAL_SHORTCUT)); a.setEnabled(castable)
         a.setVisible(not s.conf.get("hide_tabs"))
         m.addAction("Отправить скопированную ссылку", s.cast_clipboard)
@@ -7503,9 +7525,9 @@ class Tray(QObject):
         R.tray_menu(m, s, self.panel)            # scenes and the sleep timer
         m.addAction("Сделать снимок", s.tv_screenshot)
         tm = m.addMenu("ADB")
-        a = tm.addAction("Экран ТВ с мышью", lambda: s.screen.toggle("screen"))
+        a = tm.addAction("Экран ТВ в отдельном окне", lambda: s.screen.toggle("screen"))
         a.setCheckable(True); a.setChecked(s.screen.running("screen"))
-        a = tm.addAction("Курсор на ТВ (без картинки)", lambda: s.screen.toggle("mouse"))
+        a = tm.addAction("Мышь на ТВ без картинки", lambda: s.screen.toggle("mouse"))
         a.setCheckable(True); a.setChecked(s.screen.running("mouse"))
         tm.addAction("ADB-консоль…", lambda: open_adb_console(self.panel, s))
         m.addSeparator()
