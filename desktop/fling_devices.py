@@ -439,19 +439,30 @@ class DevicePicker(QWidget):
         while self.rows.count():
             it = self.rows.takeAt(0)
             if it.widget():
-                it.widget().deleteLater()
+                w = it.widget()
+                w.hide()                                 # gone at once, not when deleteLater runs
+                w.setParent(None)
+                w.deleteLater()
         cur = s.device["ip"] if s.device else None
         fresh_since = time.monotonic() - 20
-        for d in s.devices:
-            card = TvCard(d, d["ip"] == cur, bool(s.atv.paired(d["ip"])),
-                          self._seen.get(d["ip"], 0) > fresh_since, s.tv_status(d))
-            card.clicked.connect(lambda d=d: self.pick(d))
-            card.remove.connect(lambda d=d: self.state.forget_device(d))
-            self.rows.addWidget(card)
+        groups = s.grouped_devices()
+        heads = 0
+        for title, ds in groups:
+            if len(groups) > 1:                      # headings only when kinds are mixed
+                h = F.label(title, 10.5, T.fg_a(0.5), QFont.Weight.DemiBold)
+                h.setContentsMargins(4, 6 if heads else 0, 0, 0)
+                self.rows.addWidget(h)
+                heads += 1
+            for d in ds:
+                card = TvCard(d, d["ip"] == cur, bool(s.atv.paired(d["ip"])),
+                              self._seen.get(d["ip"], 0) > fresh_since, s.tv_status(d))
+                card.clicked.connect(lambda d=d: self.pick(d))
+                card.remove.connect(lambda d=d: self.state.forget_device(d))
+                self.rows.addWidget(card)
         self.rows.addStretch(1)
         n = len(s.devices)
         self.scroll.setVisible(n > 0)
-        self.scroll.setFixedHeight(min(n, 4) * 66 - (8 if n else 0))
+        self.scroll.setFixedHeight(min(n, 4) * 66 + min(heads, 3) * 24 - (8 if n else 0))
         # add-by-IP feedback
         if self._added_ip:
             err = s.last_error

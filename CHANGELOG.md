@@ -14,6 +14,18 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ### Changed
 
+- PC: **ADB in one click.** Fling finds the TV's ADB ports itself (adb's mDNS) — no typing
+  ports; after a reboot, when wireless debugging moves to a new port, it follows. Each TV keeps
+  its own port (one global port mixed up two TVs). Then it does what the TV needs: waits for
+  "Allow" on the TV and connects as soon as it's pressed; when the TV shows "Pair with code",
+  asks for the 6 digits only; when debugging is off, says how to turn it on and connects by
+  itself once it's on. IP and ports by hand are under "By hand…".
+- PC: **the TV list is sorted by kind** — Android TV / Google TV, Chromecast, Samsung, screen
+  mirroring (Miracast) — in the chooser and the menus; in each, the current TV, then those
+  online, then by name. The kind comes from what the TV answers to (remote, ADB, Cast).
+- PC: when the TV in use stops answering and another known TV answers, the panel offers it:
+  "“Living room” is offline — switch to “Bedroom”", one click.
+
 - PC, LIVE: **less delay.** The TV's encoder is asked for low latency (realtime priority, at
   most one frame held; a TV that refuses gets the plain start and is remembered), and "auto"
   runs at 60 frames/s — the encoder holds frames, so twice the frames is about half the wait.

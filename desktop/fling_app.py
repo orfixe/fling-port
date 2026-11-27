@@ -869,10 +869,48 @@ def _adb_cached(ip: str) -> str | None:
     return None
 
 
+def adb_port_for(ip: str, conf: dict | None = None) -> int:
+    """The ADB port that last worked for this TV (each TV its own), else the old global one, else 5555."""
+    c = conf if conf is not None else load_conf()
+    try:
+        return int((c.get("adb_ports") or {}).get(ip) or c.get("adb_port") or 5555)
+    except (TypeError, ValueError):
+        return 5555
+
+
+_MDNS: dict = {"at": -99.0, "map": {}}
+
+
+def adb_mdns(max_age: float = 4.0) -> dict:
+    """TVs that announce ADB on the network (adb's own mDNS):
+    {ip: {"adb": 5555, "connect": 36319, "pairing": 41233}}. "connect" is Android 11+'s wireless
+    debugging, whose port changes on every reboot; "pairing" appears while the TV shows
+    "Pair with code". So nobody has to type a port."""
+    now = time.monotonic()
+    if now - _MDNS["at"] < max_age:
+        return _MDNS["map"]
+    out: dict = {}
+    if P.adb_available():
+        try:
+            r = P.run([_ADB, "mdns", "services"], capture_output=True, text=True, timeout=6)
+            kinds = {"_adb._tcp": "adb", "_adb-tls-connect._tcp": "connect", "_adb-tls-pairing._tcp": "pairing"}
+            for line in (r.stdout or "").splitlines():
+                parts = line.split()
+                if len(parts) < 3:
+                    continue
+                kind = kinds.get(parts[-2].rstrip("."))
+                host, _, port = parts[-1].rpartition(":")
+                if kind and port.isdigit() and _is_ipv4(host):
+                    out.setdefault(host, {})[kind] = int(port)
+        except Exception as e:
+            print("adb mdns:", e, flush=True)
+    _MDNS.update(at=now, map=out)
+    return out
+
+
 def _adb_serial(ip: str, port: int | None = None) -> str:
     """`ip:port` for adb -s / connect. Wireless debugging often uses a non-5555 port."""
-    p = int(port or load_conf().get("adb_port") or 5555)
-    return f"{ip}:{p}"
+    return f"{ip}:{int(port or adb_port_for(ip))}"
 
 
 def adb_cmd(ip: str, args: list[str], timeout: int = 20) -> subprocess.CompletedProcess:
@@ -1045,6 +1083,9 @@ class State(QObject):
         self.online: dict[str, bool | None] = {}   # ip → answers right now (the green / red dots)
         self._online_at = 0.0
         self._online_busy = False  # a TV on the tailnet: ping, reconnect, footer latency
+        self.caps: dict = {}           # ip -> ports that answered (6466 remote, 5555 ADB, 8009 Cast…)
+        self.suggest = None            # another TV to switch to while this one is away (_think)
+        self._away = 0
 
     # --- YouTube lounge
     def _on_yt(self, d):
@@ -1547,14 +1588,48 @@ class State(QObject):
         """True: answers now · False: doesn't · None: not checked yet / can't tell."""
         return self.online.get(d["ip"]) if d else None
 
+    # what kind of TV: the list is grouped by it (Android TV first: it can do the most)
+    KINDS = (("androidtv", "Android TV и Google TV"), ("chromecast", "Chromecast"),
+             ("samsung", "Samsung"), ("miracast", "Повтор экрана (Miracast)"))
+    _ATV_WORDS = ("google tv", "android tv", "mitv", "mi tv", "bravia", "shield", "tcl", "hisense",
+                  "philips", "sharp", "realme", "oneplus", "xiaomi", "sber", "yandex", "haier", "tv box")
+
+    def device_kind(self, d) -> str:
+        k = d.get("kind")
+        if k in ("samsung", "miracast"):
+            return k
+        ports = self.caps.get(d["ip"], ())
+        if 6466 in ports or 6467 in ports or 5555 in ports or self.atv.paired(d["ip"]):
+            return "androidtv"
+        model = f"{d.get('model') or ''} {d.get('name') or ''}".lower()
+        if any(w in model for w in self._ATV_WORDS):
+            return "androidtv"
+        if "chromecast" in model or "google home" in model or "nest" in model or ports:
+            return "chromecast"
+        return "androidtv"                           # not probed yet: Cast devices are mostly TVs
+
+    def grouped_devices(self) -> list[tuple[str, list[dict]]]:
+        """[(group title, devices)] in the order the chooser and the menus show: by kind, then
+        the current TV, then those online, then by name."""
+        cur = self.device["ip"] if self.device else None
+        out = []
+        for kind, title in self.KINDS:
+            ds = [d for d in self.devices if self.device_kind(d) == kind]
+            ds.sort(key=lambda d: (d["ip"] != cur, self.online.get(d["ip"]) is not True,
+                                   (d.get("name") or d["ip"]).lower()))
+            if ds:
+                out.append((title, ds))
+        return out
+
     @staticmethod
-    def _probe(d, mira_seen) -> bool | None:
+    def _probe(d, mira_seen):
+        """(online, open ports): True / False / None, and which of the TV's ports answered."""
         if SV.is_miracast(d):                       # Wi-Fi Direct: only a search can see it
             seen = mira_seen.get(d["name"])
-            return True if seen and time.monotonic() - seen < 300 else None
+            return (True if seen and time.monotonic() - seen < 300 else None), ()
         import select, socket as _s
         ports = State._PROBE_PORTS.get(d.get("kind") if d.get("kind") == "samsung" else None)
-        socks = []
+        socks, port_of, open_ = [], {}, set()
         try:                                         # all ports at once: about 1 s for a TV that's gone
             for port in ports:
                 c = _s.socket(_s.AF_INET, _s.SOCK_STREAM)
@@ -1565,24 +1640,43 @@ class State(QObject):
                     pass
                 except OSError:
                     c.close(); continue
-                socks.append(c)
+                socks.append(c); port_of[c] = port
             end = time.monotonic() + 1.0
             while socks and time.monotonic() < end:
                 _, w, x = select.select([], socks, socks, max(0.0, end - time.monotonic()))
                 for c in w:
                     if c.getsockopt(_s.SOL_SOCKET, _s.SO_ERROR) == 0:
-                        return True
-                for c in set(w) | set(x):            # refused / failed: stop waiting on it
+                        open_.add(port_of[c])
+                for c in set(w) | set(x):            # answered / refused: done with it
                     if c in socks:
                         socks.remove(c); c.close()
                 if not w and not x:
                     break
-            return False
+            return bool(open_), tuple(sorted(open_))
         except (OSError, ValueError):
-            return False
+            return False, ()
         finally:
             for c in socks:
                 c.close()
+
+    def _think(self):
+        """Small decisions so nobody has to make them: the TV in use stopped answering (two
+        checks in a row) while another known TV answers — offer that one in the panel, one click.
+        Android TV first (it can do the most), Miracast never (it can't be probed)."""
+        d = self.device
+        alt = None
+        if d and not SV.is_miracast(d):
+            self._away = self._away + 1 if self.online.get(d["ip"]) is False else 0
+            if self._away >= 2:
+                alts = [x for x in self.devices if x["ip"] != d["ip"] and not SV.is_miracast(x)
+                        and self.online.get(x["ip"]) is True]
+                if alts:
+                    alt = min(alts, key=lambda x: (self.device_kind(x) != "androidtv", (x.get("name") or "").lower()))
+        if (alt or {}).get("ip") != (self.suggest or {}).get("ip"):
+            if alt:
+                print(f"think: {d['name']} is away, {alt['name']} answers: offering it", flush=True)
+            self.suggest = alt
+            self.changed.emit()
 
     def check_online(self, force=False):
         """Probe every known TV in the background — every 6 s while the panel is open,
@@ -1605,9 +1699,15 @@ class State(QObject):
 
         def done(r, e):
             self._online_busy = False
-            if r and r != {k: self.online.get(k) for k in r}:
-                self.online.update(r)
+            if not r:
+                return
+            on = {k: v[0] for k, v in r.items()}
+            caps = {k: v[1] for k, v in r.items() if v[1]}      # keep what we knew while it's away
+            if on != {k: self.online.get(k) for k in on} or any(self.caps.get(k) != v for k, v in caps.items()):
+                self.online.update(on)
+                self.caps.update(caps)
                 self.changed.emit()
+            self._think()
         self.bg(work, done)
 
     def select_device(self, d):
@@ -2438,6 +2538,28 @@ EN_PHRASES += [   # the report for the developer (fling_report)
     ("Отчёт не получился: ", "The report failed: "),
     ("Отчёт сохранён в «Загрузки»: %s. Приложите его к сообщению об ошибке на GitHub или отправьте тому, кто попросил.",
      "The report is saved in Downloads: %s. Attach it to an issue on GitHub, or send it to whoever asked for it."),
+]
+EN_PHRASES += [   # the TV list by kind, and the switch suggestion
+    ("Android TV и Google TV", "Android TV and Google TV"), ("Повтор экрана (Miracast)", "Screen mirroring (Miracast)"),
+    ("«{a}» не в сети — переключиться на «{b}»", "“{a}” is offline — switch to “{b}”"),
+    # ADB, the simple way
+    ("код из 6 цифр с экрана ТВ", "6-digit code from the TV screen"), ("Вручную: IP и порт…", "By hand: IP and port…"),
+    ("Скрыть ручные поля", "Hide the manual fields"), ("сопряжения:", "pairing:"), ("порт", "port"),
+    ("Обычно не нужно: Fling находит порты сам. С ТВ: Беспроводная отладка → «IP-адрес и порт».",
+     "Usually not needed: Fling finds the ports itself. On the TV: Wireless debugging → “IP address & port”."),
+    ("Сначала выберите телевизор выше (или впишите IP вручную).", "Choose a TV above first (or type its IP by hand)."),
+    ("Посмотрите на экран ТВ: нажмите «Разрешить» и отметьте «Всегда разрешать с этого компьютера». Fling подключится сам, как только вы нажмёте.",
+     "Look at the TV: press “Allow” and tick “Always allow from this computer”. Fling connects by itself as soon as you do."),
+    ("ТВ пока не пускает по ADB.", "The TV doesn't let ADB in yet."),
+    ("Включите на ТВ отладку — Fling заметит это сам:\n1. Настройки → Об устройстве → 7 раз нажмите «Сборка».\n2. Настройки → Для разработчиков → «Отладка по сети» (или «Отладка по USB»).\nНа Android 11+: «Беспроводная отладка» → «Подключить по коду» — код появится на ТВ, впишите его здесь.",
+     "Turn on debugging on the TV — Fling notices by itself:\n1. Settings → About → press “Build” 7 times.\n2. Settings → Developer options → “Network debugging” (or “USB debugging”).\nOn Android 11+: “Wireless debugging” → “Pair with pairing code” — the TV shows a code, type it here."),
+    ("ТВ показывает код сопряжения.", "The TV shows a pairing code."),
+    ("На экране ТВ открыто сопряжение — впишите 6 цифр с экрана и нажмите «Связать».",
+     "The TV is showing a pairing code — type the 6 digits and press Pair."),
+    ("Код сопряжения — 6 цифр с экрана ТВ.", "The pairing code is 6 digits from the TV screen."),
+    ("Окно с кодом на ТВ уже закрыто. На ТВ: Беспроводная отладка → «Подключить по коду» — и впишите новый код.",
+     "The code window on the TV is closed. On the TV: Wireless debugging → “Pair with pairing code”, then type the new code."),
+    ("Ждём «Разрешить» на экране ТВ…", "Waiting for “Allow” on the TV…"),
 ]
 EN_PHRASES += [   # keyboard capture modes and the key guide
     ("⌨  Клавиатура у ТВ · Esc — закрыть · F1 — подсказка", "⌨  Keyboard drives the TV · Esc closes · F1 help"),
@@ -3595,13 +3717,17 @@ def status_dot_icon(on) -> QIcon:
 def fill_device_menu(menu: QMenu, s: "State", parent=None):
     """Device chooser used by the panel footer, the tray menu and the Connect TV window."""
     menu.clear()
-    for d in s.devices:
-        on = s.tv_status(d)
-        a = menu.addAction(status_dot_icon(on), s.device_label(d))
-        a.setCheckable(True)
-        a.setChecked(bool(s.device) and d["ip"] == s.device["ip"])
-        a.setToolTip({True: "В сети", False: "Не в сети"}.get(on, "Проверяю связь…"))
-        a.triggered.connect(lambda _=False, d=d: s.select_device(d))
+    groups = s.grouped_devices()
+    for title, ds in groups:
+        if len(groups) > 1:                        # a heading only when there's more than one kind
+            menu.addSection(tr(title))
+        for d in ds:
+            on = s.tv_status(d)
+            a = menu.addAction(status_dot_icon(on), s.device_label(d))
+            a.setCheckable(True)
+            a.setChecked(bool(s.device) and d["ip"] == s.device["ip"])
+            a.setToolTip({True: "В сети", False: "Не в сети"}.get(on, "Проверяю связь…"))
+            a.triggered.connect(lambda _=False, d=d: s.select_device(d))
     if not s.devices:
         a = menu.addAction("ТВ не найдены"); a.setEnabled(False)
     menu.addSeparator()
@@ -5567,6 +5693,18 @@ class Panel(QWidget):
         ft.addWidget(self.adb_badge, 0, Qt.AlignmentFlag.AlignVCenter)
         ft.addWidget(self.switch)
         fw = QWidget(); fw.setLayout(ft)
+        # the TV in use is away and another one answers: switch in one click (State._think)
+        self.suggest_btn = QPushButton()
+        self.suggest_btn.setFont(font(11))
+        self.suggest_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.suggest_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.suggest_btn.setStyleSheet(
+            f"QPushButton{{border:none;border-radius:6px;padding:6px 10px;text-align:left;"
+            f"color:{Theme.css(T.accent)};background:{Theme.css(T.acc_a(0.10))}}}"
+            f"QPushButton:hover{{background:{Theme.css(T.acc_a(0.18))}}}")
+        self.suggest_btn.clicked.connect(lambda: self.state.suggest and self.state.select_device(self.state.suggest))
+        self.suggest_btn.hide()
+        v.addWidget(padded(self.suggest_btn, 10, 2, 10, 0))
         v.addWidget(fw)
         # authorship: Fling is Damion Rashford's and Tatiana's app; this is an unofficial port by orfixe
         credit = label(f'<a href="https://github.com/tatianathevisionary/fling" style="color:{Theme.css(T.fg_a(0.45))};text-decoration:none">'
@@ -6288,6 +6426,13 @@ class Panel(QWidget):
         dup = bool(s.device) and sum(1 for x in s.devices if x["name"] == s.device["name"]) > 1
         self.dev_name.setText((s.device["name"] + (f" ({s.device['ip']})" if dup else "")) if s.device
                               else ("Ищу ТВ…" if s.scanning else "Устройство не найдено"))
+        alt = s.suggest
+        if alt and s.device:
+            self.suggest_btn.setText(tr("«{a}» не в сети — переключиться на «{b}»")
+                                     .replace("{a}", s.device["name"]).replace("{b}", alt["name"]))
+        if self.suggest_btn.isVisibleTo(self) != bool(alt and s.device):
+            self.suggest_btn.setVisible(bool(alt and s.device))
+            QTimer.singleShot(0, self.place)
         ts_text = s.tailnet.footer_text()
         self.ts_note.setText(ts_text)
         self.ts_note.setToolTip(s.tailnet.footer_tip())
@@ -6432,6 +6577,14 @@ def adb_state(ip: str, force: bool = False, port: int | None = None) -> str:
     ports = []
     if port:
         ports.append(int(port))
+    saved = (conf.get("adb_ports") or {}).get(ip)
+    if saved:
+        ports.append(int(saved))
+    # what the TV announces right now: after a reboot wireless debugging has a new port
+    ann = adb_mdns().get(ip, {})
+    for k in ("connect", "adb"):
+        if ann.get(k):
+            ports.append(ann[k])
     conf_port = conf.get("adb_port")
     if conf_port:
         try:
@@ -6463,7 +6616,10 @@ def adb_state(ip: str, force: bool = False, port: int | None = None) -> str:
             st = line.split()[1] if len(line.split()) > 1 else "offline"
             if st == "device":
                 conf["adb_port"] = p
+                conf.setdefault("adb_ports", {})[ip] = p          # this TV's own port
                 save_conf(conf)
+                if p != saved:
+                    print(f"adb: {ip} answers on port {p}", flush=True)
                 _ADB_HOST[ip] = ("device", 0.0)
                 return "device"
             last = st if st in _ADB_BACKOFF else "offline"
@@ -6654,12 +6810,37 @@ class SetupWindow(QWidget):
             self.adb_badge = AdbBadge(22)
             self.adb_badge.clicked.connect(self.adb_connect)
             lay.addWidget(self.adb_badge)
+            # what to do next, in plain words (the watchers below keep it current)
+            self.adb_hint = label("", 11, T.fg_a(0.75), wrap=True)
+            self.adb_hint.hide()
+            lay.addWidget(self.adb_hint)
+            # the 6-digit code: only while the TV shows "Pair with code" (Fling sees it by mDNS)
+            self.adb_pairbox = QWidget()
+            pb = QHBoxLayout(self.adb_pairbox); pb.setContentsMargins(0, 2, 0, 0); pb.setSpacing(6)
+            self.wcode = field("код из 6 цифр с экрана ТВ", mono=True)
+            self.wcode.returnPressed.connect(self.adb_pair)
+            pb.addWidget(self.wcode, 1)
+            pb.addWidget(small_button("Связать", self.adb_pair))
+            self.adb_pairbox.hide()
+            lay.addWidget(self.adb_pairbox)
+            # by hand — IP and ports, only if the TV can't be seen on the network
+            self.adb_more = small_button("Вручную: IP и порт…", self._adb_toggle_manual)
+            mr = QHBoxLayout(); mr.setContentsMargins(0, 0, 0, 0); mr.addWidget(self.adb_more); mr.addStretch(1)
+            lay.addLayout(mr)
+            self.adb_manual = QWidget()
+            lay_m = QVBoxLayout(self.adb_manual); lay_m.setContentsMargins(0, 0, 0, 0); lay_m.setSpacing(4)
+            self.adb_manual.hide()
+            lay.addWidget(self.adb_manual)
+            self._adb_watch = QTimer(self)
+            self._adb_watch.setInterval(2500)
+            self._adb_watch.timeout.connect(self._adb_tick)
+            self._adb_mode, self._adb_until = None, 0.0
             self.wip = field("192.168.1.50", mono=True)
             self.wconn = field("порт, напр. 5555", mono=True)
             if self.state.ip:
                 self.wip.setText(self.state.ip)
-            saved_port = load_conf().get("adb_port")
-            if saved_port:
+            saved_port = adb_port_for(self.state.ip) if self.state.ip else None
+            if saved_port and saved_port != 5555:
                 self.wconn.setText(str(saved_port))
             self.wip.setClearButtonEnabled(True)
             self.wconn.setClearButtonEnabled(True)
@@ -6670,22 +6851,16 @@ class SetupWindow(QWidget):
             ip_row = QHBoxLayout(); ip_row.setContentsMargins(0, 2, 0, 0); ip_row.setSpacing(6)
             ip_row.addWidget(label("IP:", 11, T.fg_a(0.6)))
             ip_row.addWidget(self.wip, 1)
-            lay.addLayout(ip_row)
+            lay_m.addLayout(ip_row)
             port_row = QHBoxLayout(); port_row.setContentsMargins(0, 2, 0, 0); port_row.setSpacing(6)
             port_row.addWidget(label("Порт:", 11, T.fg_a(0.6)))
             port_row.addWidget(self.wconn, 1)
-            lay.addLayout(port_row)
-            tip = label("С ТВ: Беспроводная отладка → «IP-адрес и порт». Клик по Android — запрос ADB.",
-                        10.5, T.fg_a(0.45), wrap=True)
-            lay.addWidget(tip)
-            self.wport = field("порт сопряжения", mono=True); self.wport.setFixedWidth(110)
-            self.wcode = field("код из 6 цифр", mono=True)
-            pair_row = QHBoxLayout(); pair_row.setContentsMargins(0, 2, 0, 0); pair_row.setSpacing(6)
-            pair_row.addWidget(label("Сопряжение:", 11, T.fg_a(0.6)))
-            pair_row.addWidget(self.wport)
-            pair_row.addWidget(self.wcode, 1)
-            pair_row.addWidget(small_button("Связать", self.adb_pair))
-            lay.addLayout(pair_row)
+            port_row.addWidget(label("сопряжения:", 11, T.fg_a(0.6)))
+            self.wport = field("порт", mono=True); self.wport.setFixedWidth(80)
+            port_row.addWidget(self.wport)
+            lay_m.addLayout(port_row)
+            lay_m.addWidget(label("Обычно не нужно: Fling находит порты сам. С ТВ: Беспроводная отладка → "
+                                  "«IP-адрес и порт».", 10.5, T.fg_a(0.45), wrap=True))
             # Everyday ADB tools — only visible while authorised
             self.adb_actions = QWidget()
             al = QVBoxLayout(self.adb_actions); al.setContentsMargins(0, 6, 0, 0); al.setSpacing(4)
@@ -6858,21 +7033,124 @@ class SetupWindow(QWidget):
         s.atv.connect(ip)
         s.changed.emit()
 
+    def _adb_toggle_manual(self):
+        on = not self.adb_manual.isVisible()
+        self.adb_manual.setVisible(on)
+        self.adb_more.setText(tr("Скрыть ручные поля") if on else tr("Вручную: IP и порт…"))
+
+    def _adb_hint(self, text: str):
+        self.adb_hint.setText(tr(text) if text else "")
+        self.adb_hint.setVisible(bool(text))
+
     def adb_connect(self):
+        """One button: the selected TV, the port it announces (or the one that worked), and then
+        whatever the TV needs — "Allow" on its screen, a pairing code, or debugging switched on."""
         if hasattr(self, "adb_badge"):
             self.adb_badge.set_state("run")
         if not P.adb_available():
             self._adb_result("missing")
             return
-        ip, port, err = self._adb_endpoint()
-        if err:
-            self._adb_result("err", err)
-            return
-        self._on_adb_endpoint_edited()
+        if self.adb_manual.isVisible():
+            ip, port, err = self._adb_endpoint()
+            if err:
+                self._adb_result("err", err)
+                return
+            self._on_adb_endpoint_edited()
+        else:
+            ip, port = self.state.ip, None
+            if not ip or not _is_ipv4(ip):
+                self._adb_result("err", "Сначала выберите телевизор выше (или впишите IP вручную).")
+                return
         self._use_adb_ip(ip)
+        self._adb_ip = ip
         self._set("adb", "run", "", None)
-        self.state.bg(lambda: adb_state(ip, force=True, port=port),
-                     lambda r, e: self._adb_result(r or "offline"))
+
+        def work():
+            return adb_state(ip, force=True, port=port), adb_mdns(0).get(ip, {})
+        self.state.bg(work, lambda r, e: self._adb_after(ip, *(r or ("offline", {}))))
+
+    def _adb_after(self, ip, st, ann):
+        print(f"adb: {ip} -> {st}, announces {ann}", flush=True)
+        if st == "device":
+            self._adb_stop_watch()
+            self._adb_result("device")
+        elif st == "unauthorized":
+            self._adb_result("unauthorized")
+            self._adb_hint("Посмотрите на экран ТВ: нажмите «Разрешить» и отметьте «Всегда разрешать с этого "
+                           "компьютера». Fling подключится сам, как только вы нажмёте.")
+            self._adb_start_watch("allow", 120)
+        elif st == "missing":
+            self._adb_result("missing")
+        elif ann.get("pairing"):
+            self._adb_ask_code()
+        else:
+            self._adb_result("err", "ТВ пока не пускает по ADB.")
+            self._adb_hint("Включите на ТВ отладку — Fling заметит это сам:\n"
+                           "1. Настройки → Об устройстве → 7 раз нажмите «Сборка».\n"
+                           "2. Настройки → Для разработчиков → «Отладка по сети» (или «Отладка по USB»).\n"
+                           "На Android 11+: «Беспроводная отладка» → «Подключить по коду» — код появится "
+                           "на ТВ, впишите его здесь.")
+            self._adb_start_watch("enable", 300)
+
+    def _adb_ask_code(self):
+        self._set("adb", "need", "", None)
+        if hasattr(self, "adb_badge"):
+            self.adb_badge.set_state("run")                 # not an error: the TV waits for the code
+        self._adb_hint("На экране ТВ открыто сопряжение — впишите 6 цифр с экрана и нажмите «Связать».")
+        self.adb_pairbox.show()
+        self.wcode.setFocus()
+        self._adb_stop_watch()
+
+    def _adb_start_watch(self, mode: str, seconds: int):
+        self._adb_mode, self._adb_until = mode, time.monotonic() + seconds
+        self._adb_busy = False
+        self._adb_watch.start()
+
+    def _adb_stop_watch(self):
+        self._adb_mode = None
+        self._adb_watch.stop()
+
+    def _adb_tick(self):
+        """While waiting for the user at the TV: "allow" — has the TV accepted this computer?
+        "enable" — has debugging appeared on the network (then connect, or ask for the code)?"""
+        ip, mode = getattr(self, "_adb_ip", None), self._adb_mode
+        if not ip or not mode or time.monotonic() > self._adb_until or not self.isVisible():
+            self._adb_stop_watch()
+            return
+        if getattr(self, "_adb_busy", False):
+            return
+        self._adb_busy = True
+
+        def work():
+            if mode == "allow":
+                out = P.run([_ADB, "devices"], capture_output=True, text=True, timeout=5).stdout
+                for line in out.splitlines():
+                    if line.startswith(ip + ":") and len(line.split()) > 1:
+                        return ("state", line.split()[1], line.split()[0])
+                return ("state", "gone", "")
+            return ("mdns", adb_mdns(0).get(ip, {}), "")
+
+        def done(r, e):
+            self._adb_busy = False
+            if not r or self._adb_mode != mode:
+                return
+            kind, val, serial = r
+            if kind == "state" and val == "device":
+                p = serial.rpartition(":")[2]
+                c = load_conf()
+                if p.isdigit():
+                    c.setdefault("adb_ports", {})[ip] = int(p); c["adb_port"] = int(p); save_conf(c)
+                _ADB_HOST[ip] = ("device", 0.0)
+                self._adb_stop_watch()
+                self._adb_hint("")
+                self._adb_result("device")
+            elif kind == "mdns" and val.get("pairing"):
+                self._adb_ask_code()
+            elif kind == "mdns" and (val.get("connect") or val.get("adb")):
+                self._adb_stop_watch()
+                self._adb_hint("")
+                self.adb_connect()
+        self.state.bg(work, done)
 
     def adb_pair(self):
         if hasattr(self, "adb_badge"):
@@ -6880,24 +7158,36 @@ class SetupWindow(QWidget):
         if not P.adb_available():
             self._adb_result("missing")
             return
-        ip, _, err = self._adb_endpoint()
-        if err:
-            self._adb_result("err", err)
-            return
+        if self.adb_manual.isVisible():
+            ip, _, err = self._adb_endpoint()
+            if err:
+                self._adb_result("err", err)
+                return
+        else:
+            ip = getattr(self, "_adb_ip", None) or self.state.ip
         self._use_adb_ip(ip)
-        port, code = self.wport.text().strip(), re.sub(r"\D", "", self.wcode.text())
-        if not (port.isdigit() and len(code) == 6):
-            self._adb_result("err", "Введите порт сопряжения и 6-значный код из «Беспроводной отладки» на ТВ.")
+        typed, code = self.wport.text().strip(), re.sub(r"\D", "", self.wcode.text())
+        if len(code) != 6:
+            self._adb_result("err", "Код сопряжения — 6 цифр с экрана ТВ.")
             return
         def work():
+            port = typed if typed.isdigit() else adb_mdns(0).get(ip, {}).get("pairing")
+            if not port:
+                return "no-pairing-port"
             r = P.run([_ADB, "pair", f"{ip}:{port}", code], capture_output=True, text=True, timeout=20)
             return (r.stdout + r.stderr).strip()
         def done(out, e):
             ok = out and "Successfully paired" in out
             if ok:
+                self.adb_pairbox.hide(); self.wcode.clear()
+                self._adb_hint("")
                 if hasattr(self, "adb_badge"):
                     self.adb_badge.set_state("run")
-                self.adb_connect()
+                _MDNS["at"] = -99.0                      # the connect port appears right after pairing
+                QTimer.singleShot(1200, self.adb_connect)
+            elif out == "no-pairing-port":
+                self._adb_result("err", "Окно с кодом на ТВ уже закрыто. На ТВ: Беспроводная отладка → "
+                                        "«Подключить по коду» — и впишите новый код.")
             else:
                 self._adb_result("err", f"Не вышло: {out or e}")
         self.state.bg(work, done)
@@ -6907,8 +7197,11 @@ class SetupWindow(QWidget):
         badge = getattr(self, "adb_badge", None)
         # Keep the card mark in sync; detail lives on the Android badge
         if st == "device":
-            p = load_conf().get("adb_port") or 5555
+            p = adb_port_for(getattr(self, "_adb_ip", None) or self.state.ip or "")
             self._set("adb", "ok", "", None)
+            if hasattr(self, "adb_hint"):
+                self._adb_hint("")
+                self.adb_pairbox.hide()
             if hasattr(self, "wconn"):
                 self.wconn.setText(str(p))
             if badge:
@@ -6918,7 +7211,7 @@ class SetupWindow(QWidget):
             self.state.poll_tvm()
             self.state._set_adb_ui("ok")
         elif st == "unauthorized":
-            msg = ("На экране ТВ — «Разрешить» (лучше с «Всегда»), затем снова нажмите Android.")
+            msg = ("Ждём «Разрешить» на экране ТВ…")
             self._set("adb", "need", "", None)
             if badge:
                 badge.set_state("err", msg)
@@ -6932,10 +7225,7 @@ class SetupWindow(QWidget):
             if hasattr(self, "adb_actions"):
                 self.adb_actions.hide()
         else:
-            msg = err or (
-                "Нет ответа ADB. Проверьте IP/порт или сопряжение ниже "
-                "(Беспроводная отладка → «IP-адрес и порт»)."
-            )
+            msg = err or "ТВ пока не пускает по ADB."
             self._set("adb", "need", "", None)
             if badge:
                 badge.set_state("err", msg)
@@ -6999,9 +7289,9 @@ class SetupWindow(QWidget):
         # Prefill empty fields from the selected TV / saved conf — never overwrite what the user is typing
         if hasattr(self, "wip") and not self.wip.hasFocus() and not self.wip.text().strip():
             self.wip.setText(s.ip or str(load_conf().get("adb_ip") or ""))
-        if hasattr(self, "wconn") and not self.wconn.hasFocus() and not self.wconn.text().strip():
-            saved = load_conf().get("adb_port")
-            if saved:
+        if hasattr(self, "wconn") and not self.wconn.hasFocus() and not self.wconn.text().strip() and s.ip:
+            saved = adb_port_for(s.ip)
+            if saved and saved != 5555:
                 self.wconn.setText(str(saved))
 
 
