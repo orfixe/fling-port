@@ -68,9 +68,15 @@ try {
   Get-ChildItem (Join-Path $Repo 'dist') -Filter "*-$Ver.zip" | Copy-Item -Destination $Rel   # this version only
   # macOS: built by CI; macos/install.sh downloads them from the latest release
   if (-not $MacFrom) { $MacFrom = (gh release view --repo orfixe/fling-port --json tagName -q .tagName) }
-  gh release download $MacFrom --repo orfixe/fling-port --dir $Rel `
-    --pattern Fling --pattern Info.plist --pattern Fling.app.zip --clobber
-  if ($LASTEXITCODE -ne 0) { throw "could not fetch the macOS files of $MacFrom" }
+  # GitHub's file storage drops connections in bursts on some networks: try a few times
+  for ($try = 1; ; $try++) {
+    gh release download $MacFrom --repo orfixe/fling-port --dir $Rel `
+      --pattern Fling --pattern Info.plist --pattern Fling.app.zip --clobber
+    if ($LASTEXITCODE -eq 0) { break }
+    if ($try -ge 5) { throw "could not fetch the macOS files of $MacFrom" }
+    Write-Host "    download failed, retry $try of 4..." -ForegroundColor Yellow
+    Start-Sleep -Seconds (4 * $try)
+  }
   Copy-Item (Join-Path $Repo 'macos\install.sh') $Rel -Force   # the installer from this commit, not the last release's
 
   Write-Host '==> SHA256SUMS.txt' -ForegroundColor Cyan
