@@ -3,7 +3,7 @@
   Builds and signs a Fling release on the maintainer's machine. Asks for the release key
   password once, then:
     1. windows\build.ps1 -Official   (guard built as official, fling.manifest signed)
-    2. collects the release files in dist\release: the setup, the Android APK, the
+    2. collects the release files in dist\release: the setup, the Linux .run, the Android APK, the
        browser extension zips and the macOS files of the previous release
     3. writes SHA256SUMS.txt for all of them and signs it (SHA256SUMS.txt.minisig)
     4. checks both signatures with fling-guard
@@ -78,6 +78,15 @@ try {
     Start-Sleep -Seconds (4 * $try)
   }
   Copy-Item (Join-Path $Repo 'macos\install.sh') $Rel -Force   # the installer from this commit, not the last release's
+  # Linux: Fling-Setup-<v>-linux.run, built by linux/make-run.sh with Git for Windows' bash
+  # (igncr: the script itself may have CRLF in a Windows checkout; the payload is made LF)
+  $GitDir = Split-Path (Split-Path (Get-Command git).Source)          # ...\Git\cmd\git.exe → ...\Git
+  $GitBash = @((Join-Path $GitDir 'bin\bash.exe'), (Join-Path (Split-Path $GitDir) 'bin\bash.exe'),
+               (Join-Path $env:ProgramFiles 'Git\bin\bash.exe')) | Where-Object { Test-Path $_ } | Select-Object -First 1
+  if (-not $GitBash) { throw "Git Bash not found (Git for Windows; needed for the Linux installer)" }
+  Push-Location $Repo
+  try { & $GitBash -o igncr linux/make-run.sh dist/release | Out-Host } finally { Pop-Location }
+  if ($LASTEXITCODE -ne 0) { throw "linux/make-run.sh failed ($LASTEXITCODE)" }
 
   Write-Host '==> SHA256SUMS.txt' -ForegroundColor Cyan
   $Sums = Join-Path $Rel 'SHA256SUMS.txt'

@@ -19,6 +19,13 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ### Added
 
+- Linux: **a normal installer** — `Fling-Setup-<version>-linux.run` on the Releases page. Download,
+  open (double-click opens it in a terminal window), done: no `git clone`, no root. It works on
+  any distribution: what the system lacks comes from the official sources — PyQt6 and lz4 from
+  PyPI, adb and scrcpy as the publishers' builds with their checksums checked. On Debian/Ubuntu,
+  Arch, Fedora and openSUSE it offers the missing system packages first (`--no-system` skips
+  them). Running a newer `.run` updates Fling and restarts it; `--uninstall` removes it.
+  Built by `linux/make-run.sh` (reproducible), signed with the release in `SHA256SUMS.txt`.
 - macOS: **remote access over Tailscale.** *TVs on Tailscale…* in the footer's TV menu (and
   *Remote access (Tailscale)…* in the right-click menu) opens a window with the TVs on your
   tailnet (online state, **Add**, all devices on request, home networks behind a subnet router),
@@ -73,6 +80,12 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   ADB block, or Finder "Open With → Fling Port".
 - macOS: Fling runs its own adb server on its own port and stops only that one on quit —
   Android Studio's adb is left alone.
+### Changed
+
+- `linux/install.sh` no longer needs Debian/Ubuntu: it knows apt, pacman, dnf and zypper, asks
+  for the password only for packages that are really missing, installs every `desktop/*.py`
+  and gives Fling its own menu icon.
+
 ### Fixed
 
 - macOS: **one refused handshake no longer ends the pairing.** A TV that has just woken up or
