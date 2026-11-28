@@ -40,7 +40,8 @@ import javax.crypto.Cipher;
  *  connection open with several streams for LIVE. */
 final class Adb {
     static final int CNXN = 0x4e584e43, AUTH = 0x48545541, OPEN = 0x4e45504f,
-            OKAY = 0x59414b4f, CLSE = 0x45534c43, WRTE = 0x45545257;
+            OKAY = 0x59414b4f, CLSE = 0x45534c43, WRTE = 0x45545257, STLS = 0x534c5453;
+    private static final int STLS_VERSION = 0x01000000;
     private static final int VERSION = 0x01000001, MAX_PAYLOAD = 256 * 1024;
     private static final byte[] SHA1_PREFIX = {0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a,
             0x05, 0x00, 0x04, 0x14};
@@ -73,6 +74,15 @@ final class Adb {
         Files.write(pf.toPath(), kp.getPublic().getEncoded());
         priv = kp.getPrivate();
         pub = (RSAPublicKey) kp.getPublic();
+    }
+
+    /** Pairs with the TV's "Pair device with pairing code" window (Wireless debugging). */
+    void pair(String host, int port, String code) throws Exception {
+        keys();
+        byte[] k = androidPubKey();
+        AdbPair.pair(AdbPair.tls(priv, pub), host, port, code, k);
+        noPubkeyUntil.remove(host);
+        lastState = "?";
     }
 
     /** Android's mincrypt RSAPublicKey struct, base64 + " name". */
@@ -163,8 +173,22 @@ final class Adb {
                 // Numeric IPv4 host → IPv4 socket; never open an IPv6 path here
                 s.connect(new InetSocketAddress(java.net.InetAddress.getByName(host), port), 2500);
             } catch (IOException e) {
-                lastState = "closed";
-                throw new IOException("ADB is off on the TV");
+                // 5555 closed: Wireless debugging (Android 11+) listens on its own port, found over mDNS
+                int tlsPort = port == 5555 ? AdbPair.connectPort(ctx, host) : 0;
+                boolean alt = false;
+                if (tlsPort > 0) {
+                    try { s.close(); } catch (IOException ignored) {}
+                    s = new Socket();
+                    try {
+                        s.connect(new InetSocketAddress(java.net.InetAddress.getByName(host), tlsPort), 2500);
+                        port = tlsPort;
+                        alt = true;
+                    } catch (IOException ignored) {}
+                }
+                if (!alt) {
+                    lastState = "closed";
+                    throw new IOException("ADB is off on the TV");
+                }
             }
             s.setTcpNoDelay(true);   // keys and touches must not wait for Nagle
             s.setSoTimeout(8000);
@@ -180,6 +204,19 @@ final class Adb {
                     throw new IOException("Accept the debugging prompt on the TV");
                 }
                 if (m.cmd == CNXN) break;
+                if (m.cmd == STLS) {                                 // paired (Wireless debugging): TLS with our key
+                    send(o, STLS, STLS_VERSION, 0, null);
+                    javax.net.ssl.SSLSocket t;
+                    try { t = AdbPair.wrap(AdbPair.tls(priv, pub), s, host, port); }
+                    catch (IOException e) {                           // the TV doesn't know this key: pair first
+                        lastState = "unpaired";
+                        throw new IOException(L.t("ТВ не знает этот телефон — выполните сопряжение по коду."));
+                    }
+                    s = t;
+                    in = new DataInputStream(new java.io.BufferedInputStream(t.getInputStream(), 64 * 1024));
+                    o = t.getOutputStream();
+                    continue;
+                }
                 if (m.cmd != AUTH || m.a0 != 1) throw new IOException("unexpected adb reply");
                 if (!sentSig) {
                     Cipher c = Cipher.getInstance("RSA/ECB/PKCS1Padding");

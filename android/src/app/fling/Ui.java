@@ -351,7 +351,9 @@ final class Ui {
         f.setLayoutParams(lp(s, s));
         if (glyph != null) {
             ImageView i = new ImageView(ctx);
-            i.setImageDrawable(new Glyph(glyph, accented ? onPrimC : onTonal, 2.0f));
+            // the d-pad and Back keep their bold strokes; every other key a lighter, Material-like line
+            boolean bold = glyph.equals("up") || glyph.equals("down") || glyph.equals("left") || glyph.equals("right") || glyph.equals("back");
+            i.setImageDrawable(new Glyph(glyph, accented ? onPrimC : onTonal, bold ? 2.0f : 1.3f));
             int is = Math.round(s * 0.46f);
             f.addView(i, new FrameLayout.LayoutParams(is, is, Gravity.CENTER));
         } else {

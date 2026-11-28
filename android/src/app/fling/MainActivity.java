@@ -182,7 +182,11 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private YtLounge yt;
     /** YouTube on the TV is what plays (not Fling's own cast of something else). */
     private boolean ytOnTv(Cast.Status v) {
-        return v != null && ((v.appId != null && v.appId.contains("youtube")) || (tvApp != null && tvApp.contains("youtube")));
+        if (v == null) return false;
+        // Cast names YouTube by its receiver id (233637DE) and "YouTube"; ADB by the package
+        if (v.appId != null && (v.appId.toLowerCase(java.util.Locale.ROOT).contains("youtube") || v.appId.equals("233637DE"))) return true;
+        if (v.appName != null && v.appName.toLowerCase(java.util.Locale.ROOT).contains("youtube")) return true;
+        return tvApp != null && tvApp.contains("youtube");
     }
     /** Settings → YouTube on the TV: "exact" (Lounge, linked with the TV's code) or keys. */
     private boolean ytExact() { return "lounge".equals(prefs.getString("yt_seek", "keys")) && yt.paired(); }
@@ -296,6 +300,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             maybeSetup();
         }
         discovery.start();
+        AdbPair.start(this);                                          // Wireless debugging ports (mDNS)
         sam.discover(() -> main.post(() -> onDevices(lastFound)));   // Samsung TVs (SSDP) join the same list
         connectDevice();
         updater.resumed();                                           // back from "Install unknown apps": offer the update again
@@ -964,11 +969,12 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         }
         boolean icons = false;
         for (String[] a : list) if (TvIcons.icon(this, a[2]) != null) { icons = true; break; }
-        final int tileH = ui.dp(icons ? 50 : 38);                 // one height for every tile, "+" too
+        final int tileH = ui.dp(44);                              // one height for every tile, "+" too
+        final int cols = icons ? 3 : 4;                           // with icons: wider tiles, icon + name in a line
         int n = list.size() + (list.size() < MAX_APPS ? 1 : 0);   // + the "+" tile
         LinearLayout r = null;
         for (int i = 0; i < n; i++) {
-            if (i % 4 == 0) { r = ui.row(); appGrid.addView(r, ui.margins(Ui.lp(-1, -2), 0, i == 0 ? 0 : 6, 0, 0)); }
+            if (i % cols == 0) { r = ui.row(); appGrid.addView(r, ui.margins(Ui.lp(-1, -2), 0, i == 0 ? 0 : 6, 0, 0)); }
             View cellView;
             if (i < list.size()) {
                 final int idx = i;
@@ -976,7 +982,9 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 final FrameLayout cell = new FrameLayout(this);
                 TextView c = ui.chip(app[0], v -> { if (!editTiles) launchTile(app); });
                 c.setTag(app[2]);
-                withIcon(c, app[2], 20);
+                c.setSingleLine(true);
+                c.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                withIcon(c, app[2], 24);
                 c.setMinHeight(tileH);
                 c.setOnLongClickListener(v -> { startTileDrag(cell, idx); return true; });
                 chips.add(c);
@@ -1002,12 +1010,12 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 cellView = c;
             }
             LinearLayout.LayoutParams p = Ui.lpW(1);
-            p.setMargins(i % 4 == 0 ? 0 : ui.dp(3), 0, i % 4 == 3 ? 0 : ui.dp(3), 0);
+            p.setMargins(i % cols == 0 ? 0 : ui.dp(3), 0, i % cols == cols - 1 ? 0 : ui.dp(3), 0);
             r.addView(cellView, p);
         }
-        for (int k = n % 4; k != 0 && k < 4; k++) {             // keep the last row's tiles the same width
+        for (int k = n % cols; k != 0 && k < cols; k++) {       // keep the last row's tiles the same width
             LinearLayout.LayoutParams p = Ui.lpW(1);
-            p.setMargins(ui.dp(3), 0, k == 3 ? 0 : ui.dp(3), 0);
+            p.setMargins(ui.dp(3), 0, k == cols - 1 ? 0 : ui.dp(3), 0);
             r.addView(new View(this), p);
         }
         // under the tiles while editing: what to do, back to the defaults, done
@@ -1073,14 +1081,19 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     }
 
     /** The app's icon from the TV (TvIcons) above the name; nothing when it isn't known yet. */
+    /** The TV's icon at the start of the tile, rounded like a launcher icon; the name beside it. */
     private void withIcon(TextView t, String pkg, int dp) {
         android.graphics.Bitmap b = TvIcons.icon(this, pkg);
         if (b == null) return;
-        android.graphics.drawable.BitmapDrawable d = new android.graphics.drawable.BitmapDrawable(getResources(), b);
+        androidx.core.graphics.drawable.RoundedBitmapDrawable d =
+                androidx.core.graphics.drawable.RoundedBitmapDrawableFactory.create(getResources(), b);
+        d.setCornerRadius(Math.min(b.getWidth(), b.getHeight()) * 0.22f);
+        d.setAntiAlias(true);
         d.setBounds(0, 0, ui.dp(dp), ui.dp(dp));
-        t.setCompoundDrawablesRelative(null, d, null, null);
-        t.setCompoundDrawablePadding(ui.dp(3));
-        t.setPadding(t.getPaddingLeft(), ui.dp(6), t.getPaddingRight(), ui.dp(5));
+        t.setCompoundDrawablesRelative(d, null, null, null);
+        t.setCompoundDrawablePadding(ui.dp(8));
+        t.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+        t.setPadding(ui.dp(10), 0, ui.dp(8), 0);
     }
 
     /** Hosts whose tile icons were asked for in this run: once each, not on every redraw. */
@@ -2292,6 +2305,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     /** The person chose the TV in the list (First steps waits for this, not for auto-discovery). */
     private boolean tvPicked;
     private int adbAsks;
+    /** First steps, Wireless debugging: the last pairing result (null: none yet / it worked). */
+    private String adbPairMsg;
     private Runnable setupTick;
 
     /** "First steps": on the first start, and again from Settings. One step at a time, each
@@ -2315,8 +2330,10 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private void showSetup() {
         final int TV = 0, ADB = 1, HELPER = 2, PAIR = 3, YT = 4, DONE = 5;
         final int[] step = {TV};
-        final int[] shown = {-1};
-        adbAsks = 0;                                   // the step the field was last set up for
+        final int[] shown = {-1};                                   // the step the field was last set up for
+        adbAsks = 0;
+        adbPairMsg = null;
+        AdbPair.start(this);                                        // the TV's pairing window, seen over mDNS
         final boolean[] skipped = new boolean[6];
         final android.app.Dialog d = new android.app.Dialog(this);
         d.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
@@ -2372,24 +2389,57 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                     main1.setText(L.t("Выбрать телевизор"));
                     main1.setOnClickListener(v -> openPicker());
                     break;
-                case ADB:
-                    title.setText(L.t("Включите отладку по сети"));
-                    body.setText(adbAsks >= 2 && !"asking".equals(Adb.lastState)
-                            ? L.t("Окно на ТВ так и не появилось? На ТВ выключите и снова включите «Отладка по сети» (или перезагрузите ТВ), затем нажмите «Проверить».")
-                            : "asking".equals(Adb.lastState)
-                            ? L.t("Смотрите на ТВ: «Разрешить отладку?» — отметьте «Всегда разрешать с этого компьютера» и нажмите «Разрешить».")
-                            : "unauthorized".equals(Adb.lastState)
-                            ? L.t("ТВ не получил разрешения. Нажмите «Проверить» — на ТВ снова появится запрос, у вас будет полторы минуты.")
-                            : L.t("На ТВ: Настройки → Система → Об устройстве → 7 раз нажмите «Сборка ОС». Затем Настройки → Система → «Для разработчиков» → включите «Отладка по сети»."));
-                    main1.setText(L.t("Проверить"));
-                    main1.setOnClickListener(v -> {
-                        adbAsks++;
-                        adb.promptNow(host);                      // the TV asks again now, not in 5 minutes
-                        Adb.lastState = "asking";
-                        adbNext = 0; pollAdb();
-                        render[0].run();
-                    });
+                case ADB: {
+                    title.setText(L.t("Включите отладку по Wi‑Fi"));
+                    Integer pp = AdbPair.pairPorts.get(host);
+                    if (pp != null) {                                // the TV's "pairing code" window is open
+                        body.setText(adbPairMsg != null ? adbPairMsg : L.t("Введите 6 цифр из окна на ТВ."));
+                        code.setVisibility(View.VISIBLE);
+                        code.setHint("123456");
+                        main1.setText(L.t("Связать"));
+                        main1.setOnClickListener(v -> {
+                            String c = code.getText().toString().replaceAll("[^0-9]", "");
+                            if (c.length() != 6) { adbPairMsg = L.t("Код — 6 цифр с экрана ТВ."); render[0].run(); return; }
+                            adbPairMsg = L.t("Связываю…");
+                            render[0].run();
+                            final String h = host;
+                            bg(() -> {
+                                String msg = null;
+                                try { adb.pair(h, pp, c); }
+                                catch (Exception e) { msg = e.getMessage() == null ? L.t("Не получилось.") : e.getMessage(); }
+                                final String m = msg;
+                                main.post(() -> {
+                                    adbPairMsg = m;
+                                    if (m == null) { AdbPair.pairPorts.remove(h); adbNext = 0; pollAdb(); }
+                                    render[0].run();
+                                });
+                            });
+                        });
+                    } else if ("asking".equals(Adb.lastState) || "unauthorized".equals(Adb.lastState)) {
+                        // the older way (port 5555): the TV's own "Allow debugging?" window
+                        body.setText("asking".equals(Adb.lastState)
+                                ? L.t("Смотрите на ТВ: «Разрешить отладку?» — отметьте «Всегда разрешать с этого компьютера» и нажмите «Разрешить».")
+                                : L.t("ТВ не получил разрешения. Нажмите «Проверить» — на ТВ снова появится запрос, у вас будет полторы минуты."));
+                        main1.setText(L.t("Проверить"));
+                        main1.setOnClickListener(v -> {
+                            adb.promptNow(host);
+                            Adb.lastState = "asking";
+                            adbNext = 0; pollAdb();
+                            render[0].run();
+                        });
+                    } else {
+                        body.setText(adbPairMsg != null ? adbPairMsg
+                                : L.t("На ТВ: Настройки → Система → «Для разработчиков» → «Отладка по Wi‑Fi» → «Включено» → «Подключить устройство с помощью кода подключения». Fling увидит окно с кодом сам.\n\nНет «Для разработчиков»? Настройки → Система → Об устройстве → 7 раз нажмите «Сборка ОС»."));
+                        main1.setText(L.t("Проверить"));
+                        main1.setOnClickListener(v -> {
+                            adbPairMsg = null;
+                            AdbPair.start(this);
+                            adbNext = 0; pollAdb();
+                            render[0].run();
+                        });
+                    }
                     break;
+                }
                 case HELPER:
                     title.setText(L.t("Ставлю помощник на ТВ"));
                     body.setText(L.t("3 КБ: Fling узнаёт названия и иконки приложений ТВ. Это займёт несколько секунд."));
@@ -2594,7 +2644,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             xLink.setVisibility(ytId ? View.VISIBLE : View.GONE);
             boolean ytLinked = ytOnTv(st) && ytExact();
             xSpeed.setVisibility((ours && !ytApp) || ytLinked ? View.VISIBLE : View.GONE);   // a media receiver, or YouTube over Lounge
-            nowProg.setEnabled(st.duration > 0 && (!ytOnTv(st) || ytLinked || !tvMedia()));    // keys can't hit a second
+            nowProg.setEnabled(st.duration > 0 && (!ytOnTv(st) || ytLinked));   // YouTube without its code: ±30 s keys only
             xSpeed.setText(speedLabel(st.rate));
             xAudio.setVisibility(tvKeys ? View.VISIBLE : View.GONE);
             xRestart.setVisibility(ours && st.duration > 0 ? View.VISIBLE : View.GONE);
@@ -2666,12 +2716,13 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                        : samState.equals("waiting") ? L.t("Нажмите «Разрешить» на экране ТВ")
                        : samState.equals("denied") ? L.t("ТВ не разрешил подключение")
                        : samState.equals("error") || samState.equals("offline") ? L.t("ТВ не отвечает") : L.t("Подключаюсь…"))
+                    : tvApp != null && HIDDEN.contains(tvApp) ? L.t("Главный экран")
                     : tvApp != null ? L.f("Сейчас: %s", appName(tvApp)) : Boolean.FALSE.equals(tvOn) ? L.t("ТВ выключен") : tvOn == null ? L.t("Подключаюсь…") : L.t("Главный экран");
             tvNow.setText(now);
             for (TextView c : chips) ui.setChipActive(c, c.getTag().equals(tvApp));
             dpadBox.setVisibility(padMode == 0 ? View.VISIBLE : View.GONE);
             padBox.setVisibility(padMode == 1 ? View.VISIBLE : View.GONE);
-            micIcon.setImageDrawable(new Ui.Glyph(voice ? "mic_fill" : "mic", voice ? ui.red : ui.onTonal, 2.0f));
+            micIcon.setImageDrawable(new Ui.Glyph(voice ? "mic_fill" : "mic", voice ? ui.red : ui.onTonal, 1.3f));
             micKey.setBackground(ui.rippleOval(voice ? Ui.alpha(ui.red, 0.15f) : ui.tonal));
             listening.setVisibility(voice ? View.VISIBLE : View.GONE);
             hwHint.setVisibility(volKeys() ? View.VISIBLE : View.GONE);

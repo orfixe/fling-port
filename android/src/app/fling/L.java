@@ -348,6 +348,14 @@ final class L {
         e("Свой цвет", "Your own colour");
         e("Субтитры", "Subtitles");
         e("Первые шаги", "First steps");
+        e("Включите отладку по Wi‑Fi", "Turn on Wireless debugging");
+        e("Введите 6 цифр из окна на ТВ.", "Type the 6 digits from the window on the TV.");
+        e("Код — 6 цифр с экрана ТВ.", "The code is the 6 digits on the TV screen.");
+        e("Связываю…", "Pairing…");
+        e("Не получилось.", "Didn't work.");
+        e("На ТВ: Настройки → Система → «Для разработчиков» → «Отладка по Wi‑Fi» → «Включено» → «Подключить устройство с помощью кода подключения». Fling увидит окно с кодом сам.\n\nНет «Для разработчиков»? Настройки → Система → Об устройстве → 7 раз нажмите «Сборка ОС».", "On the TV: Settings → System → Developer options → Wireless debugging → On → \"Pair device with pairing code\". Fling sees the code window by itself.\n\nNo Developer options? Settings → System → About → tap \"Android TV OS build\" 7 times.");
+        e("ТВ не знает этот телефон — выполните сопряжение по коду.", "The TV doesn't know this phone — pair it with the code.");
+        e("Сопряжение по коду требует Android 10 или новее.", "Pairing with a code needs Android 10 or newer.");
         e("Введите код с экрана YouTube на ТВ.", "Type the code from YouTube on the TV.");
         e("YouTube не ответил, попробуйте ещё раз.", "YouTube didn't answer, try again.");
         e("Окно на ТВ так и не появилось? На ТВ выключите и снова включите «Отладка по сети» (или перезагрузите ТВ), затем нажмите «Проверить».", "No window on the TV? Turn Network debugging off and on again on the TV (or restart the TV), then press \"Check\".");
