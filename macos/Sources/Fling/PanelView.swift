@@ -25,6 +25,8 @@ struct PanelView: View {
                             .padding(.horizontal, 14).padding(.vertical, 4)
                     }
                     Separator()
+                    LiveRows(state: state)        // port: TV screen (scrcpy), LiveUI.swift
+                    Separator()
                     housekeeping
                     DeviceFooter(state: state)    // always the last row
                 }
