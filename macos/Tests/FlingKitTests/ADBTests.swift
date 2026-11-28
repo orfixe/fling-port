@@ -120,6 +120,36 @@ __UP__
         #expect(ADBParse.nowPlaying(nullTitle)?.state == .idle)
     }
 
+    /// Android 14 (a Mi TV, casting through mediashell) prints the state by name:
+    /// "state=PLAYING(3)". Before the fix the parser only knew "state=3" and saw nothing playing.
+    @Test func test_now_playing_android14_named_state() throws {
+        let out = """
+          Sessions Stack - have 2 sessions:
+            mediashell com.google.android.apps.mediashell/mediashell (userId=0)
+              package=com.google.android.apps.mediashell
+              active=true
+              state=PlaybackState {state=PLAYING(3), position=968, buffered position=0, speed=1.0, updated=93303314, actions=775, custom actions=[], active item id=-1, error=null}
+              metadata: size=11, description=Big_Buck_Bunny_720_10s_30MB, null, null
+            A2dpMediaPlayer com.android.bluetooth/A2dpMediaPlayer (userId=0)
+              package=com.android.bluetooth
+              active=false
+              state=PlaybackState {state=ERROR(7), position=0, buffered position=0, speed=0.0, updated=27206, actions=0, custom actions=[], active item id=-1, error=Звук через Bluetooth отключен}
+              metadata: null
+        __UP__
+        93303.490 1000.00
+        """
+        let np = try #require(ADBParse.nowPlaying(out))
+        #expect(np.state == .playing)
+        #expect(np.title == "Big_Buck_Bunny_720_10s_30MB")
+        #expect(np.artist == nil)
+        #expect(np.package == "com.google.android.apps.mediashell")
+        // 0.968 s at update + (93303.490 s − 93303.314 s) × 1.0
+        #expect(abs(try #require(np.elapsed) - 1.144) < 0.01)
+
+        let paused = out.replacingOccurrences(of: "state=PLAYING(3)", with: "state=PAUSED(2)")
+        #expect(ADBParse.nowPlaying(paused)?.state == .paused)
+    }
+
     @Test func test_install_failures_in_plain_words() {
         #expect(ADBParse.installFailure(exitCode: 0, output: "Performing Streamed Install\nSuccess") == nil)
         #expect(ADBParse.installFailure(exitCode: 1, output:

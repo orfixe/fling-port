@@ -125,7 +125,7 @@ public enum ADBParse {
                          var upd = 0.0; var title: String?; var artist: String? }
         var sessions: [Session] = []
         let stateRx = try! NSRegularExpression(
-            pattern: #"state=(\d+), position=(-?\d+).*?speed=(-?[\d.]+), updated=(\d+)"#)
+            pattern: #"state=(?:[A-Z_]+\()?(\d+)\)?, position=(-?\d+).*?speed=(-?[\d.]+), updated=(\d+)"#)
         for raw in body.split(whereSeparator: \.isNewline) {
             let l = raw.trimmingCharacters(in: .whitespaces)
             if l.hasPrefix("package=") {

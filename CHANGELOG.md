@@ -10,6 +10,13 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- PC, Android and macOS: **"what's playing" over ADB never showed anything on Android 14 TVs.**
+  Android 14 writes the playback state by name (`state=PLAYING(3)`), and Fling only read the
+  old form (`state=3`), so it always saw "nothing playing". Both forms are read now (found on a
+  Xiaomi Mi TV casting through the built-in Cast receiver).
+
 ### Added
 
 - macOS: **remote access over Tailscale.** *TVs on Tailscale…* in the footer's TV menu (and

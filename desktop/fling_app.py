@@ -1060,7 +1060,7 @@ def adb_now_playing(ip: str) -> dict | None:
         elif l.startswith("active="):
             cur["active"] = l.endswith("true")
         elif l.startswith("state=PlaybackState"):
-            m = re.search(r"state=(\d+), position=(-?\d+).*?speed=([\d.]+), updated=(\d+)", l)
+            m = re.search(r"state=(?:[A-Z_]+\()?(\d+)\)?, position=(-?\d+).*?speed=([\d.]+), updated=(\d+)", l)
             if m:
                 cur.update(st=int(m[1]), pos=int(m[2]), speed=float(m[3]), upd=int(m[4]))
         elif l.startswith("metadata:") and "description=" in l:
