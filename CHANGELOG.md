@@ -10,6 +10,24 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-28
+
+### Added
+
+- Linux: **a normal installer** — `Fling-Setup-<version>-linux.run` on the Releases page. Download,
+  open (double-click opens it in a terminal window), done: no `git clone`, no root. It works on
+  any distribution: what the system lacks comes from the official sources — PyQt6 and lz4 from
+  PyPI, adb and scrcpy as the publishers' builds with their checksums checked. On Debian/Ubuntu,
+  Arch, Fedora and openSUSE it offers the missing system packages first (`--no-system` skips
+  them). Running a newer `.run` updates Fling and restarts it; `--uninstall` removes it.
+  Built by `linux/make-run.sh` (reproducible), signed with the release in `SHA256SUMS.txt`.
+
+### Changed
+
+- `linux/install.sh` no longer needs Debian/Ubuntu: it knows apt, pacman, dnf and zypper, asks
+  for the password only for packages that are really missing, installs every `desktop/*.py`
+  and gives Fling its own menu icon.
+
 ## [0.7.0] - 2026-11-28
 
 ### Added
