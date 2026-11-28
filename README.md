@@ -14,6 +14,8 @@ Cast a browser tab or a link to a Chromecast / Google TV — and drive the TV it
 power, apps, d-pad, volume, typing, voice search. **LIVE** shows the TV's screen on the PC and
 the phone (scrcpy), and over **Tailscale** it all works away from home.
 
+<img src="docs/screenshots/flight.gif" width="640" alt="A command flies from a phone, a Windows PC, a Mac and a Linux PC to the TV">
+
 [![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white)](docs/install-windows.md)
 [![Linux KDE](https://img.shields.io/badge/Linux-KDE%20Plasma-1D99F3?logo=kde&logoColor=white)](#install--linux)
 [![Android 8+](https://img.shields.io/badge/Android-8%2B-3DDC84?logo=android&logoColor=white)](#install--android)

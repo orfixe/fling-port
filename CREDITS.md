@@ -31,6 +31,11 @@ that license; `macos/RemoteView.swift` is a modified copy of the original's file
 license text is in [`macos/LICENSE-fling.txt`](macos/LICENSE-fling.txt). The rest of this port
 is its own code under the MIT License.
 
+**The logo.** Fling's icon — the screen with the white dot and the trail of bubbles, on the
+blue-to-violet square — is the original Fling logo (`.github/logo.svg`, by Damion Rashford,
+2026-08-29), used under the same Boost Software License 1.0. This port redraws it in code
+(`desktop/fling_app.py` `logo_pixmap`, `android/res/drawable/ic_fling_*`) and animates it.
+
 ## Libraries and tools
 
 | Project | Used for | License |

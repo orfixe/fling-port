@@ -14,6 +14,8 @@
 телевизором: питание, приложения, громкость, ввод текста, голосовой поиск. **LIVE** показывает
 экран ТВ на компьютере и телефоне (scrcpy), а через **Tailscale** всё это работает и вне дома.
 
+<img src="docs/screenshots/flight.gif" width="640" alt="Команда летит на ТВ с телефона, Windows, Mac и Linux">
+
 [![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white)](docs/install-windows.ru.md)
 [![Linux KDE](https://img.shields.io/badge/Linux-KDE%20Plasma-1D99F3?logo=kde&logoColor=white)](#linux)
 [![Android 8+](https://img.shields.io/badge/Android-8%2B-3DDC84?logo=android&logoColor=white)](#android)
