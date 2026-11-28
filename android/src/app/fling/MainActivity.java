@@ -2313,6 +2313,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private void showSetup() {
         final int TV = 0, ADB = 1, HELPER = 2, PAIR = 3, YT = 4, DONE = 5;
         final int[] step = {TV};
+        final int[] shown = {-1};                                   // the step the field was last set up for
         final boolean[] skipped = new boolean[6];
         final android.app.Dialog d = new android.app.Dialog(this);
         d.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
@@ -2352,6 +2353,12 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             int s = step[0];
             progress.setText(s < DONE ? L.f("Шаг %d из %d", s + 1, 5) : L.t("Готово"));
             code.setVisibility(View.GONE);
+            if (shown[0] != s) {                                    // a new step: an empty field, its own keyboard
+                shown[0] = s;
+                code.setText("");
+                code.setInputType(s == YT ? InputType.TYPE_CLASS_NUMBER
+                        : InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+            }
             skip.setVisibility(s == TV || s == DONE ? View.GONE : View.VISIBLE);
             main1.setVisibility(View.VISIBLE);
             switch (s) {
