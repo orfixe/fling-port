@@ -44,7 +44,8 @@ Quick checks before committing:
 
 ```sh
 python3 -m py_compile desktop/*.py linux/*.py
-bash -n linux/install.sh linux/fling linux/fling-tui
+bash -n linux/install.sh linux/make-run.sh linux/fling linux/fling-tui
+linux/make-run.sh                      # dist/Fling-Setup-<version>-linux.run
 ```
 
 The Bluetooth service runs on its own: `python3 linux/bt_remote.py serve`, then
