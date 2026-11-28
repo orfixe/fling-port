@@ -13,8 +13,9 @@ import sys
 
 W, H, FPS = 880, 360, 25
 SHOT = 1.55                     # seconds per device
-DEVICES = [("Android", "phone", "Cast video"), ("Windows", "laptop", "Volume +"),
-           ("macOS", "laptop", "Pause"), ("Linux", "monitor", "Open YouTube")]
+DEVICES = [("Android", "phone", "Cast video", "android"), ("Windows", "laptop", "Volume +", "windows"),
+           ("macOS", "laptop", "Pause", "apple"), ("Linux", "monitor", "Open YouTube", "linux")]
+# OS marks: Simple Icons (CC0 data; the marks are their owners' trademarks), in os/
 TV = (560, 70, 270, 165)        # x, y, w, h of the screen
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "flight.gif")
 
@@ -26,11 +27,14 @@ def ease(t):
 def frames(out_dir):
     from PyQt6.QtCore import QPointF, QRectF, Qt
     from PyQt6.QtGui import QColor, QFont, QImage, QLinearGradient, QPainter, QPainterPath, QPen
+    from PyQt6.QtSvg import QSvgRenderer
     from PyQt6.QtWidgets import QApplication
     app = QApplication([])                          # kept: Qt needs it alive while drawing text
     os.makedirs(out_dir, exist_ok=True)
     white = QColor("white")
     rows = [(70, 46 + i * 78) for i in range(4)]          # each device's centre-left
+    here = os.path.dirname(os.path.abspath(__file__))
+    marks = {d[3]: QSvgRenderer(os.path.join(here, "os", d[3] + ".svg")) for d in DEVICES}
     total = int((len(DEVICES) * SHOT + 1.2) * FPS)
 
     def device(p, kind, x, y, on):
@@ -60,12 +64,15 @@ def frames(out_dir):
 
         # the devices, the active one bright, its name under it
         f_name = QFont("Segoe UI", 11); f_name.setWeight(QFont.Weight.DemiBold)
-        for i, (name, kind, _) in enumerate(DEVICES):
+        for i, (name, kind, _, mark) in enumerate(DEVICES):
             x, y = rows[i]
             on = i == shot
             device(p, kind, x, y, on)
+            p.setOpacity(1.0 if on else 0.55)
+            marks[mark].render(p, QRectF(x + 82, y - 11, 22, 22))
+            p.setOpacity(1.0)
             p.setFont(f_name); p.setPen(QColor(255, 255, 255, 255 if on else 140))
-            p.drawText(QRectF(x + 80, y - 12, 120, 24), Qt.AlignmentFlag.AlignVCenter, name)
+            p.drawText(QRectF(x + 114, y - 12, 120, 24), Qt.AlignmentFlag.AlignVCenter, name)
 
         # the TV
         tx, ty, tw, th = TV
@@ -76,6 +83,12 @@ def frames(out_dir):
         p.setPen(QPen(white, 5))
         p.drawLine(QPointF(tx + tw / 2 - 40, ty + th + 26), QPointF(tx + tw / 2 + 40, ty + th + 26))
         p.drawLine(QPointF(tx + tw / 2, ty + th + 4), QPointF(tx + tw / 2, ty + th + 24))
+        ftv = QFont("Segoe UI", 13); ftv.setWeight(QFont.Weight.Bold)          # what the right side is
+        p.setFont(ftv); p.setPen(white)
+        p.drawText(QRectF(tx, ty + th + 34, tw, 24), Qt.AlignmentFlag.AlignCenter, "TV")
+        fsub = QFont("Segoe UI", 10); p.setFont(fsub); p.setPen(QColor(255, 255, 255, 190))
+        p.drawText(QRectF(tx - 20, ty + th + 56, tw + 40, 22), Qt.AlignmentFlag.AlignCenter,
+                   "Google TV · Android TV · Chromecast")
 
         # what arrived: the command, on the TV until the next one lands
         last = shot - (0 if landed else 1)

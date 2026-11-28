@@ -39,8 +39,8 @@ android {
         applicationId = "app.fling"
         minSdk = 26
         targetSdk = 36
-        versionCode = 20
-        versionName = "0.6.3"
+        versionCode = 21
+        versionName = "0.7.0"
         buildConfigField("String", "GIT_COMMIT", "\"$commit\"")
         buildConfigField("String", "BUILD_DATE", "\"${LocalDate.now()}\"")
     }

@@ -10,17 +10,51 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
-## [0.6.3] - 2026-11-28
+## [0.7.0] - 2026-11-28
 
 ### Added
 
+- Android: **pairing with the TV's code** (Wireless debugging, Android 11+ TVs). On the TV:
+  Developer options → Wireless debugging → "Pair device with pairing code"; Fling sees that
+  window by itself and asks for the 6 digits. ADB, LIVE, the helper and the TV's volume then
+  work with the phone alone — no computer, no port 5555. (Port 5555 still works where it's on.)
+- Android: **First steps** on the first start: the TV list first, then one step at a time —
+  Wireless debugging, the helper, pairing the remote, YouTube by code — each moving on by
+  itself when done. Again any time from Settings → First steps.
+- Android: **YouTube to the second** — Settings → YouTube → "Exact, with the TV's code" links
+  Fling to YouTube on the TV: seeking with the bar, speed, next / previous. Without it,
+  YouTube keeps the ±30 s keys (the bar no longer pretends to seek it).
+- Android: **"⋯" → About the TV**: model, Android, screen, memory, storage, uptime; close the
+  app on screen, clear the apps' cache (and how much it freed), TV settings, restart.
+- Android: the **helper on the TV** reads every launcher app with its name and a sharp
+  192 px icon in one go (the "+" list), and the TV's details. Still read-only.
+- Android: **On the phone, link, speed, audio track, from the start** in the now-playing card.
+- Android: **Material 3** (Monet): every key, chip, field and switch takes the wallpaper's
+  tones; AMOLED stays pure black.
+- **The icon animates**: the white ball — a command — flies the arc of bubbles into the TV
+  and the screen lights up (Android launch and welcome screen). A short flight GIF in the README.
 - Android: **seek by dragging the progress bar**; the time shows where it will go, letting go
   seeks. For an app started on the TV (YouTube from its remote) it goes in 10 s steps.
 - Android: in the now-playing card, **subtitles (CC), previous and next** for the TV's own
   apps; the title is one running line instead of two cut ones.
 
+### Changed
+
+- Android: the remote sits right under the header; tiles three to a row with the TV's icon
+  beside the name; lighter keys (the d-pad, Back and OK stay bold); "Home screen" instead of
+  "Launcherx"; in the TV list the remotes by their names (Android TV Remote, Samsung Remote).
+- Android: LIVE upright shows the remote under the picture, sideways the keys stay put; it
+  follows the rotation lock.
+- The icon is a vector everywhere: an adaptive Android icon with a themed (monochrome) layer,
+  a Windows .ico with every size drawn at its size (sharp tray and taskbar), the extension's
+  icons redrawn.
+
 ### Fixed
 
+- Android: the **sleep timer** turned off only a paired TV; now ADB or Samsung's own remote too.
+- Android: tiles you added kept refusing after the TV had allowed ADB; they try again.
+- Android: "Allow debugging?" was asked before anyone looked and then not again for 5 minutes;
+  "Check" asks again at once.
 - PC and Android: **volume did nothing for YouTube started on the TV** — the slider sent a
   Cast volume, and such an app has no Cast session. With ADB it now sets the TV's own volume
   (and the phone's volume keys do too); pause and seek also go over ADB without pairing.

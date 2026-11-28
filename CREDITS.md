@@ -36,6 +36,15 @@ blue-to-violet square — is the original Fling logo (`.github/logo.svg`, by Dam
 2026-08-29), used under the same Boost Software License 1.0. This port redraws it in code
 (`desktop/fling_app.py` `logo_pixmap`, `android/res/drawable/ic_fling_*`) and animates it.
 
+**OS marks in the README animation** (`docs/screenshots/os/`) come from
+[Simple Icons](https://simpleicons.org) (CC0 1.0); Android, Windows, Apple and Linux (Tux) marks
+are trademarks of their owners and only say which systems Fling runs on.
+
+**Wireless debugging pairing** (`android/src/app/fling/Spake2.java`, `AdbPair.java`) is written
+from the protocol as AOSP's adb (`pairing_connection`, `pairing_auth`; Apache-2.0) and
+BoringSSL's SPAKE2 (`spake25519`; ISC) define it — no code copied; the M and N points are
+derived from BoringSSL's published seeds.
+
 ## Libraries and tools
 
 | Project | Used for | License |
