@@ -2409,7 +2409,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                     break;
                 case YT:
                     title.setText(L.t("YouTube по коду — по желанию"));
-                    body.setText(L.t("Точная перемотка YouTube и скорость. На ТВ: YouTube → Настройки → «Подключить телевизор по коду» — введите код здесь."));
+                    body.setText(L.t("Точная перемотка YouTube и скорость. На ТВ: YouTube → Настройки → «Подключить телевизор по коду»."));
                     code.setVisibility(View.VISIBLE);
                     code.setHint("1234 5678 9012");
                     main1.setText(L.t("Подключить"));

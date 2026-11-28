@@ -365,7 +365,7 @@ final class L {
         e("Введите код с экрана ТВ.", "Type the code from the TV screen.");
         e("Один раз: на ТВ появится код из 6 символов. После этого работают текст, голос и пульт без ADB.", "Once: the TV shows a 6-character code. Then text, voice and the remote work without ADB.");
         e("Показать код на ТВ", "Show the code on the TV");
-        e("Точная перемотка YouTube и скорость. На ТВ: YouTube → Настройки → «Подключить телевизор по коду» — введите код здесь.", "Exact YouTube seeking and speed. On the TV: YouTube → Settings → \"Link with TV code\" — type the code here.");
+        e("Точная перемотка YouTube и скорость. На ТВ: YouTube → Настройки → «Подключить телевизор по коду».", "Exact YouTube seeking and speed. On the TV: YouTube → Settings → \"Link with TV code\".");
         e("Всё готово", "All set");
         e("Отладка по сети", "Network debugging");
         e("Помощник на ТВ", "The helper on the TV");
