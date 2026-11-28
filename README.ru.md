@@ -53,7 +53,7 @@
 |---|---|
 | **Windows 10 / 11** | Скачайте `Fling-Setup-….exe` со страницы [Releases](../../releases), при желании [проверьте подлинность файла](SECURITY.md#is-my-copy-the-real-fling) и запустите. Подробно: **[гайд для Windows](docs/install-windows.ru.md)** |
 | **Chrome / Edge / Firefox / Safari** | Сначала поставьте приложение, затем [расширение](#расширение-для-браузера) |
-| **Linux (KDE)** | `git clone` и `linux/install.sh` — [подробнее](#linux) |
+| **Linux** | Скачайте `Fling-Setup-…-linux.run` в [Releases](../../releases) и откройте — [подробнее](#linux) |
 | **Телефон на Android** | Поставьте `Fling.apk` со страницы [Releases](../../releases) — [подробнее](#android) |
 
 Компьютер / телефон и телевизор должны быть в одной сети.
@@ -153,14 +153,26 @@
 
 ## Linux
 
-```sh
-git clone https://github.com/orfixe/fling-port.git && cd fling-port/linux
-./install.sh
-fling
-```
+1. Скачайте **`Fling-Setup-<версия>-linux.run`** в [Releases](../../releases)
+   (при желании [проверьте](SECURITY.md#is-my-copy-the-real-fling): он есть в подписанном `SHA256SUMS.txt`).
+2. Откройте его: в Dolphin / «Файлах» разрешите запуск (*Свойства → Права → Исполняемый*) и
+   щёлкните дважды, или в терминале: `bash Fling-Setup-*-linux.run`.
+3. Запустите **Fling** из меню приложений. Значок появится в системном трее.
 
-Проверено на Kubuntu 26.04 (KDE Plasma 6). Удаление: `./install.sh --uninstall`.
-Подробности — в [английском README](README.md#install--linux).
+Установщик ставит Fling только для вашего пользователя и **не требует root**: всё идёт в `~/.local`.
+Что уже есть в системе, используется; чего нет — берётся из официальных источников (PyQt6 и lz4
+с PyPI, adb от Google, scrcpy из его релизов на GitHub, с проверкой контрольных сумм). На Debian/Ubuntu,
+Arch, Fedora и openSUSE он сначала предложит недостающие системные пакеты (спросит пароль; можно
+отказаться или передать `--no-system` — из системы нужны только D-Bus / PyGObject для уведомлений KDE
+и Bluetooth-пульта).
+
+Обновление — запустить более новый `.run` (запущенный Fling перезапустится). Удаление:
+`bash Fling-Setup-*-linux.run --uninstall`; `--extract ПАПКА` только распакует файлы.
+
+Из исходников: `git clone https://github.com/orfixe/fling-port.git && fling-port/linux/install.sh`.
+Собрать `.run` из своей копии: `linux/make-run.sh` (→ `dist/`).
+
+Проверено на Kubuntu 26.04 и CachyOS (KDE Plasma 6). Подробности — в [английском README](README.md#install--linux).
 
 ### Команды
 
