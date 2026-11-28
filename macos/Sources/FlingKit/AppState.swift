@@ -76,6 +76,8 @@ public final class AppState: ObservableObject {
         self.atv = atv
         self.prober = prober
         self.panel = catt == nil ? .setupNeeded : .idleNotCastable(reason: "No page open")
+        // Port: TVs added over Tailscale are on the list before (and without) a scan
+        self.devices = TailnetTVStore.shared.devices
     }
 
     // MARK: - derived labels
@@ -147,8 +149,10 @@ public final class AppState: ObservableObject {
         let lastUsed = self.lastUsedBrowser
         // catt takes an IP directly and skips mDNS discovery; targeting by
         // name re-resolves every call and intermittently misses.
-        let knownDevice = self.selectedDevice?.ip
-        let needsScan = self.devices.isEmpty
+        // Port: not a tailnet TV whose Cast port is closed — catt would wait out its timeout.
+        let knownDevice = self.castTarget
+        // Port: saved tailnet TVs don't count — home TVs are still looked for.
+        let needsScan = !self.devices.contains { !$0.isTailnet }
 
         let fast = await Task.detached(priority: .userInitiated) { () -> RefreshResult in
             let running = Browser.allCases.filter { browsers.isRunning($0) }
@@ -182,11 +186,19 @@ public final class AppState: ObservableObject {
 
         guard needsScan else { return }
         let found = await Task.detached(priority: .userInitiated) { try? catt.scan() }.value
-        guard gen == interactionGeneration, let found, !found.isEmpty else { return }
-        devices = found
+        guard gen == interactionGeneration else { return }
+        guard let found, !found.isEmpty else {
+            // Port: away from home the scan finds nothing — a saved tailnet TV it is
+            if selectedDevice == nil, let tv = devices.first(where: \.isTailnet) {
+                selectedDevice = tv
+                refreshTVPaired()
+            }
+            return
+        }
+        devices = TailnetTVStore.shared.merged(into: found)
         if selectedDevice == nil { selectedDevice = found.first }
         refreshTVPaired()
-        if knownDevice == nil, let ip = selectedDevice?.ip {
+        if knownDevice == nil, let ip = castTarget {
             let status = await Task.detached(priority: .userInitiated) {
                 try? catt.status(device: ip)
             }.value
@@ -198,7 +210,7 @@ public final class AppState: ObservableObject {
     /// Cheap poll for the menu-bar clock while the panel is closed: one catt
     /// status call, no browser reads, no probing.
     public func refreshStatus() async {
-        guard let catt, let ip = selectedDevice?.ip else { return }
+        guard let catt, let ip = castTarget else { return }
         let gen = interactionGeneration
         let status = await Task.detached(priority: .utility) {
             try? catt.status(device: ip)
@@ -554,6 +566,7 @@ public final class AppState: ObservableObject {
     private func send(_ body: @escaping @Sendable (CattClient, String) throws -> Void) async {
         guard let catt else { lastError = "catt is not installed"; return }
         guard let device = selectedDevice?.ip else { lastError = "No device selected"; return }
+        if let blocked = Tailnet.castBlockedReason(selectedDevice) { lastError = blocked; return }
 
         let failure = await Task.detached(priority: .userInitiated) { () -> String? in
             do { try body(catt, device); return nil }
@@ -562,5 +575,43 @@ public final class AppState: ObservableObject {
         }.value
 
         lastError = failure
+    }
+
+    // MARK: - Port: TVs over Tailscale (see Tailscale.swift)
+
+    /// The address catt talks to: the selected TV unless it's a tailnet TV whose Cast port is closed.
+    private var castTarget: String? {
+        guard let d = selectedDevice, Tailnet.castBlockedReason(d) == nil else { return nil }
+        return d.ip
+    }
+
+    /// Adds a TV found on the tailnet (remembered across launches) and selects it. A TV
+    /// already paired at home trusts this Mac's key on any address, so the pairing is
+    /// carried over when the TV accepts it; otherwise the usual pairing flow asks for the code.
+    public func addTailnetTV(_ tv: TailnetTV) async {
+        TailnetTVStore.shared.save(tv)
+        let device = tv.device
+        devices.removeAll { $0.ip == device.ip }
+        devices.append(device)
+        await select(device: device)
+        guard let atv, tv.remote, atv.store.identityExists, !atv.hasPairing(host: tv.ip),
+              !atv.store.pairedHosts().isEmpty else { return }
+        atv.store.recordPairedHost(tv.ip)
+        do {
+            try await atv.connect(host: tv.ip)
+        } catch {
+            atv.store.removePairedHost(tv.ip)
+        }
+        refreshTVPaired()
+    }
+
+    /// Forgets a TV added over Tailscale.
+    public func removeTailnetTV(ip: String) {
+        TailnetTVStore.shared.remove(ip: ip)
+        devices.removeAll { $0.ip == ip }
+        if selectedDevice?.ip == ip {
+            selectedDevice = devices.first
+            refreshTVPaired()
+        }
     }
 }

@@ -31,6 +31,8 @@ struct ContextMenuBuilder {
                 return item
             }))
         }
+        // Port: TVs on Tailscale, what works away from home (RemoteAccessView.swift)
+        menu.addItem(action("Remote access (Tailscale)…") { RemoteAccessWindow.show(state: state) })
         menu.addItem(.separator())
 
         menu.addItem(action(state.status.isPlaying ? "Pause" : "Play",

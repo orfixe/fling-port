@@ -32,6 +32,15 @@ works remotely and an example ACL.
 **Phone.** Install the official Tailscale app, turn it on, and add the TV in Fling by its
 Tailscale address (shown in the Tailscale app), just as you would add a TV by IP.
 
+**Mac.** In the panel footer open the TV menu (*Switch* / *TVs*) → **TVs on Tailscale…** (also in
+the menu-bar icon's right-click menu: *Remote access (Tailscale)…*). The window lists the TVs on
+your tailnet with **Add**, takes a `100.x.y.z` address or a MagicDNS name, says what works away
+from home and shows the example ACL. Fling finds the Tailscale app's command line client by
+itself (Tailscale.app or Homebrew) and only reads `tailscale status --json`. On the Mac the
+remote works over the tailnet; casting tabs through catt needs the home network (see below).
+A TV paired at home is tried with the same key on its Tailscale address; if it asks, pair once
+more (*Pair* in the panel).
+
 Pair the remote and allow ADB **once at home** (Connect TV); the pairing keeps working over
 the tailnet.
 

@@ -235,17 +235,21 @@ struct DeviceFooter: View {
             Text(tr(state.selectedDevice?.name ?? "No device found"))
                 .font(.system(size: 11.5))
                 .lineLimit(1)
+            TailnetBadge(state: state)    // port: "via Tailscale · 38 ms"
             Spacer()
-            if state.devices.count > 1 {
-                Menu(tr("Switch")) {
-                    ForEach(state.devices) { device in
-                        Button(tr(device.name)) { Task { await state.select(device: device) } }
+            // Port: always there, for the TVs on Tailscale (RemoteAccessView.swift)
+            Menu(tr(state.devices.count > 1 ? "Switch" : "TVs")) {
+                ForEach(state.devices) { device in
+                    Button(tr(device.name) + (device.isTailnet ? " · Tailscale" : "")) {
+                        Task { await state.select(device: device) }
                     }
                 }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .font(.system(size: 11))
+                if !state.devices.isEmpty { Divider() }
+                Button(tr("TVs on Tailscale…")) { RemoteAccessWindow.show(state: state) }
             }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .font(.system(size: 11))
         }
         .padding(.horizontal, 14)
         .padding(.top, 5)

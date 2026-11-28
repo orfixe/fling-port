@@ -10,6 +10,21 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+### Added
+
+- macOS: **remote access over Tailscale.** *TVs on Tailscale…* in the footer's TV menu (and
+  *Remote access (Tailscale)…* in the right-click menu) opens a window with the TVs on your
+  tailnet (online state, **Add**, all devices on request, home networks behind a subnet router),
+  adding a TV by `100.x.y.z` or MagicDNS name (Fling checks Cast 8009, remote 6466, ADB 5555),
+  what works away from home (the remote yes; casting through catt needs the home network) and
+  an example ACL to copy. Added TVs stay on the TV list across launches and are picked when the
+  home scan finds nothing; a TV paired at home is tried with the same key on its tailnet address.
+  The footer shows *via Tailscale · 38 ms* with a direct / relayed tooltip. Plain-word hints when
+  Tailscale isn't installed, is off or isn't signed in. Fling only reads `tailscale status --json`
+  and `tailscale ping` (Tailscale.app or Homebrew CLI) and never changes Tailscale's settings.
+- macOS: a tailnet TV whose Cast port doesn't answer says so instead of casting, and catt isn't
+  polled against it.
+
 ## [0.5.8] - 2026-11-28
 
 ### Fixed
