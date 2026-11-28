@@ -50,6 +50,9 @@ final class Ui {
     /** Material 3 tonal buttons: the secondary container and its content colour — from the
      *  wallpaper with Monet, a tint of the accent otherwise (they were neutral grey). */
     final int tonal, onTonal;
+    /** M3 primary container (OK, the main key), surface variant (fields, segmented, mic) and
+     *  its content colour (row icons) — wallpaper tones with Monet, accent-tinted otherwise. */
+    final int primC, onPrimC, surfVar, onSurfVar;
 
     // ------------------------------------------------------------ themes (Settings → Appearance)
 
@@ -152,9 +155,18 @@ final class Ui {
         if (you) {
             tonal = ctx.getColor(dark ? android.R.color.system_accent2_800 : android.R.color.system_accent2_100);
             onTonal = ctx.getColor(dark ? android.R.color.system_accent2_100 : android.R.color.system_accent2_900);
+            primC = ctx.getColor(dark ? android.R.color.system_accent1_700 : android.R.color.system_accent1_200);
+            onPrimC = ctx.getColor(dark ? android.R.color.system_accent1_100 : android.R.color.system_accent1_900);
+            surfVar = black ? ctx.getColor(android.R.color.system_neutral2_900)
+                    : ctx.getColor(dark ? android.R.color.system_neutral2_700 : android.R.color.system_neutral2_100);
+            onSurfVar = ctx.getColor(dark ? android.R.color.system_neutral2_200 : android.R.color.system_neutral2_700);
         } else {
             tonal = blend(black ? 0xFF000000 : card, accent, dark ? 0.2f : 0.12f);
             onTonal = fg;
+            primC = blend(black ? 0xFF000000 : card, accent, dark ? 0.32f : 0.22f);
+            onPrimC = accent;
+            surfVar = blend(black ? 0xFF000000 : card, fg, dark ? 0.1f : 0.05f);
+            onSurfVar = fgA(0.55f);
         }
     }
 
@@ -213,8 +225,7 @@ final class Ui {
         e.setTextColor(fg);
         e.setHintTextColor(fgA(0.35f));
         if (mono) e.setTypeface(Typeface.MONOSPACE);
-        GradientDrawable bg = round(dark ? 0x14FFFFFF : 0x0A000000, 10);
-        bg.setStroke(dp(1), fgA(0.12f));
+        GradientDrawable bg = round(surfVar, 12);
         e.setBackground(bg);
         e.setPadding(dp(12), dp(10), dp(12), dp(10));
         e.setInputType(InputType.TYPE_CLASS_TEXT);
@@ -320,7 +331,7 @@ final class Ui {
             int c = !en ? fgA(0.3f) : accented ? accent : fg;
             title.setTextColor(c);
             title.setTypeface(Typeface.create(accented ? "sans-serif-medium" : "sans-serif", Typeface.NORMAL));
-            int ico = !en ? fgA(0.3f) : iconColor != null ? iconColor : accented ? accent : fgA(0.55f);
+            int ico = !en ? fgA(0.3f) : iconColor != null ? iconColor : accented ? accent : onSurfVar;
             if (iconName != null) ic.setImageDrawable(new Glyph(iconName, ico, 1.8f));
         }
     }
@@ -335,16 +346,16 @@ final class Ui {
 
     View key(String glyph, String label, float sizeDp, boolean accented, View.OnClickListener on) {
         FrameLayout f = new FrameLayout(ctx);
-        f.setBackground(rippleOval(accented ? accA(0.14f) : tonal));
+        f.setBackground(rippleOval(accented ? primC : tonal));
         int s = dp(sizeDp);
         f.setLayoutParams(lp(s, s));
         if (glyph != null) {
             ImageView i = new ImageView(ctx);
-            i.setImageDrawable(new Glyph(glyph, accented ? accent : onTonal, 2.0f));
+            i.setImageDrawable(new Glyph(glyph, accented ? onPrimC : onTonal, 2.0f));
             int is = Math.round(s * 0.46f);
             f.addView(i, new FrameLayout.LayoutParams(is, is, Gravity.CENTER));
         } else {
-            TextView t = text(label, sizeDp * 0.28f, accented ? accent : onTonal, true);
+            TextView t = text(label, sizeDp * 0.28f, accented ? onPrimC : onTonal, true);
             f.addView(t, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
         }
         f.setClickable(true);
@@ -981,7 +992,7 @@ final class Ui {
 
     LinearLayout segmented(String[] items, int selected, java.util.function.IntConsumer on) {
         LinearLayout box = row();
-        box.setBackground(round(fgA(dark ? 0.1f : 0.06f), 9));
+        box.setBackground(round(surfVar, 12));
         box.setPadding(dp(2), dp(2), dp(2), dp(2));
         TextView[] tv = new TextView[items.length];
         for (int i = 0; i < items.length; i++) {
@@ -1001,8 +1012,9 @@ final class Ui {
     }
 
     private void styleSeg(TextView t, boolean on) {
-        t.setBackground(on ? round(dark ? 0xFF3A3A3C : 0xFFFFFFFF, 7) : null);
-        if (on) t.setElevation(dp(1)); else t.setElevation(0);
+        t.setBackground(on ? round(primC, 10) : null);   // M3: the chosen segment in the primary container
+        t.setTextColor(on ? onPrimC : onSurfVar);
+        t.setElevation(0);
         t.setTypeface(Typeface.create(on ? "sans-serif-medium" : "sans-serif", Typeface.NORMAL));
     }
 }

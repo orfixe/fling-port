@@ -1843,9 +1843,9 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         liveKey.setContentDescription(L.t("Экран ТВ на телефоне"));
         liveKey.setOnClickListener(v -> openLive());
         header.addView(liveKey, ui.margins(Ui.lp(-2, ui.dp(36)), 0, 0, 8, 0));
-        TextView help = ui.text("?", 20, ui.accent, true);           // opens the "How to use" guide
+        TextView help = ui.text("?", 20, ui.onTonal, true);          // opens the "How to use" guide
         help.setGravity(Gravity.CENTER);
-        help.setBackground(ui.round(Ui.alpha(ui.accent, 0.12f), 18));
+        help.setBackground(ui.rippleOval(ui.tonal));
         help.setContentDescription(L.t("Как пользоваться"));
         help.setOnClickListener(v -> startTour());
         helpView = help;
@@ -1860,6 +1860,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         buildLinkCard();
         buildTvCard();
         buildFooter();
+        root.removeView(tvCard);                                     // the remote: right under the header
+        root.addView(tvCard, root.indexOfChild(header) + 1);
     }
 
     private void addCard(LinearLayout c) { root.addView(c, ui.margins(Ui.lp(-1, -2), 0, 0, 0, 14)); }
@@ -2222,7 +2224,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         pm.setOnMenuItemClickListener(it -> {
             int m = it.getItemId();
             if (m == 0) { SleepTimer.cancel(this); toast(L.t("Таймер сна выключен")); }
-            else { SleepTimer.set(this, host, m); toast(L.f("ТВ выключится в %s", hhmm(SleepTimer.endsAt(this)))); }
+            else { SleepTimer.set(this, host, m, isSamsung()); toast(L.f("ТВ выключится в %s", hhmm(SleepTimer.endsAt(this)))); }
             sync();
             return true;
         });
@@ -2667,8 +2669,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             for (TextView c : chips) ui.setChipActive(c, c.getTag().equals(tvApp));
             dpadBox.setVisibility(padMode == 0 ? View.VISIBLE : View.GONE);
             padBox.setVisibility(padMode == 1 ? View.VISIBLE : View.GONE);
-            micIcon.setImageDrawable(new Ui.Glyph(voice ? "mic_fill" : "mic", voice ? ui.red : ui.fg, 2.0f));
-            micKey.setBackground(ui.rippleOval(voice ? Ui.alpha(ui.red, 0.15f) : ui.fgA(ui.dark ? 0.1f : 0.06f)));
+            micIcon.setImageDrawable(new Ui.Glyph(voice ? "mic_fill" : "mic", voice ? ui.red : ui.onTonal, 2.0f));
+            micKey.setBackground(ui.rippleOval(voice ? Ui.alpha(ui.red, 0.15f) : ui.tonal));
             listening.setVisibility(voice ? View.VISIBLE : View.GONE);
             hwHint.setVisibility(volKeys() ? View.VISIBLE : View.GONE);
             long sleepAt = SleepTimer.endsAt(this);

@@ -27,9 +27,15 @@ public class SleepTimer extends BroadcastReceiver {
         return t > System.currentTimeMillis() ? t : 0;
     }
 
+    static void set(Context c, String host, int minutes, boolean samsung) {
+        prefs(c).edit().putBoolean("sleepSamsung", samsung).apply();
+        set(c, host, minutes);
+    }
+
     static void set(Context c, String host, int minutes) {
         long at = System.currentTimeMillis() + minutes * 60_000L;
         prefs(c).edit().putLong("sleepAt", at).putString("sleepHost", host).apply();
+        // Samsung: its own remote powers it off (MainActivity sets "sleepSamsung" for those TVs)
         AlarmManager am = c.getSystemService(AlarmManager.class);
         if (Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms())
             am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi(c));   // may come a few minutes late
@@ -42,20 +48,37 @@ public class SleepTimer extends BroadcastReceiver {
         c.getSystemService(AlarmManager.class).cancel(pi(c));
     }
 
+    /** Turns the TV off the way it can be reached: the paired remote, else Samsung's own remote,
+     *  else ADB (KEYCODE_SLEEP) — before, an unpaired TV silently stayed on. */
     @Override public void onReceive(Context c, Intent i) {
         L.init(c);
         String host = prefs(c).getString("sleepHost", null);
-        prefs(c).edit().remove("sleepAt").remove("sleepHost").apply();
+        boolean samsung = prefs(c).getBoolean("sleepSamsung", false);
+        prefs(c).edit().remove("sleepAt").remove("sleepHost").remove("sleepSamsung").apply();
         if (host == null) return;
-        final PendingResult pr = goAsync();   // the network work runs on the remote's own thread
-        final Atv atv = new Atv(c.getApplicationContext(), new Atv.Listener() {
+        final PendingResult pr = goAsync();
+        final Context app = c.getApplicationContext();
+        final Atv atv = new Atv(app, new Atv.Listener() {
             public void onPower(Boolean on) {}
             public void onApp(String pkg) {}
             public void onPairing(String state, String message) {}
             public void onError(String message) {}
             public void onVoice(boolean on) {}
         });
-        if (!atv.paired(host)) { pr.finish(); return; }
-        atv.powerOff(host, () -> { atv.disconnect(); pr.finish(); });
+        if (atv.paired(host)) { atv.powerOff(host, () -> { atv.disconnect(); pr.finish(); }); return; }
+        if (samsung) {
+            final Samsung[] sam = new Samsung[1];
+            final boolean[] sent = {false};
+            sam[0] = new Samsung(app, (state, msg) -> {
+                if ("ready".equals(state) && !sent[0]) { sent[0] = true; sam[0].key(host, Atv.POWER); }
+            });
+            sam[0].key(host, Atv.POWER);                           // connects; the key goes once it's ready
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(pr::finish, 8000);
+            return;
+        }
+        new Thread(() -> {
+            try { new Adb(app).shell(host, "input keyevent 223"); } catch (Exception ignored) {}   // SLEEP
+            pr.finish();
+        }).start();
     }
 }
