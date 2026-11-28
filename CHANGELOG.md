@@ -127,6 +127,19 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   repository key, with no rollback to an older index), then the APK's package name and the
   developer's pinned signing certificate (APK Signature Scheme v2/v3/v3.1 or v1). Shows which
   apps are on the TV and their versions, installs, updates, opens and removes them over ADB.
+- macOS: **a guard built into Fling Port**, the Mac counterpart of fling-guard
+  ([SECURITY.md → macOS](SECURITY.md#what-protects-you-after-the-install-macos)).
+  `install.sh` installs nothing unless the files match the release's signed `SHA256SUMS.txt`
+  (minisign, or the installed Fling Port's own verifier), and refuses older releases.
+  At every start Fling Port checks its own code signature and the hash recorded at install.
+  Every program it starts (catt, osascript, adb, scrcpy…) is checked first: system folders,
+  Apple / Developer ID / App Store signatures pass; unsigned tools such as uv's Python or
+  Homebrew builds run after you allow them once, and are asked about again when they change.
+  Unsigned code in temporary folders is refused. A child process using more than 30% of the
+  machine for 90 s is stopped. Log: `~/Library/Logs/Fling Port/guard.log`. Builds from
+  source only report.
+- macOS: the app is signed with the **hardened runtime** (microphone and Apple Events allowed).
+- macOS: `Fling --verify-release`, `--guard-check`, `--guard-selfcheck` command-line checks.
 
 ## [0.5.8] - 2026-11-28
 

@@ -64,6 +64,8 @@ func tr<S: StringProtocol>(_ s: S) -> String {
         PlainWords.russian,
         SamsungRU.exact,
         RUCasting.exact,
+        GuardL10n.ru,
+        GuardL10n.ru,
     ]
     let patternTables: [[(NSRegularExpression, String)]] = [
         RU.patterns,

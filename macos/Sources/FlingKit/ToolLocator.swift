@@ -309,7 +309,19 @@ public final class StreamingProcess: @unchecked Sendable {
                     c.resume(returning: p.terminationStatus)
                 }
             }
-            do { try process.run() } catch {
+            do {
+                // port: macOS guard — the installer itself is checked; what it runs
+                // (compilers, git, curl, Ruby…) is left to it, the CPU watchdog still applies.
+                try GuardedProcess.check(cmd.executable)
+                try process.run()
+                let pid = process.processIdentifier
+                ProcessGuard.shared.trustDescendants(of: pid)
+                let done = process.terminationHandler
+                process.terminationHandler = { p in
+                    ProcessGuard.shared.untrustDescendants(of: pid)
+                    done?(p)
+                }
+            } catch {
                 onOutput("\(error.localizedDescription)\n")
                 process.terminationHandler = nil
                 c.resume(returning: -1)

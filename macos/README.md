@@ -26,6 +26,25 @@ Or from a clone:
 ```
 
 Installs to `~/Applications/Fling Port.app`, re-signs locally, strips quarantine.
+Nothing is installed unless the files match the release's signed `SHA256SUMS.txt`
+(checked with `minisign` or an already installed, verified Fling Port).
+`FLING_PORT_UNVERIFIED=1` installs your own build without the check (the guard then only
+reports); `FLING_PORT_FROM_DIR=<folder>` takes the release files from a folder.
+
+## Guard
+
+`Sources/FlingKit/Guard/` — self check at start, a check of every program Fling Port starts,
+CPU watchdog, `~/Library/Logs/Fling Port/guard.log`. See
+[SECURITY.md → macOS](../SECURITY.md#what-protects-you-after-the-install-macos).
+Code that starts programs uses `GuardedProcess.run` / `GuardedProcess.launch` (or
+`SystemProcessRunner`, which is already checked); a tool installer calls
+`ToolTrust.register(path:expectedSHA256:)` after installing.
+
+```sh
+Fling.app/Contents/MacOS/Fling --guard-check /opt/homebrew/bin/scrcpy   # what the guard thinks
+Fling.app/Contents/MacOS/Fling --guard-selfcheck
+Fling.app/Contents/MacOS/Fling --verify-release SHA256SUMS.txt Fling Info.plist
+```
 
 ## What this build adds to upstream Fling
 
@@ -56,6 +75,7 @@ XCTest suite can't build; run the port's tests against a package of `FlingKit` w
 - `Sources/FlingKit/Samsung/` — Smart View for Samsung TVs (remote, apps, DLNA, SSDP, Wake-on-LAN);
   see [docs/smart-view.md](../docs/smart-view.md#on-a-mac).
 - `Tests/` — the port's tests (Swift Testing), laid over upstream `Tests/`.
+- `Fling.entitlements` — the hardened-runtime exceptions (microphone, Apple Events).
 - `update-upstream.sh [ref]` — three-way merges upstream `ref` (default `main`) into `Sources/`.
 
 ## Build on a Mac

@@ -61,8 +61,11 @@ python3 "$EXT_OUT/build.py" chrome firefox >/dev/null
   cp "$ROOT/macos/Info.plist" "$APP/Contents/Info.plist"
   mkdir -p "$APP/Contents/Resources/extension"
   cp -R "$EXT_OUT/dist/chrome" "$EXT_OUT/dist/firefox" "$APP/Contents/Resources/extension/"
-  codesign --force --deep --sign "$SIGN_ID" "$APP"
-  codesign --verify --verbose "$APP"
+  # Hardened runtime (macOS guard): no code injection through DYLD_* variables, no
+  # unsigned libraries, no debugger attach. The entitlements re-allow the microphone
+  # (voice search) and Apple Events (browser tab) under it.
+  codesign --force --deep --options runtime --entitlements "$ROOT/macos/Fling.entitlements" --sign "$SIGN_ID" "$APP"
+  codesign --verify --strict --verbose "$APP"
   echo "built: $APP"
 )
 

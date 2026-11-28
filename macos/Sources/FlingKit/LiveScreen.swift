@@ -436,6 +436,7 @@ public final class TVScreen: ObservableObject {
             }
         }
         do {
+            try GuardedProcess.check(exe)   // port: macOS guard (asks once for a Homebrew scrcpy)
             try p.run()
         } catch {
             pipe.fileHandleForReading.readabilityHandler = nil

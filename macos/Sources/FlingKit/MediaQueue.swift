@@ -109,6 +109,7 @@ public struct SystemQueueLauncher: QueueLaunching {
             buffer.flush()
             onExit(proc.terminationStatus)
         }
+        try GuardedProcess.check(executable)   // port: macOS guard
         try p.run()
         return Child(p)
     }

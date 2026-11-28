@@ -178,6 +178,9 @@ final class ToolsModel: ObservableObject {
             try? await Task.sleep(nanoseconds: 100_000_000)
             self.rows[spec.key, default: Row()].running = nil
             self.rows[spec.key, default: Row()].exitCode = code
+            // port: macOS guard — a tool the user just installed / updated here is trusted
+            // (its new bytes pinned), so the first use doesn't ask again.
+            if code == 0, let path = ToolLocator.find(spec.key) { _ = try? ToolTrust.register(path: path) }
             self.refresh(latest: false)
         }
     }

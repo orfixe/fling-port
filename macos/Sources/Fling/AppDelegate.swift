@@ -6,6 +6,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var shortcuts: GlobalShortcuts?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Port (macOS guard): self check, launch checks, watchdog — before anything runs
+        GuardBootstrap.start()
         let catt = CattClient.resolveExecutable().map {
             CattClient(executable: $0, runner: SystemProcessRunner())
         }

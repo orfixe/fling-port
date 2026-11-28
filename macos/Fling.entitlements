@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Hardened runtime exceptions Fling Port needs (codesign options "runtime" + these entitlements).
+     Keep in sync with the copy written by macos/install.sh. No sandbox: Fling starts catt,
+     osascript, adb… and talks to TVs on the LAN, which the hardened runtime allows as is. -->
+<plist version="1.0">
+<dict>
+    <!-- voice search: the microphone (VoiceCapture) -->
+    <key>com.apple.security.device.audio-input</key><true/>
+    <!-- reading the browser's front tab through osascript / Apple Events -->
+    <key>com.apple.security.automation.apple-events</key><true/>
+</dict>
+</plist>
