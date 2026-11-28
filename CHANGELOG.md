@@ -10,6 +10,16 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-28
+
+### Changed
+
+- **Theme and language right on the PC panel** (Windows, Linux): a moon with Auto | Light |
+  Dark and a globe with RU | EN at the bottom of the main panel, instead of the small flag.
+  Light / Dark keep a chosen named theme (Graphite, OLED…).
+- Android Settings: theme and language as icon rows (moon, globe) with compact switches,
+  each in its own section.
+
 ## [0.7.0] - 2026-11-28
 
 ### Added
