@@ -2615,7 +2615,9 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private static String gb(String bytes) {
         long b = parseLong(bytes);
         if (b <= 0) return "?";
-        return b >= 1L << 30 ? String.format(java.util.Locale.ROOT, "%.1f ГБ", b / (double) (1L << 30)).replace("ГБ", L.t("ГБ"))
+        String g = String.format(java.util.Locale.ROOT, "%.1f", b / (double) (1L << 30));
+        if (!L.english()) g = g.replace('.', ',');                   // 1,9 ГБ in Russian
+        return b >= 1L << 30 ? g + " " + L.t("ГБ")
                 : (b >> 20) + " " + L.t("МБ");
     }
 
