@@ -10,6 +10,20 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.5.9] - 2026-11-28
+
+### Changed
+
+- Android: **dialogs in Fling's own look** — the update offer, "Allow installing", the GitHub
+  token, the TV address, remote access, the TV screenshot and the guide are rounded cards in
+  the app's colours with the main answer as a tonal accent button. They were the system
+  dialogs of Android 5: square, ALL-CAPS buttons, system colours.
+- Android: the connection chip says **"Local network"** instead of "At home" — it tells how the
+  TV is reached (directly or through Tailscale), not where you are or the Wi‑Fi's name.
+- Android: the AMOLED switch says what it does and where it helps: "Black instead of dark grey.
+  Saves battery on OLED and AMOLED screens." (it promised battery savings on every screen).
+  The guide describes the theme as Auto / Light / Dark plus the AMOLED switch.
+
 ## [0.5.8] - 2026-11-28
 
 ### Fixed
@@ -676,7 +690,8 @@ unchanged.
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.8...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.9...HEAD
+[0.5.9]: https://github.com/orfixe/fling-port/compare/v0.5.8...v0.5.9
 [0.5.8]: https://github.com/orfixe/fling-port/compare/v0.5.7...v0.5.8
 [0.5.7]: https://github.com/orfixe/fling-port/compare/v0.5.6...v0.5.7
 [0.5.6]: https://github.com/orfixe/fling-port/compare/v0.5.5...v0.5.6

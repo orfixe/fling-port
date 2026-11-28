@@ -24,7 +24,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SRC = HERE / "src"
 DIST = HERE / "dist"
-VERSION = "0.5.8"
+VERSION = "0.5.9"
 
 BASE = {
     "manifest_version": 3,

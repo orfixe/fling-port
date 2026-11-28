@@ -3,6 +3,8 @@
 // Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 package app.fling;
 
+import android.app.Activity;
+import android.app.Dialog;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
@@ -20,6 +22,7 @@ import android.graphics.PixelFormat;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
@@ -32,6 +35,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
+import android.view.Window;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -355,6 +359,49 @@ final class Ui {
         r.addView(t);
         r.setOnClickListener(on);
         return r;
+    }
+
+    // ------------------------------------------------------------ questions
+
+    /** A question in Fling's own look: a rounded card in the page colours, the main answer as a
+     *  tonal accent button (like OK and LIVE), the others below it. The system AlertDialog under
+     *  this app's platform theme is Android 5's — square, ALL-CAPS buttons, system colours.
+     *  labels[0] is the main answer; a null action just closes. `extra` (a field) goes under the text. */
+    Dialog ask(Activity a, String title, String message, View extra, String[] labels, Runnable[] actions) {
+        Dialog d = new Dialog(a);
+        d.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout box = col();
+        GradientDrawable bg = round(card, 28);
+        if (card == page) bg.setStroke(Math.max(1, dp(1)), fgA(0.16f));   // AMOLED: black on black needs an edge
+        box.setBackground(bg);
+        box.setPadding(dp(24), dp(24), dp(24), dp(16));
+        box.addView(text(title, 20, fg, true));
+        if (message != null && !message.isEmpty()) {
+            TextView m = text(message, 15, fgA(0.72f), false);
+            m.setLineSpacing(dp(3), 1f);
+            box.addView(m, margins(lp(-1, -2), 0, 12, 0, 0));
+        }
+        if (extra != null) box.addView(extra, margins(lp(-1, -2), 0, 16, 0, 0));
+        for (int i = 0; i < labels.length; i++) {
+            final Runnable act = actions[i];
+            boolean main = i == 0;
+            TextView b = text(labels[i], 15, main ? accent : fg, main);
+            b.setGravity(Gravity.CENTER);
+            b.setMinHeight(dp(48));
+            b.setPadding(dp(16), dp(12), dp(16), dp(12));
+            b.setBackground(rippleRound(main ? accA(dark ? 0.22f : 0.14f) : fgA(dark ? 0.1f : 0.055f), 14));
+            b.setOnClickListener(v -> { d.dismiss(); if (act != null) act.run(); });
+            box.addView(b, margins(lp(-1, -2), 0, main ? 20 : 8, 0, 0));
+        }
+        d.setContentView(box);
+        Window w = d.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(0));
+            int screen = ctx.getResources().getDisplayMetrics().widthPixels;
+            w.setLayout(Math.min(screen - dp(32), dp(420)), ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+        d.show();
+        return d;
     }
 
     // ------------------------------------------------------------ drawn icons (SF-Symbols-like)

@@ -5,7 +5,6 @@ package app.fling;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -338,12 +337,13 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         } catch (Exception ignored) { netCb = null; }
     }
 
-    /** "Home" / "Tailscale · 38 ms" / "No connection". */
+    /** "Local network" / "Tailscale · 38 ms" / "No connection" — how the TV is reached, never the
+     *  Wi‑Fi's name (Fling doesn't read it: that needs the location permission). */
     private String pathLabel() {
         if (reachable == null) return null;
         if (!reachable) return L.t("Нет связи с ТВ");
         if (viaTailnet) return pathMs > 0 ? L.f("Через Tailscale · %d мс", pathMs) : L.t("Через Tailscale");
-        return L.t("Дома");
+        return L.t("Локальная сеть");
     }
 
     // ================================================================ LIVE
@@ -516,13 +516,10 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                     android.widget.ImageView iv = new android.widget.ImageView(this);
                     iv.setImageBitmap(bmp);
                     iv.setAdjustViewBounds(true);
-                    new android.app.AlertDialog.Builder(this)
-                            .setTitle(L.t("Снимок экрана ТВ"))
-                            .setMessage(black ? L.t("Снимок чёрный: видео защищено от снимков (DRM у YouTube/Netflix). Меню и главный экран ТВ снимаются нормально.")
-                                              : L.t("Сохранено в Pictures/Fling"))
-                            .setView(iv)
-                            .setPositiveButton("OK", null)
-                            .show();
+                    ui.ask(this, L.t("Снимок экрана ТВ"),
+                            black ? L.t("Снимок чёрный: видео защищено от снимков (DRM у YouTube/Netflix). Меню и главный экран ТВ снимаются нормально.")
+                                  : L.t("Сохранено в Pictures/Fling"),
+                            iv, new String[]{L.t("Понятно")}, new Runnable[]{null});
                     hideNotice.run();
                 });
             } catch (Exception e) {
@@ -927,16 +924,10 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private void askIp() {
         EditText e = ui.field("192.168.1.50", false);   // example address, not a real one
         e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        FrameLayout f = new FrameLayout(this);
-        f.setPadding(ui.dp(20), ui.dp(8), ui.dp(20), 0);
-        f.addView(e);
-        new AlertDialog.Builder(this)
-                .setTitle(L.t("Адрес телевизора"))
-                .setMessage(L.t("Дома — IP из настроек ТВ (Сеть). Через Tailscale — 100.x.y.z или имя MagicDNS."))
-                .setView(f)
-                .setPositiveButton(L.t("Добавить"), (dlg, w) -> addByIp(e.getText().toString().trim()))
-                .setNegativeButton(L.t("Отмена"), null)
-                .show();
+        ui.ask(this, L.t("Адрес телевизора"),
+                L.t("В локальной сети — IP из настроек ТВ (Сеть). Через Tailscale — 100.x.y.z или имя MagicDNS."),
+                e, new String[]{L.t("Добавить"), L.t("Отмена")},
+                new Runnable[]{() -> addByIp(e.getText().toString().trim()), null});
     }
 
     /** Checks there is a Cast device or a Google TV remote at the address, asks the TV its
@@ -1004,20 +995,20 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     /** Tailscale: Fling has no VPN of its own; the official app puts the phone on the tailnet. */
     private void remoteAccess() {
-        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle(L.t("Удалённый доступ"));
+        String title = L.t("Удалённый доступ");
         if (!Tailnet.installed(this)) {
-            b.setMessage(L.t("Чтобы управлять ТВ не из дома, поставьте Tailscale на телефон и на ТВ. На ТВ его ставит Fling для ПК — из «Каталога»."))
-                    .setPositiveButton(L.t("Установить Tailscale"), (d, w) -> Tailnet.openStore(this))
-                    .setNegativeButton(L.t("Отмена"), null);
+            ui.ask(this, title,
+                    L.t("Чтобы управлять ТВ не из дома, поставьте Tailscale на телефон и на ТВ. На ТВ его ставит Fling для ПК — из «Каталога»."),
+                    null, new String[]{L.t("Установить Tailscale"), L.t("Отмена")},
+                    new Runnable[]{() -> Tailnet.openStore(this), null});
         } else {
-            b.setMessage(Tailnet.vpnActive(this)
+            ui.ask(this, title,
+                    Tailnet.vpnActive(this)
                             ? L.t("Tailscale включён. Добавьте ТВ по его адресу 100.x.y.z или имени MagicDNS.")
-                            : L.t("Tailscale выключен. Включите его, чтобы управлять ТВ не из дома."))
-                    .setPositiveButton(L.t("Добавить ТВ…"), (d, w) -> askIp())
-                    .setNeutralButton(L.t("Открыть Tailscale"), (d, w) -> Tailnet.open(this))
-                    .setNegativeButton(L.t("Отмена"), null);
+                            : L.t("Tailscale выключен. Включите его, чтобы управлять ТВ не из дома."),
+                    null, new String[]{L.t("Добавить ТВ…"), L.t("Открыть Tailscale"), L.t("Отмена")},
+                    new Runnable[]{this::askIp, () -> Tailnet.open(this), null});
         }
-        b.show();
     }
 
     // ================================================================ playback actions

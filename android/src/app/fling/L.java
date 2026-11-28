@@ -139,7 +139,7 @@ final class L {
         e("Добавить ТВ по IP…", "Add TV by IP…");
         e("Убрать добавленный вручную", "Remove the TV added by IP");
         e("Адрес телевизора", "The TV's address");
-        e("Дома — IP из настроек ТВ (Сеть). Через Tailscale — 100.x.y.z или имя MagicDNS.", "At home: the IP from the TV's settings (Network). Over Tailscale: 100.x.y.z or a MagicDNS name.");
+        e("В локальной сети — IP из настроек ТВ (Сеть). Через Tailscale — 100.x.y.z или имя MagicDNS.", "On the local network: the IP from the TV's settings (Network). Over Tailscale: 100.x.y.z or a MagicDNS name.");
         e("Добавить", "Add");
         e("Это не похоже на адрес ТВ (пример: 192.168.1.50 или 100.101.102.103).", "That doesn't look like a TV address (e.g. 192.168.1.50 or 100.101.102.103).");
         // remote access (Tailscale) and the path chip
@@ -151,7 +151,7 @@ final class L {
         e("Tailscale выключен. Включите его, чтобы управлять ТВ не из дома.", "Tailscale is off. Turn it on to control the TV away from home.");
         e("Добавить ТВ…", "Add a TV…");
         e("Открыть Tailscale", "Open Tailscale");
-        e("Дома", "At home");
+        e("Локальная сеть", "Local network");
         e("Через Tailscale", "Via Tailscale");
         e("Через Tailscale · %d мс", "Via Tailscale · %d ms");
         e("Нет связи с ТВ", "No connection to the TV");
@@ -318,9 +318,8 @@ final class L {
         e("Как в системе", "System default");
         e("Светлая", "Light");
         e("Тёмная", "Dark");
-        e("Чёрная (AMOLED)", "Black (AMOLED)");
         e("Авто", "Auto");
-        e("Чистый чёрный в тёмной теме — экономит батарею.", "Pure black in the dark theme — saves battery.");
+        e("Чёрный фон вместо тёмно-серого. На экранах OLED и AMOLED бережёт заряд.", "Black instead of dark grey. Saves battery on OLED and AMOLED screens.");
         e("Пример видео", "Sample video");
         e("Так будет выглядеть Fling", "This is how Fling will look");
         e("Цвет акцента", "Accent colour");

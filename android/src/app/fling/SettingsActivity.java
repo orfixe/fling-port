@@ -138,7 +138,7 @@ public class SettingsActivity extends Activity {
         box.addView(seg, Ui.lp(-1, -2));
         c.addView(box);
         if (!cur.equals("light"))
-            c.addView(toggle("AMOLED", L.t("Чистый чёрный в тёмной теме — экономит батарею."),
+            c.addView(toggle("AMOLED", L.t("Чёрный фон вместо тёмно-серого. На экранах OLED и AMOLED бережёт заряд."),
                     "amoled", false, this::restyle));
     }
 

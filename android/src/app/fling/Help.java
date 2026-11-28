@@ -4,7 +4,6 @@
 package app.fling;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -26,7 +25,7 @@ final class Help {
             {"Пульт", "• Кнопки приложений: YouTube, Netflix и другие.\n• Переключатель «Кнопки» / «Тачпад».\n• Тачпад: провести пальцем — движение по меню, коснуться — OK, долгое нажатие — Назад.\n• Кнопки громкости.\n• Поле, чтобы напечатать текст на ТВ.\n• Микрофон — голосовой поиск. Приложение попросит доступ.\n• Кнопка питания."},
             {"Кнопки громкости, уведомление и плитка", "• Пока Fling открыт, громкость телефона меняет громкость ТВ.\n• Пока на ТВ что-то играет, в шторке и на экране блокировки есть уведомление с кнопками: пауза, перемотка, следующий файл, стоп.\n• «Пауза на ТВ» в шторке: откройте шторку → карандаш → перетащите плитку «Пауза на ТВ»."},
             {"Таймер сна", "• В пульте нажмите «Таймер сна» и выберите, через сколько выключить ТВ: от 15 минут до 2 часов.\n• Таймер сработает, даже если Fling закрыт, а телефон заблокирован.\n• Уже выключенный ТВ таймер не включит."},
-            {"Настройки", "• Шестерёнка вверху экрана.\n• Тема: как в системе, светлая, тёмная или чёрная (AMOLED).\n• Цвет акцента, на Android 12 и новее — цвета обоев (Material You).\n• Уведомление с кнопками, кнопки громкости, «Не гасить экран» и язык."},
+            {"Настройки", "• Шестерёнка вверху экрана.\n• Тема: авто, светлая или тёмная; переключатель AMOLED делает тёмную тему чёрной.\n• Цвет акцента, на Android 12 и новее — цвета обоев (Material You).\n• Уведомление с кнопками, кнопки громкости, «Не гасить экран» и язык."},
             {"Снимок экрана ТВ", "• «Сделать снимок» снимает экран телевизора.\n• Файл попадёт в «Галерею», папка Pictures/Fling.\n• Если снимок чёрный, видео защищено (так бывает у YouTube и Netflix). Меню и главный экран получаются нормально.\n• Чтобы снимок получился, включите отладку ADB."},
             {"LIVE: экран ТВ на телефоне", "• «● LIVE» вверху показывает экран телевизора на телефоне и даёт управлять им — дома и через Tailscale.\n• Нужна отладка ADB (раздел «Название и обложка с ТВ»).\n• В первый раз Fling скачает scrcpy-server с GitHub и проверит его контрольную сумму."},
             {"Если что-то не работает", "• ТВ не находится — проверьте, что телефон и ТВ в одной сети Wi‑Fi, или нажмите «Добавить ТВ по IP…».\n• Пауза на YouTube не работает — нажмите «Связать с ТВ».\n• Старая или чужая обложка — включите отладку ADB.\n• Чёрный снимок — видео защищено.\n• Язык: ⚙ Настройки → Язык."}
@@ -45,7 +44,7 @@ final class Help {
             {"Remote", "• App buttons: YouTube, Netflix and the rest.\n• “Buttons” or “Touchpad”.\n• Touchpad: swipe to move, tap for OK, long-press for Back.\n• Volume buttons.\n• A field to type on the TV.\n• Mic — voice search. The app will ask for the microphone.\n• Power."},
             {"Volume keys, notification and tile", "• While Fling is open, the phone’s volume keys change the TV volume.\n• While something plays on the TV, a notification with buttons sits in the shade and on the lock screen: pause, skip, next file, stop.\n• To add “Pause on TV”: open quick settings → the pencil → drag the “Pause on TV” tile in."},
             {"Sleep timer", "• In the remote, tap “Sleep timer” and choose when to turn the TV off: from 15 minutes to 2 hours.\n• It works even with Fling closed and the phone locked.\n• A TV that is already off stays off."},
-            {"Settings", "• The gear at the top of the screen.\n• Theme: system default, light, dark or black (AMOLED).\n• Accent colour; on Android 12 and later, wallpaper colours (Material You).\n• Playback notification, volume keys, “Keep the screen on” and language."},
+            {"Settings", "• The gear at the top of the screen.\n• Theme: auto, light or dark; the AMOLED switch makes the dark theme black.\n• Accent colour; on Android 12 and later, wallpaper colours (Material You).\n• Playback notification, volume keys, “Keep the screen on” and language."},
             {"Screenshot", "• “Take screenshot” captures the TV screen.\n• It is saved in Gallery, folder Pictures/Fling.\n• A black picture means the video is copy-protected (YouTube and Netflix do this). Menus and the home screen come out fine.\n• To get a real screenshot, turn on ADB debugging."},
             {"LIVE: the TV screen on the phone", "• “● LIVE” at the top shows the TV screen on the phone and lets you control it — at home and over Tailscale.\n• It needs ADB debugging (“Title and artwork from the TV”).\n• The first time, Fling downloads scrcpy-server from GitHub and checks its checksum."},
             {"If something doesn’t work", "• TV not found — check that the phone and the TV are on the same Wi‑Fi, or tap “Add TV by IP…”.\n• Pause on YouTube does nothing — tap “Pair with TV”.\n• Wrong or old artwork — turn on ADB debugging.\n• Black screenshot — the video is copy-protected.\n• Language: ⚙ Settings → Language."}
@@ -55,7 +54,7 @@ final class Help {
     static void show(Activity a, Ui ui) {
         String[][] secs = L.english() ? EN : RU;               // follows the app language switch
         LinearLayout col = ui.col();
-        col.setPadding(ui.dp(18), ui.dp(6), ui.dp(18), ui.dp(12));
+        col.setPadding(0, 0, 0, ui.dp(4));
         for (String[] s : secs) {
             TextView t = ui.text(s[0], 17, ui.fg, true);        // section title
             t.setPadding(0, ui.dp(14), 0, ui.dp(4));
@@ -64,12 +63,13 @@ final class Help {
             b.setLineSpacing(ui.dp(3), 1f);
             col.addView(b);
         }
-        ScrollView sv = new ScrollView(a);                      // long text: make it scroll
+        ScrollView sv = new ScrollView(a) {                     // long text: scrolls, and the button stays on screen
+            @Override protected void onMeasure(int w, int h) {
+                int max = (int) (getResources().getDisplayMetrics().heightPixels * 0.6f);
+                super.onMeasure(w, MeasureSpec.makeMeasureSpec(max, MeasureSpec.AT_MOST));
+            }
+        };
         sv.addView(col);
-        new AlertDialog.Builder(a)
-                .setTitle(L.t("Как пользоваться"))
-                .setView(sv)
-                .setPositiveButton(L.t("Понятно"), null)
-                .show();
+        ui.ask(a, L.t("Как пользоваться"), null, sv, new String[]{L.t("Понятно")}, new Runnable[]{null});
     }
 }
