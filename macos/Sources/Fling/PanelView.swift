@@ -18,6 +18,8 @@ struct PanelView: View {
                     castSection
                     Separator()
                     RemoteView(state: state)
+                    Separator()
+                    ADBSection(adb: ADBGlue.shared, state: state)   // port: ADB (ADBView.swift)
                     if let error = state.lastError {
                         Text(tr(error))
                             .font(.system(size: 10.5)).foregroundStyle(.orange)

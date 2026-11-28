@@ -16,6 +16,29 @@
     <key>CFBundleLocalizations</key><array><string>en</string><string>ru</string></array>
     <key>NSAppleEventsUsageDescription</key>
     <string>Fling Port reads the address of your frontmost browser tab so it can send it to your TV. Unofficial port of Fling (Damion Rashford / Tatiana) by orfixe.</string>
+    <!-- Port: "Open With → Fling Port" on an .apk installs it on the TV over ADB -->
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key><string>Android app (APK)</string>
+            <key>CFBundleTypeRole</key><string>Viewer</string>
+            <key>LSHandlerRank</key><string>Alternate</string>
+            <key>LSItemContentTypes</key><array><string>com.android.package-archive</string></array>
+        </dict>
+    </array>
+    <key>UTImportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key><string>com.android.package-archive</string>
+            <key>UTTypeDescription</key><string>Android app (APK)</string>
+            <key>UTTypeConformsTo</key><array><string>public.data</string><string>public.archive</string></array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key><array><string>apk</string></array>
+                <key>public.mime-type</key><array><string>application/vnd.android.package-archive</string></array>
+            </dict>
+        </dict>
+    </array>
     <key>NSMicrophoneUsageDescription</key>
     <string>Fling Port streams your voice to the TV for voice search.</string>
 </dict>

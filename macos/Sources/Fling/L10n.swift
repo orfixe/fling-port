@@ -65,6 +65,11 @@ func tr<S: StringProtocol>(_ s: S) -> String {
         RemoteRU.patterns,
     ]
     for table in exactTables { if let ru = table[text] { return ru } }
+    // port: feature tables that translate with their own logic
+    let translators: [(String) -> String?] = [
+        ADBRU.translate,
+    ]
+    for t in translators { if let ru = t(text) { return ru } }
     for (rx, template) in patternTables.joined() {
         let range = NSRange(text.startIndex..., in: text)
         if rx.firstMatch(in: text, range: range) != nil {
