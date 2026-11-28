@@ -67,6 +67,7 @@ struct ContextMenuBuilder {
         menu.addItem(LiveMenu.item(state: state))   // port: TV screen (scrcpy), LiveUI.swift
         menu.addItem(.separator())
 
+        menu.addItem(action("Tools & Catalog…") { ToolsWindowController.shared.show(state: state) })
         let login = action("Open at Login") { LoginItem.toggle() }
         login.state = LoginItem.isEnabled ? .on : .off
         menu.addItem(login)

@@ -75,6 +75,7 @@ func tr<S: StringProtocol>(_ s: S) -> String {
     // port: feature tables that translate with their own logic
     let translators: [(String) -> String?] = [
         ADBRU.translate,
+        ToolsRU.lookup,
     ]
     for t in translators { if let ru = t(text) { return ru } }
     for (rx, template) in patternTables.joined() {
