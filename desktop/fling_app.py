@@ -463,6 +463,13 @@ def app_name(pkg: str | None) -> str | None:
     return tail[:1].upper() + tail[1:]
 
 
+class _Closed(Exception):
+    """A connect that close() or a new pairing made pointless: drop it quietly."""
+
+
+AUTH_FAIL_MEMORY = 60       # s: after "the TV forgot this PC", don't retry / re-knock for this long
+
+
 class ATV(QObject):
     """Owns an asyncio loop on a background thread; every public method is
     safe to call from the Qt thread and reports back through signals."""
@@ -484,6 +491,11 @@ class ATV(QObject):
         self._lock = asyncio.Lock()   # used only on self.loop (binds to it on first use)
         self._voice_stream = None
         self._rec = None
+        # bumped by close() and a new pairing (on self.loop): a connect started earlier sees it
+        # after its next await, closes its own remote and gives up without a verdict
+        self._gen = 0
+        self._retrying = None         # host whose connect is waiting between retries
+        self._auth_fail = {}          # host -> monotonic time the TV last refused this PC
 
     def _dir(self, host):
         d = os.path.join(DATA, "atv", host)
@@ -499,10 +511,23 @@ class ATV(QObject):
         return AndroidTVRemote(P.CLIENT_NAME, os.path.join(d, "cert.pem"), os.path.join(d, "key.pem"), host,
                                loop=self.loop, enable_voice=True)
 
+    def recently_refused(self, host) -> bool:
+        return time.monotonic() - self._auth_fail.get(host, -1e9) < AUTH_FAIL_MEMORY
+
+    def may_try(self, host) -> bool:
+        """Not marked paired, but worth one attempt: we have a cert the TV may still trust."""
+        return bool(host) and os.path.exists(os.path.join(DATA, "atv", host, "cert.pem")) \
+            and not self.recently_refused(host)
+
     def _go(self, coro):
         fut = asyncio.run_coroutine_threadsafe(coro, self.loop)
         def done(f):
             e = f.exception()
+            if isinstance(e, _Closed):
+                return                                # closed on purpose (quit, update, new pairing)
+            if e and P.UPDATING:
+                print(f"remote: {type(e).__name__} while updating — ignored", flush=True)
+                return                                # Fling is closing for the setup: no verdict now
             if e:
                 if type(e).__name__ == "InvalidAuth" and self.host:
                     try:
@@ -535,15 +560,18 @@ class ATV(QObject):
     def start_pairing(self, host):
         async def run():
             self.pairing.emit("starting", "")
+            self._gen += 1                         # a connect retrying meanwhile gives up now
             try:
                 async with self._lock:             # don't swap the remote under a running connect
                     if self.remote:
                         self.remote.disconnect()
-                    self.remote = self._make(host)
+                    r = self.remote = self._make(host)
                     self.host = host
                     self.connected = False
-                await self.remote.async_generate_cert_if_missing()
-                await self.remote.async_start_pairing()
+                await r.async_generate_cert_if_missing()
+                await r.async_start_pairing()
+                if r is not self.remote:            # closed meanwhile (quit, update)
+                    return
                 self.pairing.emit("pin", "")
             except Exception as e:
                 self.pairing.emit("failed", self.message(e))
@@ -555,8 +583,11 @@ class ATV(QObject):
             try:
                 await self.remote.async_finish_pairing(pin)
                 open(os.path.join(self._dir(self.host), "paired"), "w").close()
+                self._auth_fail.pop(self.host, None)
                 self.pairing.emit("idle", "")
                 await self._connect(self.host)
+            except _Closed:
+                pass                               # closed meanwhile (quit, update): paired all the same
             except Exception as e:
                 if type(e).__name__ == "InvalidAuth":
                     self.pairing.emit("failed", "Код не совпадает — посмотрите на экран ТВ ещё раз.")
@@ -566,6 +597,7 @@ class ATV(QObject):
 
     def cancel_pairing(self):
         async def run():
+            self._gen += 1
             async with self._lock:
                 if self.remote:
                     self.remote.disconnect()
@@ -581,6 +613,7 @@ class ATV(QObject):
         async with self._lock:
             if self.connected and self.host == host and self.remote:
                 return
+            gen = self._gen
             if self.remote:
                 self.remote.disconnect()
             remote = self.remote = self._make(host)
@@ -604,17 +637,46 @@ class ATV(QObject):
             # Fling restarts (an update) the TV may still hold the old session and drop the first
             # handshakes — that cost people their pairing. For a known-good pair, try again a few
             # times before believing the TV has really forgotten this computer.
-            waits = (2, 4, 6) if self.paired(host) else ()
+            # Not again for a TV that refused us a moment ago (each queued press would wait
+            # another 12 s), and only while the pairing mark is there.
+            def alive():
+                return gen == self._gen and remote is self.remote
+
+            def drop():
+                remote.disconnect()
+                raise _Closed()
+
+            waits = (2, 4, 6) if self.paired(host) and not self.recently_refused(host) else ()
             for attempt in range(len(waits) + 1):
                 try:
                     await remote.async_connect()
-                    break
                 except BaseException as e:
                     self.connected = False
-                    if type(e).__name__ != "InvalidAuth" or attempt == len(waits) or remote is not self.remote:
+                    if not alive():
+                        drop()
+                    if type(e).__name__ != "InvalidAuth" or attempt == len(waits):
+                        if type(e).__name__ == "InvalidAuth":
+                            self._auth_fail[host] = time.monotonic()
                         raise
                     print(f"remote: {e} — retrying in {waits[attempt]} s", flush=True)
-                    await asyncio.sleep(waits[attempt])
+                    self._retrying = host
+                    try:
+                        await asyncio.sleep(waits[attempt])
+                    finally:
+                        self._retrying = None
+                    if not alive():
+                        drop()
+                    if not self.paired(host):          # paired again / forgotten meanwhile
+                        raise
+                    continue
+                if not alive():                         # close() came while the handshake ran
+                    drop()
+                break
+            if not self.paired(host):
+                # the TV accepted our cert, so it does trust this PC: the mark was lost, not the pairing
+                open(os.path.join(self._dir(host), "paired"), "w").close()
+                print("remote: the TV still trusts this PC — pairing mark restored", flush=True)
+            self._auth_fail.pop(host, None)
             self.connected = True
             remote.keep_reconnecting()
             self.power.emit(remote.is_on)
@@ -630,6 +692,7 @@ class ATV(QObject):
         """Close the remote session politely (quit, update), so the TV doesn't keep a
         half-open one that trips the next Fling's first connect. Blocks up to `timeout`."""
         async def run():
+            self._gen += 1                          # a connect in progress drops its own remote
             r, self.remote, self.connected = self.remote, None, False
             if r:
                 r.disconnect()
@@ -640,6 +703,10 @@ class ATV(QObject):
             print("remote: close:", e, flush=True)
 
     def _send(self, host, fn):
+        if self._retrying == host:
+            # the connect is waiting to retry: a press queued now would run 12 s late
+            print("remote: key dropped, still reconnecting", flush=True)
+            return None
         async def run():
             await self._connect(host)
             fn(self.remote)
@@ -1597,8 +1664,9 @@ class State(QObject):
                 self.changed.emit()
                 return
             if self.device and self.device["ip"] not in [d["ip"] for d in found]:
-                same = [d for d in found if d["name"] == self.device["name"]]
-                if same:                               # the same TV under a new address (DHCP)
+                same = [d for d in found if d["name"] == self.device["name"]
+                        and (not d.get("model") or not self.device.get("model") or d["model"] == self.device["model"])]
+                if len(same) == 1:                     # the same TV under a new address (DHCP)
                     self.device = same[0]
                 else:
                     # the chosen TV didn't answer this time (asleep, off, a slow mDNS reply): keep
@@ -1619,6 +1687,8 @@ class State(QObject):
 
     def _merge_sv(self, extra):
         """Samsung / Miracast results join the TV list (Cast results keep their place)."""
+        if P.UPDATING:                                 # cut off for the setup: change nothing
+            return
         ips = {d["ip"] for d in extra}
         self.devices = [d for d in self.devices if not SV.is_sv(d) and d["ip"] not in ips] + extra
         if not self.device and self.devices:
@@ -2088,9 +2158,12 @@ class State(QObject):
             self._bt(f"key {BT_NAMES[code]}")
         elif self.ip and self.adb_ok():
             self._adb_key(code)
+        elif self.ip and self.atv.may_try(self.ip):
+            # no pairing mark, but our cert may still be trusted (the mark got lost): try it —
+            # success restores the mark; a refusal is remembered, so presses don't keep knocking
+            self.atv.key(self.ip, code)
         elif self.ip:
-            # not paired and no other way to the TV: don't knock on the remote port with every
-            # press (each one only fails again) — say once what to do
+            # not paired and no other way to the TV: say once what to do
             msg = "Пульт не связан с телевизором. Нажмите «Связать с ТВ» и введите код с экрана ТВ."
             if self.last_error != msg:
                 self._set(last_error=msg)
@@ -7812,8 +7885,9 @@ def catt_main(args):
         # pipe with it: Windows reports the write as EINVAL (22) or EPIPE. Nobody reads us
         # any more — exit quietly instead of PyInstaller's "Unhandled exception" window.
         import errno
-        if e.errno in (errno.EINVAL, errno.EPIPE) or isinstance(e, BrokenPipeError):
-            os._exit(0)
+        # only a broken stdio pipe (no file name): a real "invalid argument" on a path is reported
+        if e.filename is None and (e.errno in (errno.EINVAL, errno.EPIPE) or isinstance(e, BrokenPipeError)):
+            os._exit(1)
         raise
 
 

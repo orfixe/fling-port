@@ -83,7 +83,7 @@ UPDATING = False      # set by fling_update right before the setup runs: start n
 def run(cmd, **kw) -> subprocess.CompletedProcess:
     """subprocess.run that never flashes a console window."""
     if UPDATING:          # Fling is about to close for the setup: no new catt / adb that would be cut off
-        text = kw.get("text") or kw.get("encoding")
+        text = kw.get("text") or kw.get("encoding") or kw.get("errors") or kw.get("universal_newlines")
         return subprocess.CompletedProcess(cmd, 1, "" if text else b"", "" if text else b"")
     return subprocess.run(cmd, **NOWIN, **kw)
 
@@ -664,10 +664,11 @@ def start_guard() -> str:
 # ---------------------------------------------------------------- helpers before an update (Windows)
 
 def kill_helpers(keep: tuple[int, ...] = ()) -> int:
-    """Before the setup replaces the install: stop every program Fling started
-    (`Fling.exe --catt …` scans, adb, scrcpy…) and the adb server running from the
-    install folder, so none of them writes to a pipe that is gone or holds a file open.
-    fling-guard and the pids in `keep` (the setup itself) are left alone. Returns how many were stopped.
+    """Before the setup replaces the install: stop the helpers Fling started
+    (`Fling.exe --catt …` scans, adb, scrcpy…) and its adb server, so none of them writes to
+    a pipe that is gone or holds a file open. Only Fling's own programs (see `ours`), never an
+    app the shell opened for us; fling-guard and the pids in `keep` (the setup itself) are left
+    alone. Returns how many were stopped.
     Plain kernel32 calls: no taskkill.exe for the guard to check."""
     if not IS_WIN:
         return 0
@@ -682,48 +683,98 @@ def kill_helpers(keep: tuple[int, ...] = ()) -> int:
                     ("szExeFile", W.WCHAR * 260)]
 
     k32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    k32.CreateToolhelp32Snapshot.restype = W.HANDLE
-    k32.OpenProcess.restype = W.HANDLE
+    H = W.HANDLE
+    k32.CreateToolhelp32Snapshot.restype, k32.CreateToolhelp32Snapshot.argtypes = H, [W.DWORD, W.DWORD]
+    k32.Process32FirstW.argtypes = k32.Process32NextW.argtypes = [H, ctypes.POINTER(PE)]
+    k32.OpenProcess.restype, k32.OpenProcess.argtypes = H, [W.DWORD, W.BOOL, W.DWORD]
+    k32.CloseHandle.argtypes = [H]
+    k32.TerminateProcess.argtypes = [H, ctypes.c_uint]
+    k32.WaitForSingleObject.argtypes = [H, W.DWORD]
+    k32.QueryFullProcessImageNameW.argtypes = [H, W.DWORD, W.LPWSTR, ctypes.POINTER(W.DWORD)]
+    k32.GetProcessTimes.argtypes = [H] + [ctypes.POINTER(W.FILETIME)] * 4
     snap = k32.CreateToolhelp32Snapshot(0x2, 0)              # TH32CS_SNAPPROCESS
-    if not snap or snap == W.HANDLE(-1).value:
+    if not snap or snap == H(-1).value:
         return 0
-    procs: dict[int, tuple[int, str]] = {}                   # pid -> (parent, exe name)
+    procs: dict[int, int] = {}                               # pid -> parent pid
+    names: dict[int, str] = {}
     try:
         e = PE()
         e.dwSize = ctypes.sizeof(PE)
         ok = k32.Process32FirstW(snap, ctypes.byref(e))
         while ok:
-            procs[e.th32ProcessID] = (e.th32ParentProcessID, e.szExeFile.lower())
+            procs[e.th32ProcessID] = e.th32ParentProcessID
+            names[e.th32ProcessID] = e.szExeFile.lower()
             ok = k32.Process32NextW(snap, ctypes.byref(e))
     finally:
         k32.CloseHandle(snap)
 
-    def image(pid) -> str:
+    def info(pid) -> tuple[str, int]:
+        """(image path, creation time) — ("", 0) when we can't look."""
         h = k32.OpenProcess(0x1000, False, pid)              # PROCESS_QUERY_LIMITED_INFORMATION
         if not h:
-            return ""
+            return "", 0
         try:
             buf, n = ctypes.create_unicode_buffer(1024), W.DWORD(1024)
-            return buf.value if k32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(n)) else ""
+            path = buf.value if k32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(n)) else ""
+            t = [W.FILETIME() for _ in range(4)]
+            made = (t[0].dwHighDateTime << 32 | t[0].dwLowDateTime) if k32.GetProcessTimes(h, *map(ctypes.byref, t)) else 0
+            return path, made
         finally:
             k32.CloseHandle(h)
 
+    # Only Fling's own programs: the install folder (Fling.exe --catt, adb, scrcpy, the guard
+    # aside), Fling's data folder (scrcpy downloaded later) and tools the user let Fling use
+    # (guard-trusted.txt). Never what the shell opened for us — a browser for a link, Notepad
+    # for the log — even though Windows lists Fling as their parent.
+    roots = [os.path.normcase(DATA) + os.sep]
+    if FROZEN:
+        roots.append(os.path.normcase(os.path.dirname(sys.executable)) + os.sep)
+    own_files = set()
+    try:
+        for line in open(GUARD_TRUSTED, encoding="utf-8"):
+            parts = line.strip().split(None, 1)
+            if len(parts) == 2:
+                own_files.add(os.path.normcase(parts[1]))
+    except OSError:
+        pass
+    if not FROZEN:                                           # from source: our python is ours too
+        for exe in {sys.executable, getattr(sys, "_base_executable", sys.executable)}:
+            own_files.add(os.path.normcase(exe))
+
+    def inside(path) -> bool:
+        p = os.path.normcase(path)
+        return bool(p) and os.path.basename(p) != GUARD_EXE and any(p.startswith(r) for r in roots)
+
+    def ours(path) -> bool:
+        return inside(path) or (bool(path) and os.path.normcase(path) in own_files)
+
     me = os.getpid()
+    cache: dict[int, tuple[str, int]] = {}
+    def look(pid):
+        if pid not in cache:
+            cache[pid] = info(pid)
+        return cache[pid]
+
     targets: set[int] = set()
-    todo = [me]                                             # everything below this process
+    todo = [me]                                             # walk down from this process
     while todo:
         p = todo.pop()
-        for pid, (parent, name) in procs.items():
-            if parent == p and pid not in targets and pid != me and name != GUARD_EXE:
-                if pid in keep:
-                    continue                                # the setup and whatever it starts
+        p_made = look(p)[1]
+        for pid, parent in procs.items():
+            if parent != p or pid in targets or pid == me or pid in keep:
+                continue                                    # keep: the setup and whatever it starts
+            path, made = look(pid)
+            if p_made and made and made < p_made:
+                continue                                    # older than its "parent": a reused pid, not ours
+            todo.append(pid)                                # look below it either way
+            if ours(path):
                 targets.add(pid)
-                todo.append(pid)
-    app_dir = os.path.normcase(os.path.dirname(sys.executable)) + os.sep if FROZEN else None
-    if app_dir:                                             # the adb server outlives its client: find it by path
-        for pid, (_, name) in procs.items():
-            if name == "adb.exe" and pid != me and os.path.normcase(image(pid)).startswith(app_dir):
-                targets.add(pid)
+    # The adb server outlives the client that started it, so it isn't below us: find it by
+    # path — only Fling's own copies (install / data folder). An adb of the user's Android SDK
+    # (trusted in guard-trusted.txt) may serve Android Studio: never stop that one.
+    for pid in procs:
+        if names.get(pid) == "adb.exe" and pid != me and pid not in targets and pid not in keep                 and inside(look(pid)[0]):
+            targets.add(pid)
     n = 0
     for pid in targets:
         h = k32.OpenProcess(0x0001 | 0x100000, False, pid)  # PROCESS_TERMINATE | SYNCHRONIZE
