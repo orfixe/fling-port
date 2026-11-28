@@ -27,6 +27,13 @@ Or from a clone:
 
 Installs to `~/Applications/Fling Port.app`, re-signs locally, strips quarantine.
 
+## Layout
+
+- `UPSTREAM_REF` — the upstream Fling commit the build uses.
+- `Sources/` — this port's files, laid over upstream `Sources/` (changed copies + new files).
+- `upstream-base/` — upstream's version of each changed file, for merging a newer upstream.
+- `update-upstream.sh [ref]` — three-way merges upstream `ref` (default `main`) into `Sources/`.
+
 ## Build on a Mac
 
 ```sh

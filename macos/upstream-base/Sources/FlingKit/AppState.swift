@@ -1,0 +1,527 @@
+import Foundation
+import Combine
+
+/// Android TV pairing progress, driven by AppState and rendered by the panel.
+public enum TVPairing: Equatable {
+    case idle
+    /// `startPairing` in flight — the TV shows its PIN when this completes.
+    case starting
+    case waitingForPIN
+    case verifying
+    case failed(String)
+}
+
+@MainActor
+public final class AppState: ObservableObject {
+
+    @Published public private(set) var panel: PanelState
+    @Published public private(set) var status: CastStatus = .empty
+    @Published public var tab: TabRef?
+    @Published public var devices: [DeviceInfo] = []
+    @Published public var selectedDevice: DeviceInfo?
+    @Published public var volume: Int = 50
+    /// True while a `catt cast` subprocess is loading media onto the TV.
+    @Published public private(set) var castInFlight = false
+    @Published public var lastError: String?
+    /// Browsers present on this Mac, running or not. Drives picker visibility.
+    @Published public var installedBrowsers: [Browser] = Browser.installed
+    /// Which browser the panel is currently reading from.
+    @Published public var activeBrowser: Browser?
+    /// True when the selected device has completed Android TV Remote pairing.
+    @Published public private(set) var tvPaired = false
+    @Published public private(set) var tvPairing: TVPairing = .idle
+    /// nil until a remote session has reported power state.
+    @Published public private(set) var tvIsOn: Bool?
+    /// Foreground app package the TV last reported, nil when unknown.
+    @Published public private(set) var tvCurrentApp: String?
+    /// True while the Mac microphone is streaming to the TV's voice search.
+    @Published public private(set) var tvVoiceActive = false
+    /// What the current tab's page is actually playing, from the in-page probe.
+    @Published public private(set) var tabMedia: TabMedia?
+    /// Browser whose "Allow JavaScript from Apple Events" toggle is off.
+    @Published public private(set) var probeHint: Browser?
+
+    private let catt: CattClient?
+    private let browsers: BrowserReader
+    private let prober: TabProber?
+    private let atv: AndroidTVRemote?
+    private var atvEvents: Task<Void, Never>?
+    private var voiceCapture: VoiceCapture?
+    private var voiceFeed: AsyncStream<Data>.Continuation?
+    private var voiceSendTask: Task<Void, Never>?
+    private var lastUsedBrowser: Browser?
+    private var refreshing = false
+    /// Bumped by explicit user choices (device/browser switch); an in-flight
+    /// refresh that started before the bump discards its results.
+    private var interactionGeneration = 0
+    private var volumeTask: Task<Void, Never>?
+
+    /// How long the volume slider settles before a command is sent. Dragging
+    /// emits an event per pixel, and each one would spawn a `catt` subprocess.
+    public static let volumeDebounce = Duration.milliseconds(180)
+
+    /// Seek step in seconds; UI labels derive from it so they can't drift.
+    public static let seekStep = 30
+
+    public init(catt: CattClient?, browsers: BrowserReader, atv: AndroidTVRemote? = nil,
+                prober: TabProber? = nil) {
+        self.catt = catt
+        self.browsers = browsers
+        self.atv = atv
+        self.prober = prober
+        self.panel = catt == nil ? .setupNeeded : .idleNotCastable(reason: "No page open")
+    }
+
+    // MARK: - derived labels
+
+    public var elapsedLabel: String { Self.clock(status.elapsed) }
+    public var remainingLabel: String {
+        guard let r = status.remaining else { return "" }
+        return "−" + Self.clock(r)
+    }
+    public var progress: Double {
+        guard let e = status.elapsed, let d = status.duration, d > 0 else { return 0 }
+        return min(1, e / d)
+    }
+
+    private static func clock(_ t: TimeInterval?) -> String {
+        guard let t, t.isFinite, t >= 0 else { return "0:00" }
+        let total = Int(t.rounded())
+        let h = total / 3600, m = (total % 3600) / 60, s = total % 60
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s)
+                     : String(format: "%d:%02d", m, s)
+    }
+
+    // MARK: - state transitions
+
+    /// Setter for previews and tests. In production these values arrive only
+    /// from pairing and the remote session's event stream.
+    public func applyTVRemote(paired: Bool, isOn: Bool?, currentApp: String?) {
+        tvPaired = paired
+        tvIsOn = isOn
+        tvCurrentApp = currentApp
+    }
+
+    /// Pure transition, separated from I/O so it can be tested directly.
+    public func apply(tab: TabRef?, status: CastStatus) {
+        self.tab = tab
+        self.status = status
+        if let v = status.volume { self.volume = v }
+
+        guard catt != nil else { panel = .setupNeeded; return }
+
+        // hasMedia, not isPlaying — a paused video is still casting.
+        if status.hasMedia {
+            panel = .casting
+        } else if let tab, CastPlanner.plan(tab: tab, media: tabMedia).kind.isCastable {
+            // Planner, not tab.kind: the in-page probe can make a "not a video
+            // page" castable by finding its actual stream.
+            panel = .idleCastable
+        } else if case .notCastable(let reason)? = tab?.kind {
+            panel = .idleNotCastable(reason: reason)
+        } else {
+            panel = .idleNotCastable(reason: "No page open")
+        }
+    }
+
+    // MARK: - refresh
+
+    /// Every call here is blocking subprocess I/O, so it runs off the main
+    /// actor. Two phases: the browser/tab/status read applies as soon as it
+    /// lands, and the ~10s first-run device scan lands separately — the panel
+    /// must never wait on discovery to show the current tab.
+    public func refresh() async {
+        guard let catt, !refreshing else { return }
+        refreshing = true
+        defer { refreshing = false }
+        let gen = interactionGeneration
+
+        let browsers = self.browsers
+        let prober = self.prober
+        let lastUsed = self.lastUsedBrowser
+        // catt takes an IP directly and skips mDNS discovery; targeting by
+        // name re-resolves every call and intermittently misses.
+        let knownDevice = self.selectedDevice?.ip
+        let needsScan = self.devices.isEmpty
+
+        let fast = await Task.detached(priority: .userInitiated) { () -> RefreshResult in
+            let running = Browser.allCases.filter { browsers.isRunning($0) }
+            let choice = BrowserResolver.resolve(running: running,
+                                                 frontmostApp: browsers.frontmostApp(),
+                                                 lastUsed: lastUsed)
+            // With no frontmost signal, a guess beats a blank panel; the
+            // source picker corrects a wrong guess in one click.
+            var newTab: TabRef?
+            switch choice {
+            case .single(let browser):
+                newTab = try? browsers.readTab(browser)
+            case .ambiguous(let candidates):
+                if let browser = lastUsed ?? candidates.first {
+                    newTab = try? browsers.readTab(browser)
+                }
+            case .none:
+                break
+            }
+            let (media, hint) = Self.probe(newTab, with: prober)
+            let status = knownDevice.flatMap { try? catt.status(device: $0) } ?? .empty
+            return RefreshResult(tab: newTab, status: status, media: media, probeHint: hint)
+        }.value
+
+        // A device or browser the user switched mid-read owns the panel now.
+        guard gen == interactionGeneration else { return }
+        if let browser = fast.tab?.browser { activeBrowser = browser }
+        tabMedia = fast.media
+        probeHint = fast.probeHint
+        apply(tab: fast.tab, status: fast.status)
+
+        guard needsScan else { return }
+        let found = await Task.detached(priority: .userInitiated) { try? catt.scan() }.value
+        guard gen == interactionGeneration, let found, !found.isEmpty else { return }
+        devices = found
+        if selectedDevice == nil { selectedDevice = found.first }
+        refreshTVPaired()
+        if knownDevice == nil, let ip = selectedDevice?.ip {
+            let status = await Task.detached(priority: .userInitiated) {
+                try? catt.status(device: ip)
+            }.value
+            guard gen == interactionGeneration else { return }
+            apply(tab: tab, status: status ?? .empty)
+        }
+    }
+
+    /// Cheap poll for the menu-bar clock while the panel is closed: one catt
+    /// status call, no browser reads, no probing.
+    public func refreshStatus() async {
+        guard let catt, let ip = selectedDevice?.ip else { return }
+        let gen = interactionGeneration
+        let status = await Task.detached(priority: .utility) {
+            try? catt.status(device: ip)
+        }.value
+        guard gen == interactionGeneration else { return }
+        apply(tab: tab, status: status ?? .empty)
+    }
+
+    /// Best-effort: a failed probe never blocks casting by URL.
+    private nonisolated static func probe(_ tab: TabRef?, with prober: TabProber?)
+        -> (TabMedia?, Browser?) {
+        guard let prober, let tab else { return (nil, nil) }
+        do { return (try prober.probe(tab.browser), nil) }
+        catch TabProbeError.jsFromAppleEventsDisabled(let browser) { return (nil, browser) }
+        catch { return (nil, nil) }
+    }
+
+    private struct RefreshResult: Sendable {
+        let tab: TabRef?
+        let status: CastStatus
+        let media: TabMedia?
+        let probeHint: Browser?
+    }
+
+    // MARK: - actions
+
+    public func select(browser: Browser) async {
+        interactionGeneration += 1
+        lastUsedBrowser = browser
+        activeBrowser = browser
+
+        // Read the chosen browser directly: refresh() would let
+        // frontmost-resolution override the explicit choice.
+        let reader = self.browsers
+        let prober = self.prober
+        let (tab, media, hint) = await Task.detached(priority: .userInitiated)
+            { () -> (TabRef?, TabMedia?, Browser?) in
+            let tab = try? reader.readTab(browser)
+            let (media, hint) = Self.probe(tab, with: prober)
+            return (tab, media, hint)
+        }.value
+        tabMedia = media
+        probeHint = hint
+        apply(tab: tab, status: status)
+    }
+
+    public func select(device: DeviceInfo) async {
+        interactionGeneration += 1
+        selectedDevice = device
+        lastError = nil
+        refreshTVPaired()
+        await refresh()
+    }
+
+    /// Global-shortcut path: reads the frontmost browser's tab directly so an
+    /// in-flight poll refresh can never serve a stale page.
+    public func castFrontmostTab() async {
+        let browsers = self.browsers
+        let lastUsed = self.lastUsedBrowser
+        let fresh = await Task.detached(priority: .userInitiated) { () -> TabRef? in
+            let running = Browser.allCases.filter { browsers.isRunning($0) }
+            let choice = BrowserResolver.resolve(running: running,
+                                                 frontmostApp: browsers.frontmostApp(),
+                                                 lastUsed: lastUsed)
+            switch choice {
+            case .single(let browser): return try? browsers.readTab(browser)
+            case .ambiguous(let candidates):
+                return (lastUsed ?? candidates.first).flatMap { try? browsers.readTab($0) }
+            case .none: return nil
+            }
+        }.value
+        guard let fresh else { lastError = "No page open"; return }
+        tab = fresh
+        lastUsedBrowser = fresh.browser
+        let plan = CastPlanner.plan(tab: fresh, media: nil)
+        await cast(plan.url, kind: plan.kind, seekTo: plan.seekTo)
+    }
+
+    public func castCurrentTab() async {
+        guard let tab else { lastError = "No page open"; return }
+        lastUsedBrowser = tab.browser
+        let plan = CastPlanner.plan(tab: tab, media: tabMedia)
+        await cast(plan.url, kind: plan.kind, seekTo: plan.seekTo)
+    }
+
+    /// Seek position the next cast would start at, nil when starting fresh.
+    public var resumeAt: TimeInterval? {
+        guard let tab else { return nil }
+        return CastPlanner.plan(tab: tab, media: tabMedia).seekTo
+    }
+
+    public var resumeLabel: String? {
+        resumeAt.map { "Resume on TV at " + Self.clock($0) }
+    }
+
+    public func castClipboard() async {
+        guard let raw = ClipboardReader.read() else { lastError = "Clipboard is empty"; return }
+        await cast(raw, kind: URLClassifier.classify(raw))
+    }
+
+    public func togglePlayPause() async {
+        let playing = status.isPlaying
+        await send { catt, device in
+            playing ? try catt.pause(device: device) : try catt.play(device: device)
+        }
+    }
+
+    public func seek(by seconds: Int) async {
+        await send { catt, device in try catt.seek(by: seconds, device: device) }
+    }
+
+    public func stopCasting() async {
+        await send { catt, device in try catt.stop(device: device) }
+    }
+
+    public func wakeTV() async {
+        await send { catt, device in try catt.wake(device: device) }
+    }
+
+    // MARK: - TV power (Android TV Remote)
+
+    public func startTVPairing() async {
+        guard let atv else { return }
+        guard let host = selectedDevice?.ip else { lastError = "No device selected"; return }
+        tvPairing = .starting
+        do {
+            try await atv.startPairing(host: host)
+            tvPairing = .waitingForPIN
+        } catch {
+            tvPairing = .failed(Self.atvMessage(error))
+        }
+    }
+
+    public func submitTVPIN(_ pin: String) async {
+        guard let atv else { return }
+        tvPairing = .verifying
+        do {
+            try await atv.finishPairing(pin: pin)
+            tvPairing = .idle
+            refreshTVPaired()
+        } catch {
+            tvPairing = .failed(Self.atvMessage(error))
+        }
+    }
+
+    public func cancelTVPairing() async {
+        await atv?.cancelPairing()
+        tvPairing = .idle
+    }
+
+    public func toggleTVPower() async {
+        // The .powerChanged event delivers the resulting state; reading isOn
+        // eagerly here would race the TV's async RemoteStart push.
+        await sendATV { atv, host in try await atv.togglePower(host: host) }
+    }
+
+    public func launchTVApp(_ app: TVApp) async {
+        await sendATV { atv, host in try await atv.launchApp(link: app.link, host: host) }
+    }
+
+    public func pressTVKey(_ code: Int32) async {
+        await sendATV { atv, host in try await atv.pressKey(code, host: host) }
+    }
+
+    public func sendTVText(_ text: String) async {
+        guard !text.isEmpty else { return }
+        await sendATV { atv, host in try await atv.sendText(text, host: host) }
+    }
+
+    /// One press opens voice search on the TV and starts streaming the Mac
+    /// microphone; the next press ends the utterance.
+    public func toggleVoiceSearch() async {
+        if tvVoiceActive { await endVoiceSearch(); return }
+        guard let atv else { return }
+        guard let host = selectedDevice?.ip else { lastError = "No device selected"; return }
+        watchATVEvents()
+        do {
+            try await atv.beginVoice(host: host)
+        } catch {
+            lastError = Self.atvMessage(error)
+            return
+        }
+        let capture = VoiceCapture()
+        let (chunks, feed) = AsyncStream<Data>.makeStream()
+        do {
+            try capture.start { feed.yield($0) }
+        } catch {
+            // The TV is already listening; leaving the session open would wedge
+            // every later mic press on voiceSessionActive.
+            feed.finish()
+            try? await atv.endVoice()
+            lastError = Self.atvMessage(error)
+            return
+        }
+        // A single consumer keeps chunks in utterance order; a Task per chunk
+        // would let them interleave.
+        voiceSendTask = Task {
+            for await chunk in chunks { try? await atv.sendVoice(pcm: chunk) }
+        }
+        voiceCapture = capture
+        voiceFeed = feed
+        tvVoiceActive = true
+        lastError = nil
+    }
+
+    public func endVoiceSearch() async {
+        guard tvVoiceActive else { return }
+        let tail = voiceCapture?.stop() ?? Data()
+        if !tail.isEmpty { voiceFeed?.yield(tail) }
+        voiceFeed?.finish()
+        await voiceSendTask?.value
+        voiceCapture = nil
+        voiceFeed = nil
+        voiceSendTask = nil
+        tvVoiceActive = false
+        if let atv { try? await atv.endVoice() }
+    }
+
+    private func refreshTVPaired() {
+        guard let atv, let host = selectedDevice?.ip else { tvPaired = false; return }
+        tvPaired = atv.hasPairing(host: host)
+    }
+
+    /// Counterpart of `send` for the remote session: resolves the host, starts
+    /// consuming the event stream, and routes failures into `lastError`.
+    private func sendATV(_ body: (AndroidTVRemote, String) async throws -> Void) async {
+        guard let atv else { return }
+        guard let host = selectedDevice?.ip else { lastError = "No device selected"; return }
+        watchATVEvents()
+        do {
+            try await body(atv, host)
+            lastError = nil
+        } catch {
+            lastError = Self.atvMessage(error)
+        }
+    }
+
+    /// The TV pushes power flips over the open session; without this the row
+    /// label would update only after a toggle sent from here.
+    private func watchATVEvents() {
+        guard atvEvents == nil, let atv else { return }
+        atvEvents = Task { [weak self] in
+            for await event in await atv.events() {
+                switch event {
+                case .connected: break
+                case .powerChanged(let on): self?.tvIsOn = on
+                case .appChanged(let package): self?.tvCurrentApp = package
+                case .disconnected:
+                    self?.tvIsOn = nil
+                    self?.tvCurrentApp = nil
+                }
+            }
+            // The stream ends with the session; without this reset the next
+            // command would never re-subscribe and power state would freeze.
+            self?.atvEvents = nil
+        }
+    }
+
+    private static func atvMessage(_ error: Error) -> String {
+        switch error {
+        case ATVError.invalidPIN:
+            return "That code doesn't match — read it off the TV again."
+        case ATVError.serverStatus:
+            return "The TV rejected the pairing code. Start over."
+        case ATVError.tlsHandshakeFailed:
+            return "The TV no longer trusts this Mac — run TV power setup again."
+        case ATVError.connectionFailed(let detail):
+            return "Couldn't reach the TV (\(detail))."
+        case ATVError.connectionClosed:
+            return "The TV closed the connection during the handshake."
+        case ATVError.connectionTimeout:
+            return "The TV didn't answer."
+        case ATVError.certificateFailure(let detail):
+            return "Certificate problem (\(detail))."
+        case ATVError.notPaired, ATVError.pairingNotStarted:
+            return "Run TV power setup first."
+        case ATVError.voiceNotEnabled:
+            return "This TV session declined voice — use typed search instead."
+        case ATVError.voiceTimeout:
+            return "The TV didn't open voice search."
+        default:
+            return error.localizedDescription
+        }
+    }
+
+    /// Updates the slider immediately and sends the command once dragging
+    /// settles. Synchronous because the UI binding must not await.
+    public func setVolume(_ level: Int) {
+        volume = min(100, max(0, level))
+        let target = volume
+        volumeTask?.cancel()
+        volumeTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.volumeDebounce)
+            guard !Task.isCancelled, let self else { return }
+            await self.send { catt, device in try catt.setVolume(target, device: device) }
+        }
+    }
+
+    /// Awaits any in-flight debounced volume command. For tests and for shutdown.
+    public func flushVolume() async {
+        await volumeTask?.value
+    }
+
+    // MARK: - plumbing
+
+    private func cast(_ url: String, kind: CastKind, seekTo: TimeInterval? = nil) async {
+        if case .notCastable(let reason) = kind { lastError = reason; return }
+        // A second cast while yt-dlp is still resolving the first would kill
+        // the loading session and race the error display.
+        guard !castInFlight else { return }
+        castInFlight = true
+        defer { castInFlight = false }
+        await send { catt, device in
+            try catt.cast(url, kind: kind, device: device, seekTo: seekTo)
+        }
+    }
+
+    /// Runs a blocking `catt` command off the main actor, then reports the
+    /// outcome back on it.
+    private func send(_ body: @escaping @Sendable (CattClient, String) throws -> Void) async {
+        guard let catt else { lastError = "catt is not installed"; return }
+        guard let device = selectedDevice?.ip else { lastError = "No device selected"; return }
+
+        let failure = await Task.detached(priority: .userInitiated) { () -> String? in
+            do { try body(catt, device); return nil }
+            catch let error as CattError { return error.message }
+            catch { return error.localizedDescription }
+        }.value
+
+        lastError = failure
+    }
+}
