@@ -32,6 +32,9 @@ Installs to `~/Applications/Fling Port.app`, re-signs locally, strips quarantine
 - `UPSTREAM_REF` — the upstream Fling commit the build uses.
 - `Sources/` — this port's files, laid over upstream `Sources/` (changed copies + new files).
 - `upstream-base/` — upstream's version of each changed file, for merging a newer upstream.
+- `Sources/FlingKit/Samsung/` — Smart View for Samsung TVs (remote, apps, DLNA, SSDP, Wake-on-LAN);
+  see [docs/smart-view.md](../docs/smart-view.md#on-a-mac).
+- `Tests/` — the port's tests (Swift Testing), laid over upstream `Tests/`.
 - `update-upstream.sh [ref]` — three-way merges upstream `ref` (default `main`) into `Sources/`.
 
 ## Build on a Mac

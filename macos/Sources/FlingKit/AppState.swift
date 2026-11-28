@@ -28,10 +28,10 @@ public final class AppState: ObservableObject {
     /// Which browser the panel is currently reading from.
     @Published public var activeBrowser: Browser?
     /// True when the selected device has completed Android TV Remote pairing.
-    @Published public private(set) var tvPaired = false
+    @Published public internal(set) var tvPaired = false
     @Published public private(set) var tvPairing: TVPairing = .idle
     /// nil until a remote session has reported power state.
-    @Published public private(set) var tvIsOn: Bool?
+    @Published public internal(set) var tvIsOn: Bool?
     /// Foreground app package the TV last reported, nil when unknown.
     @Published public private(set) var tvCurrentApp: String?
     /// Port: the TV's own volume as it reports it; nil when it doesn't
@@ -61,7 +61,9 @@ public final class AppState: ObservableObject {
     private let catt: CattClient?
     private let browsers: BrowserReader
     private let prober: TabProber?
-    private let atv: AndroidTVRemote?
+    let atv: AndroidTVRemote?
+    /// Port: Smart View for Samsung TVs (Samsung/), nil until `enableSamsung()`.
+    public internal(set) var samsung: SamsungHub?
     private var atvEvents: Task<Void, Never>?
     private var voiceCapture: VoiceCapture?
     private var voiceFeed: AsyncStream<Data>.Continuation?
@@ -167,7 +169,8 @@ public final class AppState: ObservableObject {
         // catt takes an IP directly and skips mDNS discovery; targeting by
         // name re-resolves every call and intermittently misses.
         // Port: not a tailnet TV whose Cast port is closed — catt would wait out its timeout.
-        let knownDevice = self.castTarget
+        // Port: a Samsung TV has no Cast status to read (catt would only time out).
+        let knownDevice = isSamsungSelected ? nil : self.castTarget
         // Port: known TVs (from the last run) and saved tailnet TVs don't skip the search of
         // home TVs; a failed one is retried.
         let needsScan = !scanned && (!devices.contains { !$0.isTailnet }
@@ -206,7 +209,12 @@ public final class AppState: ObservableObject {
 
         guard needsScan else { return }
         lastScanTry = Date()
-        let found = await Task.detached(priority: .userInitiated) { try? catt.scan() }.value
+        async let samsungFound = samsungScan()          // port: Samsung TVs over SSDP, in parallel
+        let castFound = await Task.detached(priority: .userInitiated) { try? catt.scan() }.value
+        let samsungList = await samsungFound
+        // nil = the search failed (keeps the known TVs, see below)
+        let found: [DeviceInfo]? = (castFound == nil && samsungList.isEmpty)
+            ? nil : mergeDevices(cast: castFound ?? [], samsung: samsungList)
         guard gen == interactionGeneration else { return }
         // Port: a failed search keeps the known TVs; a chosen TV that didn't answer stays
         // chosen; away from home (nothing found, nothing chosen) a saved TV — e.g. on the
@@ -215,11 +223,13 @@ public final class AppState: ObservableObject {
         let merged = DeviceMemory.merge(found: found, known: devices, selected: selectedDevice)
         devices = TailnetTVStore.shared.merged(into: merged.devices)
         guard !devices.isEmpty else { return }
+        let before = selectedDevice?.ip
         selectedDevice = merged.selected ?? devices.first
+        if selectedDevice?.ip != before { samsungSelectionChanged() }
         deviceMemory?.save(selected: selectedDevice, known: devices)
         refreshTVPaired()
         Task { await self.checkOnline(force: true) }
-        if knownDevice == nil, let ip = castTarget {
+        if knownDevice == nil, !isSamsungSelected, let ip = castTarget {
             let status = await Task.detached(priority: .userInitiated) {
                 try? catt.status(device: ip)
             }.value
@@ -231,7 +241,7 @@ public final class AppState: ObservableObject {
     /// Cheap poll for the menu-bar clock while the panel is closed: one catt
     /// status call, no browser reads, no probing.
     public func refreshStatus() async {
-        guard let catt, let ip = castTarget else { return }
+        guard let catt, let ip = castTarget, !isSamsungSelected else { return }
         let gen = interactionGeneration
         let status = await Task.detached(priority: .utility) {
             try? catt.status(device: ip)
@@ -287,6 +297,7 @@ public final class AppState: ObservableObject {
         switchAdvisor.reset()
         suggestedDevice = nil
         deviceMemory?.save(selected: device, known: devices)
+        samsungSelectionChanged()
         refreshTVPaired()
         await refresh()
     }
@@ -338,6 +349,7 @@ public final class AppState: ObservableObject {
     }
 
     public func togglePlayPause() async {
+        if isSamsungSelected { await samsung?.transport("Toggle"); return }
         let playing = status.isPlaying
         await send { catt, device in
             playing ? try catt.pause(device: device) : try catt.play(device: device)
@@ -345,20 +357,24 @@ public final class AppState: ObservableObject {
     }
 
     public func seek(by seconds: Int) async {
+        if isSamsungSelected { samsungKey(seconds < 0 ? 89 : 90); return }   // rewind / fast-forward
         await send { catt, device in try catt.seek(by: seconds, device: device) }
     }
 
     public func stopCasting() async {
+        if isSamsungSelected { await samsung?.transport("Stop"); return }
         await send { catt, device in try catt.stop(device: device) }
     }
 
     public func wakeTV() async {
+        if isSamsungSelected { samsung?.powerOn(); return }    // Wake-on-LAN
         await send { catt, device in try catt.wake(device: device) }
     }
 
     // MARK: - TV power (Android TV Remote)
 
     public func startTVPairing() async {
+        if isSamsungSelected { samsung?.connect(); return }   // the TV asks "Allow?"
         guard let atv else { return }
         guard let host = selectedDevice?.ip else { lastError = "No device selected"; return }
         tvPairing = .starting
@@ -390,14 +406,17 @@ public final class AppState: ObservableObject {
     public func toggleTVPower() async {
         // The .powerChanged event delivers the resulting state; reading isOn
         // eagerly here would race the TV's async RemoteStart push.
+        if isSamsungSelected { samsungKey(ATVKeyCode.power); return }
         await sendATV { atv, host in try await atv.togglePower(host: host) }
     }
 
     public func launchTVApp(_ app: TVApp) async {
+        if isSamsungSelected { samsungLaunch(app); return }
         await sendATV { atv, host in try await atv.launchApp(link: app.link, host: host) }
     }
 
     public func pressTVKey(_ code: Int32) async {
+        if isSamsungSelected { samsungKey(code); return }
         await sendATV { atv, host in try await atv.pressKey(code, host: host) }
     }
 
@@ -431,6 +450,7 @@ public final class AppState: ObservableObject {
 
     public func sendTVText(_ text: String) async {
         guard !text.isEmpty else { return }
+        if isSamsungSelected { samsungText(text); return }
         await sendATV { atv, host in try await atv.sendText(text, host: host) }
     }
 
@@ -438,6 +458,7 @@ public final class AppState: ObservableObject {
     /// microphone; the next press ends the utterance.
     public func toggleVoiceSearch() async {
         if tvVoiceActive { await endVoiceSearch(); return }
+        if isSamsungSelected { lastError = SamsungText.noVoice; return }
         guard let atv else { return }
         guard let host = selectedDevice?.ip else { lastError = "No device selected"; return }
         watchATVEvents()
@@ -485,6 +506,7 @@ public final class AppState: ObservableObject {
     }
 
     private func refreshTVPaired() {
+        if let hub = samsung, isSamsungSelected { tvPaired = hub.ready; return }
         guard let atv, let host = selectedDevice?.ip else { tvPaired = false; return }
         tvPaired = atv.hasPairing(host: host)
     }
@@ -595,6 +617,7 @@ public final class AppState: ObservableObject {
         volume = min(100, max(0, level))
         let target = volume
         volumeTask?.cancel()
+        if isSamsungSelected { return }      // port: Samsung volume is the remote's Vol keys
         volumeTask = Task { [weak self] in
             try? await Task.sleep(for: Self.volumeDebounce)
             guard !Task.isCancelled, let self else { return }
@@ -616,6 +639,7 @@ public final class AppState: ObservableObject {
         guard !castInFlight else { return }
         castInFlight = true
         defer { castInFlight = false }
+        if isSamsungSelected { await samsungCast(url, kind: kind); return }   // DLNA / TV apps
         await send { catt, device in
             try catt.cast(url, kind: kind, device: device, seekTo: seekTo)
         }

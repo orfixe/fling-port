@@ -59,11 +59,13 @@ func tr<S: StringProtocol>(_ s: S) -> String {
         RemoteRU.exact,
         LiveL10n.ru,
         PlainWords.russian,
+        SamsungRU.exact,
     ]
     let patternTables: [[(NSRegularExpression, String)]] = [
         RU.patterns,
         TailscaleRU.patterns,
         RemoteRU.patterns,
+        SamsungRU.patterns,
     ]
     for table in exactTables { if let ru = table[text] { return ru } }
     // port: feature tables that translate with their own logic

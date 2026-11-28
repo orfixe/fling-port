@@ -58,3 +58,32 @@ in the normal TV chooser next to Chromecast and Google TV.
 | "Press Allow on the TV screen" stays | Look at the TV: it shows a prompt for *Fling*. If you pressed *Deny*: *Settings → General → External Device Manager → Device Connection Manager* → allow Fling. |
 | The picture on the TV is stretched | Use *TV only* or *Extend* in the panel. In *Duplicate*, Windows sends the laptop's aspect ratio (often 16:10) and the TV stretches it. |
 | Windows' Cast panel opens but nothing is chosen | Pick the TV in it by hand; Fling then fixes the resolution anyway. |
+
+## On a Mac
+
+The macOS build (menu bar) lists Samsung TVs in the same TV chooser too, sorted by kind —
+Google TV / Android TV, Chromecast, Samsung — each labelled with its kind.
+
+| | Samsung on the same network |
+|---|:---:|
+| The panel's remote: arrows, OK, back, home, volume, mute, power, typing, the Mac keyboard | ✓ |
+| Apps from the panel's grid (the TV's own app list first, then known Tizen ids) | ✓ |
+| *Cast this tab* / *Cast clipboard URL*: media links over DLNA, YouTube in the TV's YouTube app, other pages in the TV's browser | ✓ |
+| Turn the TV on over the network (Wake-on-LAN, *Power On with Mobile*) | ✓ |
+| Files from the Mac (local file server) | — |
+| Voice search | — |
+| **Screen mirroring** | AirPlay, macOS's own (see below) |
+
+- **Finding the TV:** SSDP on the local network, then the TV's own `http://TV:8001/api/v2/`.
+  A Samsung TV Fling has seen stays in the list when it's off. The list is filled on the first
+  search, like Chromecasts (the Cast engine, catt, must be installed for the panel to open).
+- **The remote:** the same WebSocket as on Windows (8002, 8001 on older sets). The first time,
+  press **Set Up TV Power…** in the panel (or just select the TV): the TV asks whether to
+  allow *Fling (Mac)*; press **Allow**. The token is kept in the app's settings (UserDefaults),
+  not the keychain, so a new build doesn't ask again.
+- **Mirroring:** macOS has no Miracast, so Fling doesn't pretend to. Samsung TVs from 2018 on
+  take **AirPlay**, and that is macOS's own screen mirroring: *Mirror screen (AirPlay)…* in the
+  panel opens System Settings ▸ Displays (press **+** and pick the TV under AirPlay), or use
+  Control Center ▸ *Screen Mirroring*. macOS has no public way for an app to start it.
+- **Tested against a local simulator only** (a fake TV remote, SSDP responder and DLNA renderer
+  on 127.0.0.1 in `macos/Tests/FlingKitTests/`), not yet on a real Samsung TV.

@@ -20,6 +20,7 @@ struct PanelView: View {
                     RemoteView(state: state)
                     Separator()
                     ADBSection(adb: ADBGlue.shared, state: state)   // port: ADB (ADBView.swift)
+                    if state.isSamsungSelected { SamsungRows(state: state) }   // port: Smart View
                     if let error = state.lastError {
                         // Port: errors red, "…in progress" notes grey (as on Windows / Linux)
                         Text(tr(error))

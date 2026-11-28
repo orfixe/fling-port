@@ -86,6 +86,19 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   switch to “Bedroom”", one click.
 - macOS: with the remote not paired, the Mac keyboard's remote keys aren't sent into the
   void: Fling says once to pair.
+- macOS: **Samsung TVs (Smart View) in the TV list and on the panel's remote.** Found over SSDP
+  (then the TV's `/api/v2/`), remembered when off, and listed next to Chromecast and Google TV.
+  The d-pad, OK, back, home, volume, mute, power, typing, the Mac keyboard and the app grid
+  drive the TV over its own network remote (WebSocket 8002, 8001 on older sets); the TV asks
+  "Allow?" once and Fling keeps its token in UserDefaults. *Cast this tab* / *Cast clipboard
+  URL* send media links over DLNA (UPnP AVTransport), YouTube to the TV's YouTube app, other
+  pages to its browser; *Turn TV On* wakes it over the network. Tested against a local
+  simulator only (see [docs/smart-view.md](docs/smart-view.md#on-a-mac)).
+- macOS: **the TV chooser is sorted by kind** — Google TV / Android TV, Chromecast, Samsung —
+  in the panel and the right-click menu, each TV labelled with its kind; the current TV first.
+- macOS: **Mirror screen (AirPlay)…** for a Samsung TV opens System Settings ▸ Displays, with a
+  hint for Control Center ▸ Screen Mirroring. macOS has no Miracast, and Fling doesn't pretend
+  to: AirPlay (built into Samsung TVs from 2018 on) is macOS's own route.
 
 ## [0.5.8] - 2026-11-28
 

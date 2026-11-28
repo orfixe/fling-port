@@ -271,8 +271,9 @@ struct DeviceFooter: View {
                 Spacer()
                 // Port: always there, for the TVs on Tailscale (RemoteAccessView.swift)
                 Menu(tr(state.devices.count > 1 ? "Switch" : "TVs")) {
-                    ForEach(state.devices) { device in
-                        Button(tr(device.name)
+                    // Port: sorted by kind, each labelled with it (Google TV, Chromecast, Samsung)
+                    ForEach(state.devicesByKind) { device in
+                        Button(state.chooserLabel(device, translate: { tr($0) })
                                + (device.isTailnet ? " · Tailscale" : "")
                                + (state.tvOnline[device.ip] == false ? " — " + tr("Offline") : "")) {
                             Task { await state.select(device: device) }
