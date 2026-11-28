@@ -10,6 +10,18 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.5.7] - 2026-11-28
+
+### Fixed
+
+- PC: **`fling quit` with no Fling running started the whole app** for a moment (it connected
+  to the TV and left a TV search behind). Now it does nothing.
+- PC: **the setup could hang for ~30 s** when it was run while Fling was searching for TVs:
+  Fling's adb server kept its files busy. The setup now asks Fling to quit and stops Fling's
+  own adb first (an Android SDK adb used by Android Studio is left alone).
+- PC: with the panel closed and nothing playing, Fling asks the TV what's on once a minute
+  instead of every 10 s (six adb starts a minute for nothing, and a fast-growing guard log).
+
 ## [0.5.6] - 2026-11-28
 
 ### Fixed
@@ -643,7 +655,8 @@ unchanged.
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.6...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.7...HEAD
+[0.5.7]: https://github.com/orfixe/fling-port/compare/v0.5.6...v0.5.7
 [0.5.6]: https://github.com/orfixe/fling-port/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/orfixe/fling-port/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/orfixe/fling-port/compare/v0.5.3...v0.5.4

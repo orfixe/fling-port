@@ -61,7 +61,7 @@ SOCKET = "fling-panel"
 SEEK = 30
 GLOBAL_SHORTCUT = P.GLOBAL_SHORTCUT
 SHORTCUT_LABEL = P.SHORTCUT_LABEL
-VERSION = "0.5.6"
+VERSION = "0.5.7"
 
 # ---------------------------------------------------------------- config
 
@@ -7572,7 +7572,10 @@ class Tray(QObject):
         visible = self.panel.isVisible()
         if not visible and on_battery():          # on battery with the panel closed: no background polling
             return
-        if not visible and self._tick % 5:
+        # panel closed: every 10 s while something plays on the TV, once a minute when idle —
+        # each read is an adb.exe start (plus its conhost), six a minute added up for nothing
+        playing = st.tvm_live or st.has_media or st.panel == "casting"
+        if not visible and self._tick % (5 if playing else 30):
             if st.yt_live:
                 st.changed.emit()          # keep the tray tooltip clock moving
             return
@@ -7935,6 +7938,8 @@ def main():
         return 0
     if send_to_running(cmd):
         return 0
+    if cmd == "quit":                              # nothing running to quit: don't start Fling for it
+        return 0                                   # (the uninstaller and the setup call `Fling.exe quit`)
     if P.start_guard() == "tampered":              # see fling_platform: guard
         from PyQt6.QtWidgets import QMessageBox
         QMessageBox.critical(None, "Fling", tr(

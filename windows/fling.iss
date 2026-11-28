@@ -119,6 +119,34 @@ begin
   Result := WizardSilent and (ExpandConstant('{param:relaunch|0}') = '1');
 end;
 
+{ Before the files are replaced: ask a running Fling to quit (it closes its remote session and
+  its helpers), then stop the adb server running from this install — it outlives Fling and
+  held the setup up ~30 s in Restart Manager's forced shutdown. Only Fling's own adb: an
+  Android SDK adb (Android Studio) on the same port is left alone, so no `adb kill-server`. }
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Code, I: Integer;
+  App, Ps: String;
+begin
+  Result := '';
+  App := ExpandConstant('{app}');
+  if not FileExists(App + '\Fling.exe') then
+    exit;
+  Exec(App + '\Fling.exe', 'quit', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  { exit 1 while a Fling from this folder is still closing; its adb goes either way }
+  Ps := 'Get-Process adb -ErrorAction SilentlyContinue | Where-Object { $_.Path -like ''' + App + '\*'' } | ' +
+        'Stop-Process -Force; if (Get-Process Fling -ErrorAction SilentlyContinue | ' +
+        'Where-Object { $_.Path -like ''' + App + '\*'' }) { exit 1 }';
+  for I := 1 to 6 do
+  begin
+    Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+         '-NoProfile -NonInteractive -Command "' + Ps + '"', '', SW_HIDE, ewWaitUntilTerminated, Code);
+    if Code = 0 then
+      break;
+    Sleep(500);
+  end;
+end;
+
 function NeedsAddPath(Dir: string): Boolean;
 var
   Path: string;
