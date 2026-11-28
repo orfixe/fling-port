@@ -3,6 +3,8 @@
 // Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
 package app.fling;
 
+import android.app.Activity;
+import android.app.Dialog;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
@@ -20,6 +22,7 @@ import android.graphics.PixelFormat;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
@@ -32,6 +35,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
+import android.view.Window;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -70,6 +74,7 @@ final class Ui {
     static String accentId(Context c) {
         String a = c.getSharedPreferences("fling", Context.MODE_PRIVATE).getString("accent", "blue");
         if (a.equals("you") && android.os.Build.VERSION.SDK_INT < 31) return "blue";   // no wallpaper colours before Android 12
+        if (a.equals("custom")) return a;                              // any hue from the rainbow
         return java.util.Arrays.asList(ACCENTS).contains(a) ? a : "blue";
     }
 
@@ -92,7 +97,19 @@ final class Ui {
         a.getTheme().applyStyle(accentRes(accentId(a))[1], true);
     }
 
-    static int accentColor(Context c, String id) { return c.getColor(accentRes(id)[0]); }
+    static int accentColor(Context c, String id) {
+        if (id.equals("custom")) {
+            boolean dark = (c.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                    == Configuration.UI_MODE_NIGHT_YES;
+            return hueColor(c.getSharedPreferences("fling", Context.MODE_PRIVATE).getFloat("accent_hue", 210f), dark);
+        }
+        return c.getColor(accentRes(id)[0]);
+    }
+
+    /** The accent for a rainbow hue: bright on dark, a little deeper on light, readable on both. */
+    static int hueColor(float hue, boolean dark) {
+        return Color.HSVToColor(new float[]{((hue % 360) + 360) % 360, dark ? 0.62f : 0.82f, dark ? 1f : 0.86f});
+    }
 
     /** {colour, style} resources of an accent id. */
     private static int[] accentRes(String id) {
@@ -355,6 +372,49 @@ final class Ui {
         r.addView(t);
         r.setOnClickListener(on);
         return r;
+    }
+
+    // ------------------------------------------------------------ questions
+
+    /** A question in Fling's own look: a rounded card in the page colours, the main answer as a
+     *  tonal accent button (like OK and LIVE), the others below it. The system AlertDialog under
+     *  this app's platform theme is Android 5's — square, ALL-CAPS buttons, system colours.
+     *  labels[0] is the main answer; a null action just closes. `extra` (a field) goes under the text. */
+    Dialog ask(Activity a, String title, String message, View extra, String[] labels, Runnable[] actions) {
+        Dialog d = new Dialog(a);
+        d.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout box = col();
+        GradientDrawable bg = round(card, 28);
+        if (card == page) bg.setStroke(Math.max(1, dp(1)), fgA(0.16f));   // AMOLED: black on black needs an edge
+        box.setBackground(bg);
+        box.setPadding(dp(24), dp(24), dp(24), dp(16));
+        box.addView(text(title, 20, fg, true));
+        if (message != null && !message.isEmpty()) {
+            TextView m = text(message, 15, fgA(0.72f), false);
+            m.setLineSpacing(dp(3), 1f);
+            box.addView(m, margins(lp(-1, -2), 0, 12, 0, 0));
+        }
+        if (extra != null) box.addView(extra, margins(lp(-1, -2), 0, 16, 0, 0));
+        for (int i = 0; i < labels.length; i++) {
+            final Runnable act = actions[i];
+            boolean main = i == 0;
+            TextView b = text(labels[i], 15, main ? accent : fg, main);
+            b.setGravity(Gravity.CENTER);
+            b.setMinHeight(dp(48));
+            b.setPadding(dp(16), dp(12), dp(16), dp(12));
+            b.setBackground(rippleRound(main ? accA(dark ? 0.22f : 0.14f) : fgA(dark ? 0.1f : 0.055f), 14));
+            b.setOnClickListener(v -> { d.dismiss(); if (act != null) act.run(); });
+            box.addView(b, margins(lp(-1, -2), 0, main ? 20 : 8, 0, 0));
+        }
+        d.setContentView(box);
+        Window w = d.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(0));
+            int screen = ctx.getResources().getDisplayMetrics().widthPixels;
+            w.setLayout(Math.min(screen - dp(32), dp(420)), ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+        d.show();
+        return d;
     }
 
     // ------------------------------------------------------------ drawn icons (SF-Symbols-like)
@@ -808,7 +868,7 @@ final class Ui {
             p.setColor(fgA(0.35f));
             p.setTextSize(dp(13));
             p.setTextAlign(Paint.Align.CENTER);
-            c.drawText(L.t("Свайп — навигация · тап — OK"), getWidth() / 2f, getHeight() / 2f, p);
+            c.drawText(L.t("Свайп — стрелки · касание — OK"), getWidth() / 2f, getHeight() / 2f, p);
             p.setTextSize(dp(11));
             p.setColor(fgA(0.25f));
             c.drawText(L.t("долгое нажатие — назад"), getWidth() / 2f, getHeight() / 2f + dp(18), p);

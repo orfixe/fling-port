@@ -141,6 +141,73 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 - macOS: the app is signed with the **hardened runtime** (microphone and Apple Events allowed).
 - macOS: `Fling --verify-release`, `--guard-check`, `--guard-selfcheck` command-line checks.
 
+## [0.6.2] - 2026-11-28
+
+### Fixed
+
+- PC and Android: **app tiles did nothing** for most apps. Many TVs (Google TV on Xiaomi, for
+  one) refuse to open an app by its package or an https:// link over the remote protocol —
+  only an app's own link (YouTube, Netflix) works there. Tiles now open apps over ADB, which
+  opens any installed app; an app that isn't on the TV says so ("Prime Video isn't installed
+  on the TV"), and without ADB Fling says to turn on network debugging.
+
+## [0.6.1] - 2026-11-28
+
+### Added
+
+- Android: **any accent colour** — drag along the rainbow under the colour circles; the dot
+  next to it shows the colour at once, letting go applies it. The wallpaper colours are
+  called **Monet** and their circle shows the wallpaper's three tones.
+
+### Changed
+
+- Android: volume down, mute and volume up are **round keys with just their symbol**, like
+  on a remote; app tiles with icons are oblong again (smaller icon, less padding); a tile
+  named from its package takes the TV's own name ("HDrezka App", not "Hdrezkaapp").
+- Android: clearer texts — "Keep the screen on while Fling is open", the AMOLED switch, the
+  notification remote, volume keys, updates; "away from home" instead of "not from home".
+
+### Fixed
+
+- Android: **the remote's keys did nothing while the phone wasn't paired** (arrows, home,
+  back, volume…). They now go over ADB then, as the notification's keys do.
+
+## [0.6.0] - 2026-11-28
+
+### Added
+
+- Android: **the TV in the notification.** What's on the TV now — by the name the TV itself
+  gives it ("Sleep mode", not "Dreamx") — and keys for power, volume −/+, play/pause and home,
+  from the shade and the lock screen. Keys go over ADB (no pairing needed) or the paired remote.
+  Settings → "Remote in the notification"; a swipe hides it until Fling opens again.
+- Android: **your own app tiles, per TV, with real icons.** Hold a tile to rearrange: drag it
+  to another place, ✕ removes it, **+** adds an app installed on the TV, "Done" finishes. The
+  names and icons come from the TV itself (a 3 KB helper Fling runs over ADB, like
+  scrcpy-server) and are kept on the phone, so they show without ADB too.
+
+### Fixed
+
+- Android: **a TV that has forgotten this phone looked connected**: the remote was shown and
+  keys went nowhere. The TV takes the TLS handshake and hangs up ("unknown device"); Fling now
+  reads that as "doesn't trust this phone", tries again (2, 4, 6 s) and then shows "Pair with
+  TV". App tiles still open apps over ADB meanwhile.
+- Android: the TV screenshot is saved only when you tap "Save", into the phone's own
+  Screenshots folder (DCIM/Screenshots on Samsung), not Pictures/Fling.
+
+### Changed
+
+- Android: **dialogs in Fling's own look** — the update offer, "Allow installing", the GitHub
+  token, the TV address, remote access, the TV screenshot and the guide are rounded cards in
+  the app's colours with the main answer as a tonal accent button. They were the system
+  dialogs of Android 5: square, ALL-CAPS buttons, system colours.
+- Android: **the top of the main screen** says what Fling is ("Remote and casting for your
+  TV") and shows the TV with a dot: green — connected, red — not. The "At home" chip is gone
+  (it read like the Wi‑Fi's name); a tap on the TV's name says whether it goes through
+  Tailscale and with what delay.
+- Android: the AMOLED switch says what it does and where it helps: "Black instead of dark grey.
+  Saves battery on OLED and AMOLED screens." (it promised battery savings on every screen).
+  The guide describes the theme as Auto / Light / Dark plus the AMOLED switch.
+
 ## [0.5.8] - 2026-11-28
 
 ### Fixed
@@ -807,7 +874,10 @@ unchanged.
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.8...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/orfixe/fling-port/compare/v0.6.1...v0.6.2
+[0.6.1]: https://github.com/orfixe/fling-port/compare/v0.6.0...v0.6.1
+[0.6.0]: https://github.com/orfixe/fling-port/compare/v0.5.8...v0.6.0
 [0.5.8]: https://github.com/orfixe/fling-port/compare/v0.5.7...v0.5.8
 [0.5.7]: https://github.com/orfixe/fling-port/compare/v0.5.6...v0.5.7
 [0.5.6]: https://github.com/orfixe/fling-port/compare/v0.5.5...v0.5.6

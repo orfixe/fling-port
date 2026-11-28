@@ -6,7 +6,6 @@ package app.fling;
 import android.Manifest;
 import android.app.Activity;
 import android.app.ActivityManager;
-import android.app.AlertDialog;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -24,7 +23,6 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.text.InputType;
 import android.widget.EditText;
-import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import org.json.JSONArray;
@@ -140,13 +138,11 @@ final class Updater {
 
     private void offer(Release r, String have) {
         if (!r.hasApk()) { toast(L.f("В версии %s нет файла Fling.apk.", r.version)); return; }
-        new AlertDialog.Builder(a)
-                .setTitle(L.f("Доступна версия %s", r.version))
-                .setMessage(L.f("У вас %s. Обновление скачается в фоне — ход загрузки будет в уведомлении, Fling можно закрыть. Связь с ТВ и настройки сохранятся.", have))
-                .setPositiveButton(L.t("Обновить"), (d, w) -> { prefs.edit().remove("upd_skip").apply(); download(r); })
-                .setNeutralButton(L.t("Пропустить эту версию"), (d, w) -> skip(a, r.version))
-                .setNegativeButton(L.t("Позже"), null)
-                .show();
+        ui.ask(a, L.f("Доступна версия %s", r.version),
+                L.f("У вас %s. Обновление скачается в фоне — ход загрузки будет в уведомлении, Fling можно закрыть. Связь с ТВ и настройки сохранятся.", have),
+                null,
+                new String[]{L.t("Обновить"), L.t("Позже"), L.t("Пропустить эту версию")},
+                new Runnable[]{() -> { prefs.edit().remove("upd_skip").apply(); download(r); }, null, () -> skip(a, r.version)});
     }
 
     /** "Skip this version": no more offers or notifications for it; the next one comes as usual. */
@@ -169,42 +165,35 @@ final class Updater {
         EditText e = ui.field("github_pat_…", true);
         e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
         e.setText(token(prefs));
-        FrameLayout f = new FrameLayout(a);
-        f.setPadding(ui.dp(20), ui.dp(8), ui.dp(20), 0);
-        f.addView(e);
-        new AlertDialog.Builder(a)
-                .setTitle(rejected ? L.t("Токен не подошёл") : L.t("Нужен токен GitHub"))
-                .setMessage(L.t("Репозиторий Fling приватный, поэтому GitHub отдаёт обновления только по токену. "
+        ui.ask(a, rejected ? L.t("Токен не подошёл") : L.t("Нужен токен GitHub"),
+                L.t("Репозиторий Fling приватный, поэтому GitHub отдаёт обновления только по токену. "
                         + "github.com → Settings → Developer settings → Fine-grained tokens → Generate: "
                         + "Repository access — только fling-port, Permissions → Contents — Read-only. "
-                        + "Токен хранится только на этом телефоне."))
-                .setView(f)
-                .setPositiveButton(L.t("Сохранить и проверить"), (d, w) -> {
+                        + "Токен хранится только на этом телефоне."),
+                e,
+                new String[]{L.t("Сохранить и проверить"), L.t("Открыть GitHub"), L.t("Отмена")},
+                new Runnable[]{() -> {
                     prefs.edit().putString("gh_token", e.getText().toString().trim()).apply();
                     check(true);
-                })
-                .setNeutralButton(L.t("Открыть GitHub"), (d, w) -> {
+                }, () -> {
                     try { a.startActivity(new Intent(Intent.ACTION_VIEW,
                             Uri.parse("https://github.com/settings/personal-access-tokens/new"))); } catch (Exception ignored) {}
-                })
-                .setNegativeButton(L.t("Отмена"), null)
-                .show();
+                }, null});
     }
 
     /** "Update": the permissions it needs, then the download in the background. */
     private void download(Release r) {
         // Android 8+: Fling needs "Install unknown apps" once; the system asks on its own screen
         if (!a.getPackageManager().canRequestPackageInstalls()) {
-            new AlertDialog.Builder(a)
-                    .setTitle(L.t("Разрешите установку"))
-                    .setMessage(L.t("Чтобы Fling мог поставить своё обновление, разрешите ему «Установку неизвестных приложений». Когда вернётесь, Fling сразу предложит обновиться."))
-                    .setPositiveButton(L.t("Открыть настройки"), (d, w) -> {
+            ui.ask(a, L.t("Разрешите установку"),
+                    L.t("Чтобы Fling мог поставить своё обновление, разрешите ему «Установку неизвестных приложений». Когда вернётесь, Fling сразу предложит обновиться."),
+                    null,
+                    new String[]{L.t("Открыть настройки"), L.t("Отмена")},
+                    new Runnable[]{() -> {
                         prefs.edit().putString("upd_await", r.json()).apply();   // resumed(): offer it again once allowed
                         try { a.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                                 Uri.parse("package:" + a.getPackageName()))); } catch (Exception e) { prefs.edit().remove("upd_await").apply(); }
-                    })
-                    .setNegativeButton(L.t("Отмена"), null)
-                    .show();
+                    }, null});
             return;
         }
         // Android 13+: the progress and "tap to install" are notifications

@@ -39,8 +39,8 @@ android {
         applicationId = "app.fling"
         minSdk = 26
         targetSdk = 36
-        versionCode = 15
-        versionName = "0.5.8"
+        versionCode = 19
+        versionName = "0.6.2"
         buildConfigField("String", "GIT_COMMIT", "\"$commit\"")
         buildConfigField("String", "BUILD_DATE", "\"${LocalDate.now()}\"")
     }
@@ -105,6 +105,7 @@ android {
             manifest.srcFile("AndroidManifest.xml")
             java.setSrcDirs(listOf("src"))
             res.setSrcDirs(listOf("res"))
+            assets.setSrcDirs(listOf("assets"))     // tv-icons.dex (tvtool/build.sh)
         }
         getByName("github") {
             manifest.srcFile("flavors/github/AndroidManifest.xml")

@@ -190,7 +190,7 @@ final class DevicePicker {
         root.addView(searching, ui.margins(Ui.lp(-1, -2), 4, 0, 0, 16));
 
         // at home
-        root.addView(ui.label(L.t("Дома · Wi‑Fi")), ui.margins(Ui.lp(-1, -2), 12, 4, 12, 8));
+        root.addView(ui.label(L.t("Wi‑Fi")), ui.margins(Ui.lp(-1, -2), 12, 4, 12, 8));
         homeList = ui.col();
         root.addView(homeList, Ui.lp(-1, -2));
         LinearLayout empty = ui.card();
@@ -238,7 +238,7 @@ final class DevicePicker {
         addBtn.setOnClickListener(v -> add());
         ar.addView(addBtn, ui.margins(Ui.lp(-2, -2), 8, 0, 0, 0));
         addCard.addView(ar);
-        addHint = ui.text(L.t("Дома — IP из настроек ТВ (Сеть). Через Tailscale — 100.x.y.z или имя MagicDNS."), 12, ui.fgA(0.5f), false);
+        addHint = ui.text(L.t("В локальной сети — IP из настроек ТВ (Сеть). Через Tailscale — 100.x.y.z или имя MagicDNS."), 12, ui.fgA(0.5f), false);
         addHint.setPadding(ui.dp(2), ui.dp(8), 0, 0);
         addCard.addView(addHint);
         root.addView(addCard, Ui.lp(-1, -2));
@@ -396,7 +396,7 @@ final class DevicePicker {
         LinearLayout t = ui.col();
         t.setPadding(ui.dp(12), 0, ui.dp(8), 0);
         t.addView(ui.text(!inst ? L.t("Tailscale не установлен") : on ? L.t("Tailscale включён") : L.t("Tailscale выключен"), 15, ui.fg, false));
-        TextView h = ui.text(!inst ? L.t("Нужен на телефоне и на ТВ, чтобы управлять ТВ не из дома.")
+        TextView h = ui.text(!inst ? L.t("Нужен на телефоне и на ТВ, чтобы управлять телевизором вне дома.")
                 : on ? L.t("ТВ из tailnet добавляется один раз — по адресу ниже.")
                 : L.t("Включите его, чтобы ТВ из tailnet были на связи."), 12, ui.fgA(0.5f), false);
         h.setPadding(0, ui.dp(2), 0, 0);

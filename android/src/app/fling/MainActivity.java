@@ -5,7 +5,6 @@ package app.fling;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -70,6 +69,44 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             {"Tubi", "https://tubitv.com/", "com.tubitv"},
             {"Kinopoisk", "https://hd.kinopoisk.ru", "ru.kinopoisk"},
     };
+    /** Names of TV apps a package name doesn't spell well (shared with Fling for PC). */
+    static final String[][] KNOWN_APPS = {
+            {"com.google.android.youtube.tvmusic", "YouTube Music"},
+            {"com.google.android.youtube.tvkids", "YouTube Kids"},
+            {"org.xbmc.kodi", "Kodi"},
+            {"org.videolan.vlc", "VLC"},
+            {"tv.twitch.android.app", "Twitch"},
+            {"org.jellyfin.androidtv", "Jellyfin"},
+            {"tv.pluto.android", "Pluto TV"},
+            {"com.apple.atve.androidtv.appletv", "Apple TV"},
+            {"com.wbd.stream", "Max"},
+            {"com.hulu.livingroomplus", "Hulu"},
+            {"com.cbs.ott", "Paramount+"},
+            {"com.teamsmart.videomanager.tv", "SmartTube"},
+            {"com.liskovsoft.smarttubetv.beta", "SmartTube"},
+            {"ru.ivi.client", "ivi"},
+            {"ru.more.play", "Okko"},
+            {"com.android.tv.settings", "Настройки"},
+            {"com.google.android.videos", "Google TV"},
+            {"com.google.android.play.games", "Play Игры"},
+            {"com.android.vending", "Google Play"},
+            {"gpm.tnt_premier", "Premier"},
+            {"ru.ivi.client", "ivi"},
+            {"ru.more.play", "Okko"},
+            {"ru.rt.video.app.tv", "Wink"},
+            {"com.zaneschepke.wireguardautotunnel", "WG Tunnel"},
+    };
+    /** Package-name words that say nothing about the app ("com.foo.tv.android" → "Foo"). */
+    private static final java.util.Set<String> GENERIC = new java.util.HashSet<>(java.util.Arrays.asList(
+            "android", "androidtv", "app", "apps", "atv", "beta", "client", "com", "free", "launcher", "leanback",
+            "livingroom", "mobile", "net", "ninja", "org", "ott", "player", "ru", "stream", "tv"));
+    /** The TV's own home screens: not apps to pin. */
+    private static final java.util.Set<String> HIDDEN = new java.util.HashSet<>(java.util.Arrays.asList(
+            "com.google.android.apps.tv.launcher", "com.google.android.apps.tv.launcherx",
+            "com.google.android.leanbacklauncher", "com.google.android.tvlauncher"));
+    private static final int MAX_APPS = 12;
+    /** Names of the tiles on screen (renamed ones too), for "Now: …". */
+    private static final Map<String, String> tileNames = new java.util.concurrent.ConcurrentHashMap<>();
     static final int SEEK = 30;
     private static final int REQ_MIC = 7, REQ_FILES = 8, REQ_NOTIFY = 9;
 
@@ -213,6 +250,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         super.onResume();
         if (!look.equals(lookNow())) { recreate(); return; }   // back from Settings with a new theme or language
         resumed = true;
+        TvRemoteService.foregroundAtv = atv;                          // the notification's keys go through this session
+        if (prefs.getBoolean("remote_notify", true)) TvRemoteService.show(this, host, devName);
         if (prefs.getBoolean("keepOn", false)) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         else getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (!prefs.getBoolean("welcome_done", false) && !prefs.contains("host")) {   // first launch: the language first
@@ -247,6 +286,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     @Override protected void onPause() {
         super.onPause();
         resumed = false;
+        if (TvRemoteService.foregroundAtv == atv) TvRemoteService.foregroundAtv = null;
         main.removeCallbacks(poll);
         main.removeCallbacks(tick);
         main.removeCallbacks(probe);
@@ -338,12 +378,13 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         } catch (Exception ignored) { netCb = null; }
     }
 
-    /** "Home" / "Tailscale · 38 ms" / "No connection". */
+    /** The connection in words, for a tap on the TV's name and for screen readers; on screen it
+     *  is only the dot: green — the TV answers, red — it doesn't, grey — checking. */
     private String pathLabel() {
-        if (reachable == null) return null;
+        if (reachable == null) return L.t("Проверяю связь с ТВ…");
         if (!reachable) return L.t("Нет связи с ТВ");
-        if (viaTailnet) return pathMs > 0 ? L.f("Через Tailscale · %d мс", pathMs) : L.t("Через Tailscale");
-        return L.t("Дома");
+        if (viaTailnet) return pathMs > 0 ? L.f("Связь с ТВ через Tailscale · %d мс", pathMs) : L.t("Связь с ТВ через Tailscale");
+        return L.t("Связь с ТВ есть");
     }
 
     // ================================================================ LIVE
@@ -409,6 +450,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 adbBusy = false;
                 if (!h.equals(host)) return;
                 if (res != null || !"ok".equals(Adb.lastState)) adbSt = res;
+                if ("ok".equals(Adb.lastState)) fetchTileIcons(apps());   // ADB is up: the tiles' icons, once
                 sync();
             });
         });
@@ -437,6 +479,18 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     private boolean paired() { return atv.paired(host); }
 
+    /** A remote key: the paired remote (or Samsung's own), else `input keyevent` over ADB — so the
+     *  buttons keep working while the phone isn't paired, as the notification's do. */
+    private void tvKey(int code) {
+        final String h = host;
+        if (h == null) return;
+        if (atv.paired(h) || !"ok".equals(Adb.lastState)) { atv.key(h, code); return; }
+        bg(() -> {
+            try { adb.shell(h, "input keyevent " + code); }
+            catch (Exception e) { main.post(() -> showError(L.t("Нет соединения с ТВ"))); }
+        });
+    }
+
     // ================================================================ callbacks (background threads)
 
     @Override public void onStatus(Cast.Status s) {
@@ -449,9 +503,16 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     /** The remote or Cast couldn't (re)connect on its own: check the TV at once, the status line shows it. */
     @Override public void onOffline(String message) { Diag.log("tv", "offline: " + message); main.post(() -> { if (resumed) { main.removeCallbacks(probe); main.post(probe); } }); }
 
-    @Override public void onPower(Boolean on) { main.post(() -> { tvOn = on; sync(); }); }
+    @Override public void onPower(Boolean on) { main.post(() -> { tvOn = on; sync(); TvRemoteService.now(this, tvApp, tvOn); }); }
 
-    @Override public void onApp(String pkg) { main.post(() -> { tvApp = pkg; sync(); }); }
+    @Override public void onApp(String pkg) {
+        main.post(() -> {
+            tvApp = pkg;
+            sync();
+            TvRemoteService.now(this, tvApp, tvOn);
+            if ("ok".equals(Adb.lastState)) TvIcons.learn(this, adb, host, pkg, () -> main.post(this::sync));   // its real name
+        });
+    }
 
     @Override public void onPairing(String state, String message) {
         Diag.log("pair", state + (message == null || message.isEmpty() ? "" : ": " + message));
@@ -501,28 +562,21 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                     max = Math.max(max, Math.max(android.graphics.Color.red(c), Math.max(android.graphics.Color.green(c), android.graphics.Color.blue(c))));
                 }
                 final boolean black = max < 8;
-                android.content.ContentValues cv = new android.content.ContentValues();
-                cv.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME,
-                        new java.text.SimpleDateFormat("'tv-'yyyyMMdd-HHmmss'.png'", java.util.Locale.US).format(new java.util.Date()));
-                cv.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png");
-                if (Build.VERSION.SDK_INT >= 29) cv.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Fling");
-                android.net.Uri uri = null;
-                try {
-                    uri = getContentResolver().insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv);
-                    if (uri != null) try (java.io.OutputStream o = getContentResolver().openOutputStream(uri)) { o.write(png); }
-                } catch (Exception ignored) {}   // pre-Android 10 without storage permission: just show it
+                // shown first; saved only on "Save" (back / a tap outside just closes it)
                 main.post(() -> {
                     if (isFinishing() || isDestroyed()) return;   // Back pressed during the capture
                     android.widget.ImageView iv = new android.widget.ImageView(this);
                     iv.setImageBitmap(bmp);
                     iv.setAdjustViewBounds(true);
-                    new android.app.AlertDialog.Builder(this)
-                            .setTitle(L.t("Снимок экрана ТВ"))
-                            .setMessage(black ? L.t("Снимок чёрный: видео защищено от снимков (DRM у YouTube/Netflix). Меню и главный экран ТВ снимаются нормально.")
-                                              : L.t("Сохранено в Pictures/Fling"))
-                            .setView(iv)
-                            .setPositiveButton("OK", null)
-                            .show();
+                    iv.setClipToOutline(true);                     // the picture's corners follow the card's
+                    iv.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                        @Override public void getOutline(View v, android.graphics.Outline o) {
+                            o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), ui.dp(12));
+                        }
+                    });
+                    ui.ask(this, L.t("Снимок экрана ТВ"),
+                            black ? L.t("Снимок чёрный: видео защищено от снимков (DRM у YouTube/Netflix). Меню и главный экран ТВ снимаются нормально.") : null,
+                            iv, new String[]{L.t("Сохранить")}, new Runnable[]{() -> saveScreenshot(png)});
                     hideNotice.run();
                 });
             } catch (Exception e) {
@@ -532,6 +586,28 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                         : "closed".equals(st) ? L.t("Снимок экрана работает через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети».")
                         : L.t("Снимок экрана не получился: ") + e.getMessage()));
             }
+        });
+    }
+
+    /** The TV screenshot into the phone's own screenshots folder — where its own screenshots
+     *  go: DCIM/Screenshots on Samsung, Pictures/Screenshots elsewhere. */
+    private void saveScreenshot(byte[] png) {
+        bg(() -> {
+            String dir = new java.io.File(android.os.Environment.getExternalStoragePublicDirectory(
+                    android.os.Environment.DIRECTORY_DCIM), "Screenshots").isDirectory()
+                    ? "DCIM/Screenshots" : "Pictures/Screenshots";
+            android.content.ContentValues cv = new android.content.ContentValues();
+            cv.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME,
+                    new java.text.SimpleDateFormat("'Screenshot_'yyyyMMdd-HHmmss'_TV.png'", java.util.Locale.US).format(new java.util.Date()));
+            cv.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png");
+            if (Build.VERSION.SDK_INT >= 29) cv.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, dir);
+            boolean ok = false;
+            try {
+                android.net.Uri uri = getContentResolver().insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv);
+                if (uri != null) try (java.io.OutputStream o = getContentResolver().openOutputStream(uri)) { o.write(png); ok = true; }
+            } catch (Exception ignored) {}   // Android 8–9 without the storage permission
+            final boolean saved = ok;
+            main.post(() -> { if (saved) say(L.t("Снимок сохранён в «Скриншоты»")); else showError(L.t("Не удалось сохранить снимок")); });
         });
     }
 
@@ -798,6 +874,324 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         prefs.edit().putString("recents", a.toString()).apply();
     }
 
+    // ================================================================ app tiles
+
+    private LinearLayout appGrid;
+
+    /** Tiles are kept per TV, under its name (a new IP from the router keeps them). */
+    private String appsKey() { return "apps:" + nz(devName, nz(host, "")); }
+
+    /** {name, link, package}; a tile without a link opens by package (market://launch?id=…). */
+    private List<String[]> apps() {
+        List<String[]> out = new ArrayList<>();
+        String raw = prefs.getString(appsKey(), null);
+        if (raw != null) {
+            try {
+                JSONArray a = new JSONArray(raw);
+                for (int i = 0; i < a.length(); i++) {
+                    JSONObject o = a.getJSONObject(i);
+                    out.add(new String[]{o.optString("name"), o.optString("link"), o.optString("pkg")});
+                }
+                return out;
+            } catch (Exception ignored) { out.clear(); }
+        }
+        for (String[] a : TV_APPS) out.add(a.clone());
+        return out;
+    }
+
+    private void saveApps(List<String[]> list) {
+        JSONArray a = new JSONArray();
+        for (String[] x : list) {
+            try { a.put(new JSONObject().put("name", x[0]).put("link", x[1]).put("pkg", x[2])); } catch (Exception ignored) {}
+        }
+        prefs.edit().putString(appsKey(), a.toString()).apply();
+        buildApps();
+        sync();
+    }
+
+    /** Edit mode (a long press on a tile): drag a tile to move it, ✕ removes it, + adds one. */
+    private boolean editTiles;
+    private final List<View> tileBadges = new ArrayList<>();
+    private View tileBar;
+
+    private void buildApps() {
+        if (appGrid == null) return;
+        appGrid.removeAllViews();
+        chips.clear();
+        tileNames.clear();
+        tileBadges.clear();
+        List<String[]> list = apps();
+        for (String[] a : list) if (!a[2].isEmpty()) tileNames.put(a[2], a[0]);
+        boolean icons = false;
+        for (String[] a : list) if (TvIcons.icon(this, a[2]) != null) { icons = true; break; }
+        final int tileH = ui.dp(icons ? 50 : 38);                 // one height for every tile, "+" too
+        int n = list.size() + (list.size() < MAX_APPS ? 1 : 0);   // + the "+" tile
+        LinearLayout r = null;
+        for (int i = 0; i < n; i++) {
+            if (i % 4 == 0) { r = ui.row(); appGrid.addView(r, ui.margins(Ui.lp(-1, -2), 0, i == 0 ? 0 : 6, 0, 0)); }
+            View cellView;
+            if (i < list.size()) {
+                final int idx = i;
+                final String[] app = list.get(i);
+                String tvName = TvIcons.label(this, app[2]);           // a name made from the package -> the TV's own
+                if (tvName != null && app[0].equals(labelFor(app[2]))) app[0] = tvName;
+                final FrameLayout cell = new FrameLayout(this);
+                TextView c = ui.chip(app[0], v -> { if (!editTiles) launchTile(app); });
+                c.setTag(app[2]);
+                withIcon(c, app[2], 20);
+                c.setMinHeight(tileH);
+                c.setOnLongClickListener(v -> { startTileDrag(cell, idx); return true; });
+                chips.add(c);
+                cell.addView(c, new FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT));
+                TextView x = ui.text("✕", 10, 0xFFFFFFFF, true);   // remove: a small round badge in the corner
+                x.setGravity(Gravity.CENTER);
+                x.setBackground(ui.oval(ui.red));
+                x.setContentDescription(L.f("Убрать %s", app[0]));
+                x.setOnClickListener(v -> { List<String[]> l = apps(); if (idx < l.size()) { l.remove(idx); saveApps(l); } });
+                x.setVisibility(editTiles ? View.VISIBLE : View.GONE);
+                tileBadges.add(x);
+                FrameLayout.LayoutParams xp = new FrameLayout.LayoutParams(ui.dp(18), ui.dp(18), Gravity.TOP | Gravity.END);
+                xp.setMargins(0, ui.dp(3), ui.dp(3), 0);
+                cell.addView(x, xp);
+                cell.setOnDragListener((v, ev) -> onTileDrag(v, ev, idx));
+                cellView = cell;
+            } else {
+                TextView c = ui.chip("+", v -> pickTvApp(-1));
+                c.setTextColor(ui.fgA(0.6f));
+                c.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 20);
+                c.setMinHeight(tileH);
+                c.setContentDescription(L.t("Добавить приложение с ТВ"));
+                cellView = c;
+            }
+            LinearLayout.LayoutParams p = Ui.lpW(1);
+            p.setMargins(i % 4 == 0 ? 0 : ui.dp(3), 0, i % 4 == 3 ? 0 : ui.dp(3), 0);
+            r.addView(cellView, p);
+        }
+        for (int k = n % 4; k != 0 && k < 4; k++) {             // keep the last row's tiles the same width
+            LinearLayout.LayoutParams p = Ui.lpW(1);
+            p.setMargins(ui.dp(3), 0, k == 3 ? 0 : ui.dp(3), 0);
+            r.addView(new View(this), p);
+        }
+        // under the tiles while editing: what to do, back to the defaults, done
+        LinearLayout bar = ui.row();
+        TextView hint = ui.text(L.t("Перетащите плитку, чтобы переставить"), 12, ui.fgA(0.5f), false);
+        bar.addView(hint, Ui.lpW(1));
+        TextView reset = ui.text(L.t("По умолчанию"), 13, ui.fgA(0.7f), false);
+        reset.setPadding(ui.dp(10), ui.dp(8), ui.dp(10), ui.dp(8));
+        reset.setOnClickListener(v -> { prefs.edit().remove(appsKey()).apply(); buildApps(); sync(); });
+        bar.addView(reset);
+        TextView done = ui.text(L.t("Готово"), 14, ui.accent, true);
+        done.setPadding(ui.dp(14), ui.dp(8), ui.dp(14), ui.dp(8));
+        done.setBackground(ui.rippleRound(ui.accA(ui.dark ? 0.22f : 0.14f), 14));
+        done.setOnClickListener(v -> setEditTiles(false));
+        bar.addView(done);
+        bar.setVisibility(editTiles ? View.VISIBLE : View.GONE);
+        tileBar = bar;
+        appGrid.addView(bar, ui.margins(Ui.lp(-1, -2), 0, 10, 0, 0));
+        fetchTileIcons(list);
+    }
+
+    /** Badges and the bar appear / go without redrawing, so a long press can go straight into a drag. */
+    private void setEditTiles(boolean on) {
+        editTiles = on;
+        for (View b : tileBadges) b.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (tileBar != null) tileBar.setVisibility(on ? View.VISIBLE : View.GONE);
+    }
+
+    private void startTileDrag(View cell, int idx) {
+        setEditTiles(true);
+        cell.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+        android.content.ClipData data = android.content.ClipData.newPlainText("fling-tile", String.valueOf(idx));
+        View tile = ((FrameLayout) cell).getChildAt(0);              // the tile itself: no ✕ in the shadow
+        if (cell.startDragAndDrop(data, new View.DragShadowBuilder(tile), idx, 0)) cell.setAlpha(0.3f);
+    }
+
+    /** Another tile under the finger lights up; dropping there puts the dragged tile in its place. */
+    private boolean onTileDrag(View v, android.view.DragEvent ev, int idx) {
+        switch (ev.getAction()) {
+            case android.view.DragEvent.ACTION_DRAG_STARTED:
+                return ev.getLocalState() instanceof Integer;
+            case android.view.DragEvent.ACTION_DRAG_ENTERED:
+                if (!Integer.valueOf(idx).equals(ev.getLocalState())) v.animate().scaleX(1.08f).scaleY(1.08f).setDuration(120).start();
+                return true;
+            case android.view.DragEvent.ACTION_DRAG_EXITED:
+                v.animate().scaleX(1f).scaleY(1f).setDuration(120).start();
+                return true;
+            case android.view.DragEvent.ACTION_DROP: {
+                int from = (Integer) ev.getLocalState();
+                if (from != idx) {
+                    main.post(() -> {
+                        List<String[]> l = apps();
+                        if (from < l.size() && idx < l.size()) { l.add(idx, l.remove(from)); saveApps(l); }
+                    });
+                }
+                return true;
+            }
+            case android.view.DragEvent.ACTION_DRAG_ENDED:
+                v.setScaleX(1f); v.setScaleY(1f); v.setAlpha(1f);
+                return true;
+        }
+        return true;
+    }
+
+    /** The app's icon from the TV (TvIcons) above the name; nothing when it isn't known yet. */
+    private void withIcon(TextView t, String pkg, int dp) {
+        android.graphics.Bitmap b = TvIcons.icon(this, pkg);
+        if (b == null) return;
+        android.graphics.drawable.BitmapDrawable d = new android.graphics.drawable.BitmapDrawable(getResources(), b);
+        d.setBounds(0, 0, ui.dp(dp), ui.dp(dp));
+        t.setCompoundDrawablesRelative(null, d, null, null);
+        t.setCompoundDrawablePadding(ui.dp(3));
+        t.setPadding(t.getPaddingLeft(), ui.dp(6), t.getPaddingRight(), ui.dp(5));
+    }
+
+    /** Hosts whose tile icons were asked for in this run: once each, not on every redraw. */
+    private final java.util.Set<String> iconsAsked = new java.util.HashSet<>();
+
+    private void fetchTileIcons(List<String[]> list) {
+        final String h = host;
+        if (h == null || !"ok".equals(Adb.lastState) || !iconsAsked.add(h)) return;
+        List<String> pkgs = new ArrayList<>();
+        for (String[] a : list) pkgs.add(a[2]);
+        final List<String> need = TvIcons.missing(this, pkgs);
+        if (need.isEmpty()) return;
+        bg(() -> {
+            try {
+                if (TvIcons.fetch(this, adb, h, need) > 0) main.post(() -> { if (h.equals(host)) buildApps(); });
+            } catch (Exception e) {
+                Diag.log("icons", "from the TV: " + e.getMessage());
+            }
+        });
+    }
+
+    /** ADB first: it opens any installed app by its package. Over the remote protocol many TVs
+     *  (Google TV on Xiaomi, for one) refuse market://launch?id=… and https:// links; only an
+     *  app's own link (vnd.youtube.launch://, netflix://) opens there. */
+    private void launchTile(String[] app) {
+        final String h = host;
+        if (h == null) { showError(L.t("Устройство не выбрано")); return; }
+        final String link = app[1], pkg = app[2], name = app[0];
+        if (sam.handles(h)) { atv.launch(h, !link.isEmpty() ? link : pkg); return; }   // Samsung's own apps
+        final boolean ownLink = link.contains("://") && !link.startsWith("http://") && !link.startsWith("https://")
+                && !link.startsWith("market://");
+        boolean adbMaybe = Adb.lastState == null || "ok".equals(Adb.lastState);
+        if (adbMaybe && pkg.matches("[A-Za-z][\\w]*(\\.[\\w]+)+")) {
+            bg(() -> {
+                boolean opened = false;
+                try {
+                    for (String cat : new String[]{"LEANBACK_LAUNCHER", "LAUNCHER"}) {
+                        String out = adb.shell(h, "monkey -p " + pkg + " -c android.intent.category." + cat + " 1");
+                        if (out != null && !out.contains("No activities found") && !out.contains("Error")) { opened = true; break; }
+                    }
+                } catch (Exception ignored) {}
+                final boolean ok = opened;
+                main.post(() -> {
+                    if (ok) return;
+                    if (paired() && ownLink) atv.launch(h, link);          // ADB couldn't: the remote may still
+                    else if ("ok".equals(Adb.lastState)) showError(L.f("%s не установлено на ТВ.", name));
+                    else showError(L.f("%s открывается через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети».", name));
+                });
+            });
+            return;
+        }
+        if (paired() && ownLink) { atv.launch(h, link); return; }
+        showError(L.f("%s открывается через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети».", name));
+    }
+
+    /** The apps installed on the TV (over ADB), to add (idx -1) or to put in place of tile idx. */
+    private void pickTvApp(int idx) {
+        final String h = host;
+        if (h == null) { showError(L.t("Устройство не выбрано")); return; }
+        if (!"ok".equals(Adb.lastState)) {
+            showError(L.t("Список приложений ТВ берётся через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети»."));
+            return;
+        }
+        say(L.t("Загружаю приложения с ТВ…"));
+        bg(() -> {
+            List<String> pkgs = new ArrayList<>();
+            try {
+                String out = adb.shell(h, "cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.LEANBACK_LAUNCHER");
+                pkgs = launcherPackages(out);
+                if (pkgs.isEmpty()) pkgs = launcherPackages(adb.shell(h, "pm list packages -3"));
+            } catch (Exception ignored) {}
+            try {                                                  // their real names and icons, once
+                List<String> need = TvIcons.missing(this, pkgs);
+                if (!need.isEmpty()) TvIcons.fetch(this, adb, h, need);
+            } catch (Exception e) {
+                Diag.log("icons", "from the TV: " + e.getMessage());
+            }
+            final List<String> found = pkgs;
+            main.post(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                hideNotice.run();
+                if (found.isEmpty()) { showError(L.t("Не удалось получить список приложений с ТВ.")); return; }
+                List<String[]> cur = apps();
+                java.util.Set<String> have = new java.util.HashSet<>();
+                for (String[] a : cur) have.add(a[2]);
+                List<String[]> choices = new ArrayList<>();
+                for (String p : found) if (!have.contains(p)) choices.add(new String[]{nz(TvIcons.label(this, p), labelFor(p)), "", p});
+                choices.sort((a, b) -> a[0].compareToIgnoreCase(b[0]));
+                if (choices.isEmpty()) { say(L.t("Все приложения с ТВ уже на плитках.")); return; }
+                LinearLayout col = ui.col();
+                final android.app.Dialog[] dlg = new android.app.Dialog[1];
+                for (String[] c : choices) {
+                    LinearLayout row = ui.row();
+                    row.setPadding(ui.dp(8), ui.dp(8), ui.dp(12), ui.dp(8));
+                    row.setBackground(ui.rippleRound(0x00000000, 12));
+                    android.widget.ImageView ic = new android.widget.ImageView(this);
+                    android.graphics.Bitmap bm = TvIcons.icon(this, c[2]);
+                    if (bm != null) ic.setImageBitmap(bm);
+                    row.addView(ic, ui.margins(Ui.lp(ui.dp(36), ui.dp(36)), 0, 0, 12, 0));
+                    LinearLayout names = ui.col();
+                    names.addView(ui.text(c[0], 16, ui.fg, false));
+                    TextView pk = ui.text(c[2], 12, ui.fgA(0.45f), false);
+                    pk.setPadding(0, ui.dp(3), 0, 0);
+                    names.addView(pk);
+                    row.addView(names, Ui.lpW(1));
+                    row.setOnClickListener(v -> {
+                        if (dlg[0] != null) dlg[0].dismiss();
+                        List<String[]> l = apps();
+                        if (idx >= 0 && idx < l.size()) l.set(idx, c); else if (l.size() < MAX_APPS) l.add(c);
+                        saveApps(l);
+                    });
+                    col.addView(row, Ui.lp(-1, -2));
+                }
+                android.widget.ScrollView sv = new android.widget.ScrollView(this) {
+                    @Override protected void onMeasure(int w, int hs) {
+                        int max = (int) (getResources().getDisplayMetrics().heightPixels * 0.55f);
+                        super.onMeasure(w, MeasureSpec.makeMeasureSpec(max, MeasureSpec.AT_MOST));
+                    }
+                };
+                sv.addView(col);
+                dlg[0] = ui.ask(this, idx >= 0 ? L.t("Заменить на…") : L.t("Добавить приложение с ТВ"), null, sv,
+                        new String[]{L.t("Отмена")}, new Runnable[]{null});
+            });
+        });
+    }
+
+    /** `cmd package query-activities --brief` ("pkg/activity" lines) or `pm list packages` → packages. */
+    private static List<String> launcherPackages(String text) {
+        List<String> out = new ArrayList<>();
+        if (text == null) return out;
+        Pattern p = Pattern.compile("^\\s*(?:package:)?([A-Za-z][\\w]*(?:\\.[\\w]+)+)(?:/|$)");
+        for (String line : text.split("\n")) {
+            Matcher m = p.matcher(line.trim());
+            if (m.find() && !out.contains(m.group(1)) && !HIDDEN.contains(m.group(1))) out.add(m.group(1));
+        }
+        return out;
+    }
+
+    private static String labelFor(String pkg) {
+        for (String[] a : TV_APPS) if (a[2].equals(pkg)) return a[0];
+        for (String[] a : KNOWN_APPS) if (a[0].equals(pkg)) return a[1];
+        String tail = null;
+        String[] parts = pkg.split("\\.");
+        for (int i = parts.length - 1; i >= 0; i--) if (!GENERIC.contains(parts[i].toLowerCase(Locale.ROOT))) { tail = parts[i]; break; }
+        if (tail == null) tail = parts[parts.length - 1];
+        tail = tail.replace('_', ' ');
+        return tail.isEmpty() ? pkg : Character.toUpperCase(tail.charAt(0)) + tail.substring(1);
+    }
+
     // ================================================================ device
 
     private void selectDevice(Discovery.Device d) { selectHost(d.host, displayName(d)); }
@@ -811,6 +1205,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         st = null; tvOn = null; tvApp = null; pairState = "idle";
         adbSt = null; adbNext = 0;   // now-playing came from the old TV; read the new one right away
         prefs.edit().putString("host", h).putString("name", name).apply();
+        buildApps();                                                   // this TV's own tiles
+        if (prefs.getBoolean("remote_notify", true)) TvRemoteService.show(this, h, name);
         reachable = null; pathMs = -1;
         connectDevice();
         atv.adopt(h);                                                  // paired at home → paired here too
@@ -927,16 +1323,10 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private void askIp() {
         EditText e = ui.field("192.168.1.50", false);   // example address, not a real one
         e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        FrameLayout f = new FrameLayout(this);
-        f.setPadding(ui.dp(20), ui.dp(8), ui.dp(20), 0);
-        f.addView(e);
-        new AlertDialog.Builder(this)
-                .setTitle(L.t("Адрес телевизора"))
-                .setMessage(L.t("Дома — IP из настроек ТВ (Сеть). Через Tailscale — 100.x.y.z или имя MagicDNS."))
-                .setView(f)
-                .setPositiveButton(L.t("Добавить"), (dlg, w) -> addByIp(e.getText().toString().trim()))
-                .setNegativeButton(L.t("Отмена"), null)
-                .show();
+        ui.ask(this, L.t("Адрес телевизора"),
+                L.t("В локальной сети — IP из настроек ТВ (Сеть). Через Tailscale — 100.x.y.z или имя MagicDNS."),
+                e, new String[]{L.t("Добавить"), L.t("Отмена")},
+                new Runnable[]{() -> addByIp(e.getText().toString().trim()), null});
     }
 
     /** Checks there is a Cast device or a Google TV remote at the address, asks the TV its
@@ -1004,34 +1394,34 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     /** Tailscale: Fling has no VPN of its own; the official app puts the phone on the tailnet. */
     private void remoteAccess() {
-        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle(L.t("Удалённый доступ"));
+        String title = L.t("Удалённый доступ");
         if (!Tailnet.installed(this)) {
-            b.setMessage(L.t("Чтобы управлять ТВ не из дома, поставьте Tailscale на телефон и на ТВ. На ТВ его ставит Fling для ПК — из «Каталога»."))
-                    .setPositiveButton(L.t("Установить Tailscale"), (d, w) -> Tailnet.openStore(this))
-                    .setNegativeButton(L.t("Отмена"), null);
+            ui.ask(this, title,
+                    L.t("Чтобы управлять телевизором вне дома, установите Tailscale на телефон и на ТВ. На ТВ его установит Fling для ПК — из «Каталога»."),
+                    null, new String[]{L.t("Установить Tailscale"), L.t("Отмена")},
+                    new Runnable[]{() -> Tailnet.openStore(this), null});
         } else {
-            b.setMessage(Tailnet.vpnActive(this)
+            ui.ask(this, title,
+                    Tailnet.vpnActive(this)
                             ? L.t("Tailscale включён. Добавьте ТВ по его адресу 100.x.y.z или имени MagicDNS.")
-                            : L.t("Tailscale выключен. Включите его, чтобы управлять ТВ не из дома."))
-                    .setPositiveButton(L.t("Добавить ТВ…"), (d, w) -> askIp())
-                    .setNeutralButton(L.t("Открыть Tailscale"), (d, w) -> Tailnet.open(this))
-                    .setNegativeButton(L.t("Отмена"), null);
+                            : L.t("Tailscale выключен. Включите его, чтобы управлять телевизором вне дома."),
+                    null, new String[]{L.t("Добавить ТВ…"), L.t("Открыть Tailscale"), L.t("Отмена")},
+                    new Runnable[]{this::askIp, () -> Tailnet.open(this), null});
         }
-        b.show();
     }
 
     // ================================================================ playback actions
 
     private void togglePlay() {
         if (adbSt != null && adbSt.hasMedia() && paired()) {
-            atv.key(host, Atv.PLAY_PAUSE);
+            tvKey(Atv.PLAY_PAUSE);
             adbSt.elapsed = adbSt.elapsedNow(); adbSt.updatedAt = SystemClock.elapsedRealtime();
             adbSt.state = adbSt.playing() ? "PAUSED" : "PLAYING";
             adbNext = 0; main.postDelayed(this::pollAdb, 1200);
             sync(); return;
         }
         if (st == null) return;
-        if (paired()) { atv.key(host, Atv.PLAY_PAUSE); return; }
+        if (paired()) { tvKey(Atv.PLAY_PAUSE); return; }
         if (st.stuck()) { showError(L.t("Телевизор игнорирует паузу по Chromecast (так ведёт себя YouTube на ТВ). Нажмите «Связать с ТВ» ниже — пауза будет работать как кнопка пульта.")); return; }
         if (st.playing()) cast.pause(); else cast.play();
         st = cast.status();   // Cast updates its status optimistically without onStatus
@@ -1040,13 +1430,13 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     private void seek(int s) {
         if (adbSt != null && adbSt.hasMedia() && paired()) {
-            for (int i = 0; i < Math.max(1, Math.abs(s) / 10); i++) atv.key(host, s > 0 ? Atv.FFWD : Atv.REWIND);
+            for (int i = 0; i < Math.max(1, Math.abs(s) / 10); i++) tvKey(s > 0 ? Atv.FFWD : Atv.REWIND);
             adbNext = 0; main.postDelayed(this::pollAdb, 1500);
             return;
         }
         if (st != null && st.stuck()) {
             if (!paired()) { showError(L.t("Перемотка этого видео работает только после «Связать с ТВ» — кнопка ниже.")); return; }
-            for (int i = 0; i < 3; i++) atv.key(host, s > 0 ? Atv.FFWD : Atv.REWIND);
+            for (int i = 0; i < 3; i++) tvKey(s > 0 ? Atv.FFWD : Atv.REWIND);
             return;
         }
         cast.seekBy(s);
@@ -1059,7 +1449,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     @Override public boolean onKeyDown(int code, KeyEvent e) {
         if ((code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN) && host != null && volKeys()) {
             boolean up = code == KeyEvent.KEYCODE_VOLUME_UP;
-            if (paired()) atv.key(host, up ? Atv.VOL_UP : Atv.VOL_DOWN);
+            if (paired()) tvKey(up ? Atv.VOL_UP : Atv.VOL_DOWN);
             else if (st != null && st.volume >= 0) {
                 int v = Math.max(0, Math.min(100, (volPending >= 0 ? volPending : st.volume) + (up ? 5 : -5)));
                 volPending = v;
@@ -1267,19 +1657,22 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         ht.setPadding(0, 0, ui.dp(12), 0);
         TextView title = ui.text("Fling", 26, ui.fg, true);
         ht.addView(title);
-        subtitleHeader = ui.text("", 13, ui.fgA(0.5f), false);
+        subtitleHeader = ui.text(L.t("Пульт и трансляция на телевизор"), 13, ui.fgA(0.5f), false);
         subtitleHeader.setPadding(0, ui.dp(3), 0, 0);
         ht.addView(subtitleHeader);
-        pathChip = ui.text("", 12, ui.fgA(0.6f), true);                // Home / Tailscale · 38 ms
+        pathChip = ui.text("", 14, ui.fgA(0.8f), true);                 // ● TV name: green / red / grey
         pathChip.setSingleLine(true);
         pathChip.setEllipsize(TextUtils.TruncateAt.END);
         pathChip.setGravity(Gravity.CENTER_VERTICAL);
-        pathChip.setCompoundDrawablePadding(ui.dp(6));
-        pathChip.setPadding(ui.dp(8), ui.dp(4), ui.dp(10), ui.dp(4));
-        pathChip.setBackground(ui.round(ui.fgA(ui.dark ? 0.1f : 0.06f), 12));
+        pathChip.setCompoundDrawablePadding(ui.dp(8));
+        pathChip.setPadding(0, ui.dp(4), ui.dp(8), ui.dp(4));
         LinearLayout.LayoutParams pc = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        pc.topMargin = ui.dp(8);
-        pathChip.setOnClickListener(v -> { main.removeCallbacks(probe); main.post(probe); say(L.t("Проверяю связь с ТВ…")); });
+        pc.topMargin = ui.dp(6);
+        pathChip.setOnClickListener(v -> {                              // the dot in words, and a fresh check
+            if (host == null) return;
+            say(pathLabel());
+            main.removeCallbacks(probe); main.post(probe);
+        });
         ht.addView(pathChip, pc);
         header.addView(ht, Ui.lpW(1));
         liveKey = ui.text("● LIVE", 13, ui.red, true);                // same name as the desktop's LIVE
@@ -1519,24 +1912,14 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         tvNow.setPadding(0, ui.dp(4), 0, 0);
         hv.addView(tvNow);
         hdr.addView(hv, Ui.lpW(1));
-        hdr.addView(ui.key("power", null, 40, false, v -> atv.key(host, Atv.POWER)));
+        hdr.addView(ui.key("power", null, 40, false, v -> tvKey(Atv.POWER)));
         ctlBox.addView(hdr);
 
-        // app grid, 4 per row
-        LinearLayout grid = ui.col();
-        grid.setPadding(ui.dp(6), 0, ui.dp(6), ui.dp(10));
-        LinearLayout r = null;
-        for (int i = 0; i < TV_APPS.length; i++) {
-            if (i % 4 == 0) { r = ui.row(); grid.addView(r, ui.margins(Ui.lp(-1, -2), 0, i == 0 ? 0 : 6, 0, 0)); }
-            final String[] app = TV_APPS[i];
-            TextView c = ui.chip(app[0], v -> atv.launch(host, app[1]));
-            c.setTag(app[2]);
-            chips.add(c);
-            LinearLayout.LayoutParams p = Ui.lpW(1);
-            p.setMargins(i % 4 == 0 ? 0 : ui.dp(3), 0, i % 4 == 3 ? 0 : ui.dp(3), 0);
-            r.addView(c, p);
-        }
-        ctlBox.addView(grid);
+        // app grid, 4 per row: the user's own per TV (long press a tile, "+" adds one)
+        appGrid = ui.col();
+        appGrid.setPadding(ui.dp(6), 0, ui.dp(6), ui.dp(10));
+        buildApps();
+        ctlBox.addView(appGrid);
 
         LinearLayout segRow = ui.row();
         segRow.setGravity(Gravity.CENTER);
@@ -1551,35 +1934,40 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         LinearLayout dp = ui.col();
         dp.setGravity(Gravity.CENTER_HORIZONTAL);
         dp.setPadding(0, ui.dp(6), 0, ui.dp(6));
-        dp.addView(ui.key("up", null, 52, false, v -> atv.key(host, Atv.UP)));
+        dp.addView(ui.key("up", null, 52, false, v -> tvKey(Atv.UP)));
         LinearLayout mid = ui.row();
         mid.setGravity(Gravity.CENTER);
         mid.setPadding(0, ui.dp(8), 0, ui.dp(8));
-        mid.addView(ui.key("back", null, 46, false, v -> atv.key(host, Atv.BACK)));
+        mid.addView(ui.key("back", null, 46, false, v -> tvKey(Atv.BACK)));
         mid.addView(new View(this), Ui.lp(ui.dp(14), 1));
-        mid.addView(ui.key("left", null, 52, false, v -> atv.key(host, Atv.LEFT)));
+        mid.addView(ui.key("left", null, 52, false, v -> tvKey(Atv.LEFT)));
         mid.addView(new View(this), Ui.lp(ui.dp(10), 1));
-        mid.addView(ui.key(null, "OK", 70, true, v -> atv.key(host, Atv.OK)));
+        mid.addView(ui.key(null, "OK", 70, true, v -> tvKey(Atv.OK)));
         mid.addView(new View(this), Ui.lp(ui.dp(10), 1));
-        mid.addView(ui.key("right", null, 52, false, v -> atv.key(host, Atv.RIGHT)));
+        mid.addView(ui.key("right", null, 52, false, v -> tvKey(Atv.RIGHT)));
         mid.addView(new View(this), Ui.lp(ui.dp(14), 1));
-        mid.addView(ui.key("home", null, 46, false, v -> atv.key(host, Atv.HOME)));
+        mid.addView(ui.key("home", null, 46, false, v -> tvKey(Atv.HOME)));
         dp.addView(mid);
-        dp.addView(ui.key("down", null, 52, false, v -> atv.key(host, Atv.DOWN)));
+        dp.addView(ui.key("down", null, 52, false, v -> tvKey(Atv.DOWN)));
         dpadBox = dp;
         ctlBox.addView(dp);
-        padBox = ui.new Touchpad(code -> atv.key(host, code));
+        padBox = ui.new Touchpad(code -> tvKey(code));
         ctlBox.addView(padBox);
 
-        // volume pills
+        // volume: round keys with just the symbol, like a remote's
         LinearLayout vk = ui.row();
-        vk.setPadding(ui.dp(6), ui.dp(10), ui.dp(6), ui.dp(4));
-        LinearLayout.LayoutParams p1 = Ui.lpW(1); p1.setMargins(0, 0, ui.dp(4), 0);
-        LinearLayout.LayoutParams p2 = Ui.lpW(1); p2.setMargins(ui.dp(4), 0, ui.dp(4), 0);
-        LinearLayout.LayoutParams p3 = Ui.lpW(1); p3.setMargins(ui.dp(4), 0, 0, 0);
-        vk.addView(ui.pill("spk_minus", L.t("Громк −"), v -> atv.key(host, Atv.VOL_DOWN)), p1);
-        vk.addView(ui.pill("spk_slash", L.t("Без звука"), v -> atv.key(host, Atv.MUTE)), p2);
-        vk.addView(ui.pill("spk_plus", L.t("Громк +"), v -> atv.key(host, Atv.VOL_UP)), p3);
+        vk.setGravity(Gravity.CENTER);
+        vk.setPadding(ui.dp(6), ui.dp(12), ui.dp(6), ui.dp(4));
+        String[][] vol = {{"spk_minus", "Тише"}, {"spk_slash", "Без звука"}, {"spk_plus", "Громче"}};
+        int[] codes = {Atv.VOL_DOWN, Atv.MUTE, Atv.VOL_UP};
+        for (int i = 0; i < 3; i++) {
+            final int code = codes[i];
+            View k = ui.key(vol[i][0], null, 56, false, v -> { v.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP); tvKey(code); });
+            k.setContentDescription(L.t(vol[i][1]));
+            LinearLayout.LayoutParams kp = Ui.lp(ui.dp(56), ui.dp(56));
+            kp.setMargins(ui.dp(i == 0 ? 0 : 14), 0, ui.dp(i == 2 ? 0 : 14), 0);
+            vk.addView(k, kp);
+        }
         ctlBox.addView(vk);
         TextView hw = ui.text(L.t("Кнопки громкости телефона тоже управляют ТВ"), 12, ui.fgA(0.35f), false);
         hw.setGravity(Gravity.CENTER);
@@ -1674,7 +2062,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         r.addView(sw);
         f.addView(r);
         root.addView(f, ui.margins(Ui.lp(-1, -2), 0, 0, 0, 8));
-        TextView hint = ui.text(L.t("Fling для Android · дома по Wi‑Fi, не из дома — через Tailscale"), 12, ui.fgA(0.3f), false);
+        TextView hint = ui.text(L.t("Fling для Android · дома — по Wi‑Fi, вне дома — через Tailscale"), 12, ui.fgA(0.3f), false);
         hint.setGravity(Gravity.CENTER);
         root.addView(hint, ui.margins(Ui.lp(-1, -2), 0, 6, 0, 0));
         // authorship: Fling is Damion Rashford's and Tatiana's app; this is an unofficial port by orfixe
@@ -1738,7 +2126,12 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     private static String appName(String pkg) {
         if (pkg == null) return null;
+        String tile = tileNames.get(pkg);
+        if (tile != null) return tile;
+        String tv = TvIcons.peek(pkg);                              // as the TV itself calls it
+        if (tv != null) return tv;
         for (String[] a : TV_APPS) if (a[2].equals(pkg)) return a[0];
+        for (String[] a : KNOWN_APPS) if (a[0].equals(pkg)) return a[1];
         String tail = pkg.substring(pkg.lastIndexOf('.') + 1);
         return tail.isEmpty() ? pkg : Character.toUpperCase(tail.charAt(0)) + tail.substring(1);
     }
@@ -1748,17 +2141,17 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         final Cast.Status st = view();
         boolean paired = paired();
 
-        subtitleHeader.setText(host == null ? L.t("Ищу телевизор в сети…")
-                : st != null && st.hasMedia() ? L.f("Сейчас на «%s»", nz(devName, host)) : L.f("Пульт и трансляция на «%s»", nz(devName, host)));
-
-        String path = host == null ? null : pathLabel();
-        pathChip.setVisibility(path == null ? View.GONE : View.VISIBLE);
-        if (path != null) {
-            pathChip.setText(path);
-            int dot = !Boolean.TRUE.equals(reachable) ? ui.red : viaTailnet ? ui.accent : ui.green;
+        if (host == null) {
+            pathChip.setText(L.t("Ищу телевизор в сети…"));
+            pathChip.setCompoundDrawablesRelativeWithIntrinsicBounds(null, null, null, null);
+            pathChip.setContentDescription(null);
+        } else {
+            pathChip.setText(nz(devName, host));
+            int dot = reachable == null ? ui.fgA(0.3f) : reachable ? ui.green : ui.red;
             android.graphics.drawable.GradientDrawable d = ui.oval(dot);
-            d.setSize(ui.dp(8), ui.dp(8));
+            d.setSize(ui.dp(10), ui.dp(10));
             pathChip.setCompoundDrawablesRelativeWithIntrinsicBounds(d, null, null, null);
+            pathChip.setContentDescription(nz(devName, host) + ". " + pathLabel());
         }
         liveKey.setAlpha(host != null && "ok".equals(Adb.lastState) ? 1f : 0.45f);
 
