@@ -27,7 +27,8 @@ No Swift source was copied; everything was rewritten in Python/Qt, Java and Java
 **Licensing note.** On 2026-11-26 the authors licensed the original repository under the
 [Boost Software License 1.0](https://github.com/tatianathevisionary/fling/blob/main/LICENSE)
 and invited contributions. The macOS build (`macos/`) compiles the original Swift sources under
-that license; `macos/RemoteView.swift` is a modified copy of the original's file, and the
+that license; the files in `macos/Sources/` that share a name with the original's are modified
+copies of them (the originals are kept in `macos/upstream-base/`), and the
 license text is in [`macos/LICENSE-fling.txt`](macos/LICENSE-fling.txt). The rest of this port
 is its own code under the MIT License.
 

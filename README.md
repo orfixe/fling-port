@@ -56,7 +56,7 @@ the phone (scrcpy), and over **Tailscale** it all works away from home.
 |---|---|
 | **Windows 10 / 11** | Download `Fling-Setup-….exe` from [Releases](../../releases), [verify your download](SECURITY.md#is-my-copy-the-real-fling) if you like, and run it. Step by step: **[Windows guide](docs/install-windows.md)** |
 | **Chrome / Edge / Firefox / Safari** | Install the app first, then the [browser extension](#browser-extension) |
-| **Linux (KDE)** | `git clone` and `linux/install.sh` — [details](#install--linux) |
+| **Linux** | Download `Fling-Setup-…-linux.run` from [Releases](../../releases) and open it — [details](#install--linux) |
 | **Android phone** | Install `Fling.apk` from [Releases](../../releases) — [details](#install--android) |
 
 The computer / phone and the TV must be on the same network.
@@ -89,8 +89,8 @@ reports are welcome.
 | One-click **Connect TV** window | ✓ | ✓ | — | — |
 | Scroll / swipe anywhere = d-pad | ✓ | ✓ | ✓ | ✓ |
 | Phone volume keys, Quick Settings tile | — | — | ✓ | — |
-| Remote modes (touchpad, numbers, media keys), favourite apps, scenes | ✓ | ✓ | — | — |
-| Sleep timer for the TV | ✓ | ✓ | ✓ | — |
+| Remote modes (touchpad, numbers, media keys), favourite apps, scenes | ✓ | ✓ | — | ✓ |
+| Sleep timer for the TV | ✓ | ✓ | ✓ | ✓ |
 | Queue, playlists (m3u / pls), photo slideshow, subtitles, resume | ✓ | ✓ | queue ³ | — |
 | Cast photos, videos and music from the phone (Share → Cast to TV) | — | — | ✓ | — |
 | Playback notification with lock-screen controls | — | — | ✓ | — |
@@ -187,25 +187,35 @@ browser extensions and local tools and refuses web pages.
 |---|---|
 | Chrome, Edge, Brave, Opera, Vivaldi, Yandex | `chrome://extensions` → Developer mode → **Load unpacked** → the `extension\chrome` folder of the Windows zip, or `fling-chrome-….zip` from Releases, unzipped |
 | Firefox | `about:debugging` → **Load Temporary Add-on** → `fling-firefox-….zip` (a permanent install needs Developer Edition until it's on AMO) |
-| Safari (Mac) | `extension/safari/build-safari.sh` on a Mac with Xcode; needs Fling running on that Mac (not tested yet) |
+| Safari (Mac) | `extension/safari/build-safari.sh` on a Mac with Xcode; needs Fling (the macOS build or `desktop/fling_app.py`) running on that Mac (not tested yet) |
 
 Details: [Windows guide → Part 2](docs/install-windows.md#part-2-the-browser-extension).
 
 ## Install — Linux
 
-Tested on Kubuntu 26.04 (KDE Plasma 6, Wayland). Other desktops with a system tray should work;
-the global shortcut and blur are KDE-specific.
+Tested on Kubuntu 26.04 and CachyOS (KDE Plasma 6, Wayland). Other desktops with a system tray
+should work; the global shortcut and blur are KDE-specific.
 
-```sh
-git clone https://github.com/orfixe/fling-port.git && cd fling-port/linux
-./install.sh
-fling            # opens the panel; the icon lives in the system tray
-```
+1. Download **`Fling-Setup-<version>-linux.run`** from [Releases](../../releases)
+   ([verify it](SECURITY.md#is-my-copy-the-real-fling) if you like: it is listed in the signed `SHA256SUMS.txt`).
+2. Open it: in Dolphin / Files allow it to run (*Properties → Permissions → Is executable*) and
+   double-click it, or in a terminal: `bash Fling-Setup-*-linux.run`.
+3. Start **Fling** from the app menu. The icon lives in the system tray.
 
-`install.sh` installs system packages (PyQt6, dbus, lz4, adb), [uv](https://docs.astral.sh/uv/),
-catt, a private Python venv in `~/.local/share/fling`, launchers in `~/.local/bin`, menu entries,
-and the **Meta+Shift+C** shortcut (active after re-login). Remove everything with
-`./install.sh --uninstall`.
+The installer works for your user only and needs **no root**: everything goes to `~/.local`
+(a private Python environment in `~/.local/share/fling`, `fling` in `~/.local/bin`, menu entries,
+the **Meta+Shift+C** shortcut after re-login). What the system already has is used; what it lacks
+comes from the official sources — PyQt6 and lz4 from PyPI, adb from Google and scrcpy from its
+GitHub releases, each checked against the publisher's checksum, [uv](https://docs.astral.sh/uv/)
+and catt from their projects. On Debian/Ubuntu, Arch, Fedora and openSUSE it first offers the
+missing system packages (asks your password; say no, or pass `--no-system`, to skip them —
+only KDE notifications and the Bluetooth remote need D-Bus / PyGObject from the system).
+
+Run a newer `.run` to update (a running Fling restarts). Remove everything with
+`bash Fling-Setup-*-linux.run --uninstall`; `--extract DIR` only unpacks the files.
+
+From source instead: `git clone https://github.com/orfixe/fling-port.git && fling-port/linux/install.sh`.
+A `.run` from your checkout: `linux/make-run.sh` (→ `dist/`).
 
 Commands (the same on Windows, in PowerShell / cmd):
 

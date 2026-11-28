@@ -29,3 +29,6 @@ guard/target/
 android/.gradle/
 android/app/build/
 *.aab
+
+# Claude Code local state (agent worktrees)
+.claude/

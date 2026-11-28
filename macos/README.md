@@ -26,6 +26,57 @@ Or from a clone:
 ```
 
 Installs to `~/Applications/Fling Port.app`, re-signs locally, strips quarantine.
+Nothing is installed unless the files match the release's signed `SHA256SUMS.txt`
+(checked with `minisign` or an already installed, verified Fling Port).
+`FLING_PORT_UNVERIFIED=1` installs your own build without the check (the guard then only
+reports); `FLING_PORT_FROM_DIR=<folder>` takes the release files from a folder.
+
+## Guard
+
+`Sources/FlingKit/Guard/` — self check at start, a check of every program Fling Port starts,
+CPU watchdog, `~/Library/Logs/Fling Port/guard.log`. See
+[SECURITY.md → macOS](../SECURITY.md#what-protects-you-after-the-install-macos).
+Code that starts programs uses `GuardedProcess.run` / `GuardedProcess.launch` (or
+`SystemProcessRunner`, which is already checked); a tool installer calls
+`ToolTrust.register(path:expectedSHA256:)` after installing.
+
+```sh
+Fling.app/Contents/MacOS/Fling --guard-check /opt/homebrew/bin/scrcpy   # what the guard thinks
+Fling.app/Contents/MacOS/Fling --guard-selfcheck
+Fling.app/Contents/MacOS/Fling --verify-release SHA256SUMS.txt Fling Info.plist
+```
+
+## What this build adds to upstream Fling
+
+- the **browser extension** bridge (`127.0.0.1:47613`, same protocol as Windows / Linux) —
+  `Sources/FlingKit/BrowserBridge.swift`, handler in `Sources/Fling/PortServices.swift`. The
+  unpacked Chrome / Firefox builds of `extension/` ship in `Fling.app/Contents/Resources/extension`;
+  *Settings → Casting → Show extension folder* copies them to
+  `~/Library/Application Support/Fling Port/extension` to load from there
+  (Chrome / Edge / Brave: Developer mode → Load unpacked; Firefox: about:debugging → Load
+  Temporary Add-on). The extension talks HTTP to the app, so there is no native-messaging
+  manifest to install. Safari: `extension/safari/build-safari.sh` needs full Xcode
+  (`safari-web-extension-converter`), which the Command Line Tools don't have.
+- **⌃⌥⌘C** casts the current tab from anywhere (Carbon hot key, no Accessibility permission);
+- files / folders / m3u / pls as a **queue**, **photo slideshows**, subtitles, resume
+  (`MediaFiles.swift`, `MediaQueue.swift` — one lasting `catt cast` per item);
+- "Now on TV" **notifications** when the video / track changes; a **Settings** window.
+
+Tests: `macos/Tests/` (swift-testing). With the Command Line Tools only (no Xcode) upstream's
+XCTest suite can't build; run the port's tests against a package of `FlingKit` with
+`SDKROOT=<MacOSX26.x.sdk> swift test -Xswiftc -plugin-path -Xswiftc
+/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing`.
+
+## Layout
+
+- `UPSTREAM_REF` — the upstream Fling commit the build uses.
+- `Sources/` — this port's files, laid over upstream `Sources/` (changed copies + new files).
+- `upstream-base/` — upstream's version of each changed file, for merging a newer upstream.
+- `Sources/FlingKit/Samsung/` — Smart View for Samsung TVs (remote, apps, DLNA, SSDP, Wake-on-LAN);
+  see [docs/smart-view.md](../docs/smart-view.md#on-a-mac).
+- `Tests/` — the port's tests (Swift Testing), laid over upstream `Tests/`.
+- `Fling.entitlements` — the hardened-runtime exceptions (microphone, Apple Events).
+- `update-upstream.sh [ref]` — three-way merges upstream `ref` (default `main`) into `Sources/`.
 
 ## Build on a Mac
 

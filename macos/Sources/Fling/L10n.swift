@@ -29,8 +29,11 @@ enum Lang {
         isRussian ? "🇷🇺  Язык: Русский → English" : "🇬🇧  Language: English → Русский"
     }
 
-    static func toggle() {
-        UserDefaults.standard.set(isRussian ? "en" : "ru", forKey: key)
+    static func toggle() { set(isRussian ? "en" : "ru") }
+
+    /// Port (Settings → Language): "ru" / "en", nil = follow the system; relaunches.
+    static func set(_ code: String?) {
+        if let code { UserDefaults.standard.set(code, forKey: key) } else { UserDefaults.standard.removeObject(forKey: key) }
         UserDefaults.standard.synchronize()
         // relaunch once this instance has quit
         let p = Process()
@@ -50,10 +53,34 @@ func pinClean(_ s: String) -> String {
 }
 
 func tr<S: StringProtocol>(_ s: S) -> String {
-    let text = String(s)
+    let text = PlainWords.english[String(s)] ?? String(s)   // port: L10nConnection.swift
     guard Lang.isRussian, !text.isEmpty else { return text }
-    if let ru = RU.exact[text] { return ru }
-    for (rx, template) in RU.patterns {
+    // port: one line per extra table (L10n+*.swift files of each feature)
+    let exactTables: [[String: String]] = [
+        RU.exact,
+        TailscaleRU.exact,
+        RemoteRU.exact,
+        LiveL10n.ru,
+        PlainWords.russian,
+        SamsungRU.exact,
+        RUCasting.exact,
+        GuardL10n.ru,
+        GuardL10n.ru,
+    ]
+    let patternTables: [[(NSRegularExpression, String)]] = [
+        RU.patterns,
+        TailscaleRU.patterns,
+        RemoteRU.patterns,
+        SamsungRU.patterns,
+    ]
+    for table in exactTables { if let ru = table[text] { return ru } }
+    // port: feature tables that translate with their own logic
+    let translators: [(String) -> String?] = [
+        ADBRU.translate,
+        ToolsRU.lookup,
+    ]
+    for t in translators { if let ru = t(text) { return ru } }
+    for (rx, template) in patternTables.joined() {
         let range = NSRange(text.startIndex..., in: text)
         if rx.firstMatch(in: text, range: range) != nil {
             return RU.fixList(rx.stringByReplacingMatches(in: text, range: range, withTemplate: template))

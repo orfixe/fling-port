@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Fling's Sources/Fling/RemoteView.swift (https://github.com/tatianathevisionary/fling) by
 // Damion Rashford and Tatiana, Boost Software License 1.0 (macos/LICENSE-fling.txt),
-// modified by orfixe and the Fling port contributors: keyboard button, TV volume slider.
+// modified by orfixe and the Fling port contributors: keyboard button, TV volume slider,
+// remote modes, favourite apps, scenes and the sleep timer (RemoteModes / FavoriteAppsGrid / RemoteMore).
 import SwiftUI
 import Combine
 import FlingKit
@@ -33,7 +34,7 @@ struct RemoteView: View {
             case .starting:
                 HStack(spacing: 7) {
                     ProgressView().controlSize(.small)
-                    Text("Contacting TV…").font(.system(size: 11.5)).foregroundStyle(.secondary)
+                    Text(tr("Contacting TV…")).font(.system(size: 11.5)).foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 14).padding(.vertical, 10)
             case .waitingForPIN, .verifying:
@@ -41,8 +42,8 @@ struct RemoteView: View {
             case .idle, .failed:
                 if state.tvPaired { controls } else { setup }
                 if case .failed(let why) = state.tvPairing {
-                    Text(why)
-                        .font(.system(size: 11)).foregroundStyle(.orange)
+                    Text(tr(why))
+                        .font(.system(size: 11)).foregroundStyle(.red)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 14).padding(.bottom, 7)
                 }
@@ -61,7 +62,7 @@ struct RemoteView: View {
             "space pause · ⇧← → seek · ⌘V paste · esc exit",
         ]
         return VStack(spacing: 0) {
-            ForEach(lines, id: \.self) { Text($0) }
+            ForEach(lines, id: \.self) { Text(tr($0)) }
         }
         .font(.system(size: 9)).foregroundStyle(.tertiary)
         .multilineTextAlignment(.center)
@@ -73,9 +74,9 @@ struct RemoteView: View {
     private var schemeSwitch: some View {
         HStack(spacing: 0) {
             schemeOption(.arrows) { Image(systemName: "arrowkeys").font(.system(size: 9.5)) }
-                .help("Move with the arrow keys")
-            schemeOption(.wasd) { Text("WASD").font(.system(size: 8, weight: .bold, design: .rounded)) }
-                .help("Move with W A S D (E = OK, Q = Back)")
+                .help(tr("Move with the arrow keys"))
+            schemeOption(.wasd) { Text(tr("WASD")).font(.system(size: 8, weight: .bold, design: .rounded)) }
+                .help(tr("Move with W A S D (E = OK, Q = Back)"))
         }
         .padding(1.5)
         .background(Color.primary.opacity(0.06), in: Capsule())
@@ -93,7 +94,7 @@ struct RemoteView: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(scheme == .wasd ? "WASD" : "Arrow keys")
+        .accessibilityLabel(tr(scheme == .wasd ? "WASD" : "Arrow keys"))
     }
 
     private var keysCaptured: Bool { capture.on && !typeFocused }
@@ -110,7 +111,7 @@ struct RemoteView: View {
             HStack(spacing: 3) {
                 Image(systemName: capture.enabled ? "keyboard" : "keyboard.badge.ellipsis")
                     .font(.system(size: 9))
-                Text(capture.enabled ? "esc" : "off")
+                Text(tr(capture.enabled ? "esc" : "off"))
                     .font(.system(size: 9, weight: .medium, design: .rounded))
                     .strikethrough(!capture.enabled)
             }
@@ -120,9 +121,9 @@ struct RemoteView: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .help(!capture.enabled ? "Keyboard capture is off — click to control the TV from the Mac keyboard"
+        .help(tr(!capture.enabled ? "Keyboard capture is off — click to control the TV from the Mac keyboard"
               : state.tvPaired ? "Keyboard captured — keys go to the TV. Esc releases it. Click to turn capture off"
-                               : "Keyboard captured — ← → seek, Space pauses. Esc releases it. Click to turn capture off")
+                               : "Keyboard captured — ← → seek, Space pauses. Esc releases it. Click to turn capture off"))
         .transition(.opacity)
     }
 
@@ -130,12 +131,12 @@ struct RemoteView: View {
 
     private var setup: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Pair once with the TV to unlock apps, the d-pad, and typing.")
+            Text(tr("Pair once with the TV to unlock apps, the d-pad, and typing."))
                 .font(.system(size: 11)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 6)
             MenuRow(title: "Turn TV On", icon: "power") { Task { await state.wakeTV() } }
-            MenuRow(title: "Set Up TV Power…", icon: "dot.radiowaves.left.and.right",
+            MenuRow(title: "Pair with TV", icon: "dot.radiowaves.left.and.right",
                     accented: true) {
                 Task { await state.startTVPairing() }
             }
@@ -148,8 +149,9 @@ struct RemoteView: View {
     private var controls: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            appGrid
-            dpad
+            SleepTimerRow(state: state)                  // port: "the TV turns off in N min"
+            FavoriteAppsGrid(state: state)               // port: favourite apps per TV (was appGrid)
+            RemoteModes(state: state) { dpad }           // port: Arrows · Touchpad · Numbers · Media
             if let vol = state.tvVolume {
                 TVVolumeRow(state: state, volume: vol)   // the TV reports its volume: a slider
             } else {
@@ -164,15 +166,16 @@ struct RemoteView: View {
             VStack(alignment: .leading, spacing: 2) {
                 SectionLabel(text: "ON THE TV")
                 if let subtitle = headerSubtitle {
-                    Text(subtitle)
+                    Text(tr(subtitle))
                         .font(.system(size: 12.5, weight: .semibold))
                         .lineLimit(1)
                 }
             }
             Spacer()
             if showBadge { keyboardBadge }
+            RemoteMoreMenu(state: state)                 // port: scenes, sleep timer, on / off
             KeyButton(symbol: "power", size: 26, state: state, code: ATVKeyCode.power)
-                .help(powerHelp)
+                .help(tr(powerHelp))
         }
         .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 8)
     }
@@ -191,18 +194,6 @@ struct RemoteView: View {
         }
     }
 
-    private var appGrid: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4),
-                  spacing: 4) {
-            ForEach(TVApp.catalog) { app in
-                AppChip(name: app.name, active: app.package == state.tvCurrentApp) {
-                    Task { await state.launchTVApp(app) }
-                }
-            }
-        }
-        .padding(.horizontal, 12).padding(.bottom, 8)
-    }
-
     /// Classic remote layout — Back and Home flank the OK row.
     private var dpad: some View {
         VStack(spacing: 6) {
@@ -210,13 +201,13 @@ struct RemoteView: View {
             HStack(spacing: 13) {
                 KeyButton(symbol: "arrow.uturn.backward", size: 30,
                           state: state, code: ATVKeyCode.back)
-                    .help("Back")
+                    .help(tr("Back"))
                 KeyButton(symbol: "chevron.left", size: 30, state: state, code: ATVKeyCode.dpadLeft)
                 KeyButton(label: "OK", size: 40, accented: true,
                           state: state, code: ATVKeyCode.dpadCenter)
                 KeyButton(symbol: "chevron.right", size: 30, state: state, code: ATVKeyCode.dpadRight)
                 KeyButton(symbol: "house", size: 30, state: state, code: ATVKeyCode.home)
-                    .help("Home")
+                    .help(tr("Home"))
             }
             KeyButton(symbol: "chevron.down", size: 30, state: state, code: ATVKeyCode.dpadDown)
             schemeSwitch.padding(.top, 2)
@@ -270,24 +261,24 @@ struct RemoteView: View {
                 .background(showTypeField ? Color.accentColor.opacity(0.22)
                                           : Color.primary.opacity(0.07),
                             in: RoundedRectangle(cornerRadius: 5))
-                .help(showTypeField ? "Hide keyboard" : "Keyboard — type on the TV (right-click for options)")
-                .accessibilityLabel(showTypeField ? "Hide keyboard" : "Show keyboard")
+                .help(tr(showTypeField ? "Hide keyboard" : "Keyboard — type on the TV (right-click for options)"))
+                .accessibilityLabel(tr(showTypeField ? "Hide keyboard" : "Show keyboard"))
                 .contextMenu {
-                    Button(liveTyping ? "✓ Live — letters appear as you type" : "Live — letters appear as you type") {
+                    Button(tr(liveTyping ? "✓ Live — letters appear as you type" : "Live — letters appear as you type")) {
                         liveTyping = true
                     }
-                    Button(liveTyping ? "Send on Return" : "✓ Send on Return") { liveTyping = false }
+                    Button(tr(liveTyping ? "Send on Return" : "✓ Send on Return")) { liveTyping = false }
                     Divider()
-                    Button("Paste clipboard on the TV") { pasteClipboard() }
+                    Button(tr("Paste clipboard on the TV")) { pasteClipboard() }
                 }
 
                 if showTypeField {
-                    TextField(liveTyping ? "Type — shows on the TV live" : "Type, Return sends", text: $typed)
+                    TextField(tr(liveTyping ? "Type — shows on the TV live" : "Type, Return sends"), text: $typed)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 12))
                         .focused($typeFocused)
                         .onSubmit { submitTyped() }
-                        .help("Lands in whatever text field is focused on the TV")
+                        .help(tr("Lands in whatever text field is focused on the TV"))
                         .transition(.opacity.combined(with: .move(edge: .leading)))
                         .onChange(of: typed) { _, text in if liveTyping { scheduleLive(text) } }
 
@@ -314,10 +305,10 @@ struct RemoteView: View {
                 .background(state.tvVoiceActive ? Color.red.opacity(0.15)
                                                 : Color.primary.opacity(0.07),
                             in: RoundedRectangle(cornerRadius: 5))
-                .help(state.tvVoiceActive ? "Stop voice search" : "Voice search")
+                .help(tr(state.tvVoiceActive ? "Stop voice search" : "Voice search"))
             }
             if state.tvVoiceActive {
-                Text("Listening — click the mic again when done.")
+                Text(tr("Listening — click the mic again when done."))
                     .font(.system(size: 10)).foregroundStyle(.red)
             }
         }
@@ -338,7 +329,7 @@ struct RemoteView: View {
         .buttonStyle(.plain)
         .frame(width: 22, height: 22)
         .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 5))
-        .help(help)
+        .help(tr(help))
     }
 
     /// Live: send the whole field shortly after the last keystroke (a fast typist
@@ -421,7 +412,7 @@ struct TVVolumeRow: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("TV sound: click to mute / unmute")
+            .help(tr("TV sound: click to mute / unmute"))
 
             BubbleSlider(value: shown, range: 0...Double(volume.max), label: { "\(pct($0))%" },
                          onChange: { v in
@@ -431,12 +422,12 @@ struct TVVolumeRow: View {
                          onEnd: { dragValue = nil })
                 .opacity(volume.muted ? 0.45 : 1)
 
-            Text("\(pct(shown))%")
+            Text(tr("\(pct(shown))%"))
                 .font(.system(size: 10.5).monospacedDigit())
                 .foregroundStyle(.tertiary)
                 .frame(width: 32, alignment: .trailing)
         }
-        .help("TV volume")
+        .help(tr("TV volume"))
         .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 4)
     }
 }
@@ -468,7 +459,7 @@ struct BubbleSlider: View {
                     .scaleEffect(dragging ? 1.15 : 1)
                     .offset(x: x)
                 if dragging {
-                    Text(label(value))
+                    Text(tr(label(value)))
                         .font(.system(size: 10, weight: .semibold).monospacedDigit())
                         .padding(.horizontal, 5).padding(.vertical, 1.5)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 4))
@@ -520,7 +511,7 @@ struct KeyButton: View {
                 if let symbol {
                     Image(systemName: symbol).font(.system(size: size * 0.36, weight: .semibold))
                 } else {
-                    Text(label ?? "").font(.system(size: size * 0.3, weight: .semibold))
+                    Text(tr(label ?? "")).font(.system(size: size * 0.3, weight: .semibold))
                 }
             }
             .foregroundStyle(accented ? Color.accentColor : Color.primary)
@@ -556,7 +547,7 @@ struct KeyPill: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: symbol).font(.system(size: 10))
-                Text(label).font(.system(size: 11))
+                Text(tr(label)).font(.system(size: 11))
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 5)
@@ -578,7 +569,7 @@ struct AppChip: View {
 
     var body: some View {
         Button(action: action) {
-            Text(name)
+            Text(tr(name))
                 .font(.system(size: 10.5, weight: active ? .semibold : .regular))
                 .foregroundStyle(active ? Color.accentColor : Color.primary)
                 .lineLimit(1)

@@ -2,14 +2,13 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 orfixe and the Fling port contributors
 # Unofficial port of Fling by Damion Rashford and Tatiana - see CREDITS.md and NOTICE
-# Private macOS build: official Fling sources + keyboard-icon patch + Mac keyboard as the TV remote.
+# Private macOS build: official Fling sources with this port's changes (macos/Sources/) laid over them.
 # Must run on macOS 14+ with Swift 6.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${ROOT}/macos/dist"
 WORK="${ROOT}/macos/.work"
 UPSTREAM_URL="${FLING_UPSTREAM:-https://github.com/tatianathevisionary/fling.git}"
-REF="${FLING_REF:-main}"
 
 command -v swift >/dev/null || { echo "swift not found — need macOS with Xcode/Swift"; exit 1; }
 uname | grep -q Darwin || { echo "this build only runs on macOS"; exit 1; }
@@ -29,16 +28,23 @@ if [ -z "${SDKROOT:-}" ] && [[ "$(xcode-select -p)" == *CommandLineTools* ]]; th
 fi
 
 mkdir -p "$WORK" "$OUT"
-git clone --depth 1 --branch "$REF" "$UPSTREAM_URL" "$WORK/fling"
-cp "$ROOT/macos/RemoteView.swift" "$WORK/fling/Sources/Fling/RemoteView.swift"
-cp "$ROOT/macos/KeyRemote.swift" "$WORK/fling/Sources/Fling/KeyRemote.swift"
-# Mac keyboard → TV while the panel is open: StatusItemController creates KeyRemote
-git -C "$WORK/fling" apply "$ROOT/macos/patches/StatusItemController-keyboard.patch"
-# FlingKit: TV volume as the TV reports it (+ walking it with keys, like Windows); pairing identity kept in memory, not the keychain
-git -C "$WORK/fling" apply "$ROOT/macos/patches/FlingKit.patch"
-# Russian / English like the Windows build: L10n.swift + route UI strings through tr()
-cp "$ROOT/macos/L10n.swift" "$WORK/fling/Sources/Fling/L10n.swift"
-python3 "$ROOT/macos/localize.py" "$WORK/fling/Sources/Fling"
+# Upstream Fling pinned to macos/UPSTREAM_REF (FLING_REF overrides it). Our changes live in
+# macos/Sources/ as whole files laid over the upstream tree; macos/upstream-base/ keeps the
+# upstream version each changed file was taken from, so ./macos/update-upstream.sh can
+# three-way merge a newer upstream into them.
+REF="${FLING_REF:-$(cat "$ROOT/macos/UPSTREAM_REF")}"
+git clone --quiet "$UPSTREAM_URL" "$WORK/fling"
+git -C "$WORK/fling" checkout --quiet "$REF"
+cp -R "$ROOT/macos/Sources/." "$WORK/fling/Sources/"
+# port tests for the files above (new test files only)
+[ -d "$ROOT/macos/Tests" ] && cp -R "$ROOT/macos/Tests/." "$WORK/fling/Tests/"
+# The browser extension (Chrome-family + Firefox builds), shipped unpacked inside the app:
+# Settings → Casting → "Show extension folder". Same extension as Windows / Linux.
+EXT_OUT="$WORK/extension"
+mkdir -p "$EXT_OUT"
+cp -R "$ROOT/extension/." "$EXT_OUT/"
+rm -rf "$EXT_OUT/dist"
+python3 "$EXT_OUT/build.py" chrome firefox >/dev/null
 
 (
   cd "$WORK/fling"
@@ -53,8 +59,13 @@ python3 "$ROOT/macos/localize.py" "$WORK/fling/Sources/Fling"
   cp "$BIN" "$APP/Contents/MacOS/Fling"
   # Port-specific plist (own bundle id) — not upstream com.damionrashford.fling
   cp "$ROOT/macos/Info.plist" "$APP/Contents/Info.plist"
-  codesign --force --deep --sign "$SIGN_ID" "$APP"
-  codesign --verify --verbose "$APP"
+  mkdir -p "$APP/Contents/Resources/extension"
+  cp -R "$EXT_OUT/dist/chrome" "$EXT_OUT/dist/firefox" "$APP/Contents/Resources/extension/"
+  # Hardened runtime (macOS guard): no code injection through DYLD_* variables, no
+  # unsigned libraries, no debugger attach. The entitlements re-allow the microphone
+  # (voice search) and Apple Events (browser tab) under it.
+  codesign --force --deep --options runtime --entitlements "$ROOT/macos/Fling.entitlements" --sign "$SIGN_ID" "$APP"
+  codesign --verify --strict --verbose "$APP"
   echo "built: $APP"
 )
 

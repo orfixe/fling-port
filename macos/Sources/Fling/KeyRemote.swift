@@ -60,6 +60,9 @@ final class KeyRemote {
     private static let repeatable: Set<UInt16> = [K.left, K.right, K.up, K.down,
                                                   K.equal, K.minus, K.padPlus, K.padMinus]
     private static let seekStep = 30
+    /// Digit keys, top row and keypad → 0…9: typed on the TV while the remote's Numbers page is open.
+    private static let digits: [UInt16: Int] = [29: 0, 18: 1, 19: 2, 20: 3, 21: 4, 23: 5, 22: 6, 26: 7, 28: 8, 25: 9,
+                                                82: 0, 83: 1, 84: 2, 85: 3, 86: 4, 87: 5, 88: 6, 89: 7, 91: 8, 92: 9]
 
     init(state: AppState, isTarget: @escaping (NSEvent) -> Bool) {
         self.state = state
@@ -152,7 +155,21 @@ final class KeyRemote {
             if !event.isARepeat { seek(key == K.right) }
             return true
         }
-        if state.tvPaired {
+        if state.tvPaired, RemoteMode.current == .num, !shift, let d = Self.digits[event.keyCode] {
+            if !event.isARepeat {
+                RemoteKeyFlash.post(TVKey.digit(d))
+                Task { await state.pressTVKey(TVKey.digit(d)) }
+            }
+            return true
+        }
+        if casting && !state.tvPaired {   // no remote yet — keep cast transport on the keys
+            switch key {
+            case K.left, K.right: seek(key == K.right); return true
+            case K.space: Task { await state.togglePlayPause() }; return true
+            default: break
+            }
+        }
+        do {
             let code: Int32
             switch key {
             case K.up: code = ATVKeyCode.dpadUp
@@ -172,18 +189,15 @@ final class KeyRemote {
                 code = ATVKeyCode.dpadCenter
             default: return false
             }
-            RemoteKeyFlash.post(code)
-            Task { await state.pressTVKey(code) }
+            if state.tvPaired {
+                RemoteKeyFlash.post(code)
+                Task { await state.pressTVKey(code) }
+            } else {
+                // Port: not paired — nothing is sent into the void; the panel says once to pair.
+                Task { await state.pressTVKeyUnpaired(code) }
+            }
             return true
         }
-        if casting {   // no remote yet — keep cast transport on the keys
-            switch key {
-            case K.left, K.right: seek(key == K.right); return true
-            case K.space: Task { await state.togglePlayPause() }; return true
-            default: return false
-            }
-        }
-        return false
     }
 
     private func seek(_ forward: Bool) {

@@ -10,7 +10,143 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
-## [0.7.1] - 2026-11-28
+### Added
+
+- macOS: **remote access over Tailscale.** *TVs on Tailscale…* in the footer's TV menu (and
+  *Remote access (Tailscale)…* in the right-click menu) opens a window with the TVs on your
+  tailnet (online state, **Add**, all devices on request, home networks behind a subnet router),
+  adding a TV by `100.x.y.z` or MagicDNS name (Fling checks Cast 8009, remote 6466, ADB 5555),
+  what works away from home (the remote yes; casting through catt needs the home network) and
+  an example ACL to copy. Added TVs stay on the TV list across launches and are picked when the
+  home scan finds nothing; a TV paired at home is tried with the same key on its tailnet address.
+  The footer shows *via Tailscale · 38 ms* with a direct / relayed tooltip. Plain-word hints when
+  Tailscale isn't installed, is off or isn't signed in. Fling only reads `tailscale status --json`
+  and `tailscale ping` (Tailscale.app or Homebrew CLI) and never changes Tailscale's settings.
+- macOS: a tailnet TV whose Cast port doesn't answer says so instead of casting, and catt isn't
+  polled against it.
+- macOS: **remote modes** under the app grid — Arrows, Touchpad (drag = arrows, click = OK,
+  right-click = Back, middle-click = Home), Numbers (digits, channel ±, Input, Guide, Info,
+  Settings; the Mac's digit keys type digits while it is open) and Media (previous / rewind /
+  play-pause / fast-forward / next, stop, subtitles, audio track, colour buttons). The choice is
+  remembered.
+- macOS: **favourite apps per TV** — right-click a chip to move, rename or remove it; "+" adds the
+  app open on the TV, a catalog app or any package; "Restore the default set".
+- macOS: **scenes** (turn on → open an app → volume …, with remote buttons, waits, the sleep
+  timer, turn off and "switch to this TV first") with an editor window; run them from the "⋯" menu
+  in the remote or the menu-bar icon's right-click menu.
+- macOS: **sleep timer** (15 min – 2 h) with a "the TV turns off in N min" strip and Cancel, plus
+  explicit Turn on / Turn off, in the same "⋯" menu and right-click menu.
+- macOS: **LIVE — the TV's screen with the Mac's mouse and keyboard**, in its own window
+  (scrcpy over ADB, like Linux). "TV screen in its own window" and "Mouse on the TV, no
+  picture" are in the panel and in the right-click menu (TV screen (LIVE)); the same item
+  again closes it. Same as on the PC: low delay (the TV's encoder asked for realtime
+  priority and at most one frame held; a TV that refuses gets the plain start and is
+  remembered), quality Auto / Sharp / **Fast** (960 px at 60 frames/s) / Saver, "Mouse" (the
+  Mac's pointer, each click exactly there) by default or "TV cursor" (falls back to taps on
+  TVs without it), "Just watch", keyboard to the TV (on by default; the window comes to the
+  front so typing goes to the TV at once), TV sound on the Mac (Android 11+). Russian and
+  accented letters scrcpy can't type go through the TV remote instead. Options are
+  remembered; changing one reopens the picture.
+- macOS: LIVE finds scrcpy and adb where Homebrew and Android Studio put them; when one is
+  missing it says so in plain words and copies the install command (`brew install scrcpy`,
+  `brew install --cask android-platform-tools`). It connects ADB to the chosen TV by itself
+  (the wireless-debugging port the TV announces, or 5555) and says when the TV wants
+  "Allow" pressed or network debugging turned on.
+- macOS: quitting Fling closes the TV screen it opened (only Fling's own scrcpy).
+- macOS: **ADB in one click**, as on the PC: Fling finds adb (Homebrew, Android SDK, PATH; if it's
+  missing the panel says `brew install android-platform-tools` — nothing is installed silently),
+  finds the TV's ADB ports by mDNS, keeps each TV's own port, waits for "Allow" on the TV, asks
+  for the 6-digit code only when the TV shows "Pair with code", says how to turn debugging on
+  and connects by itself once it is; IP and ports by hand under "By hand…".
+- macOS: **what really plays on the TV** (title, artist, position, artwork from a YouTube search)
+  from the TV's media session over ADB — every 3 s with the panel open, 10 s while something
+  plays, once a minute when idle; only for a TV that already allowed this Mac (no prompts).
+- macOS: **TV screenshot** over ADB, saved to ~/Pictures/Fling and opened; black DRM shots explained.
+- macOS: **install an APK on the TV**: file picker (several files = one split app), drop on the
+  ADB block, or Finder "Open With → Fling Port".
+- macOS: Fling runs its own adb server on its own port and stops only that one on quit —
+  Android Studio's adb is left alone.
+
+### Fixed
+
+- macOS (PC and Android since 0.7.0): **"what's playing" over ADB never showed anything on Android 14 TVs.**
+  Android 14 writes the playback state by name (`state=PLAYING(3)`), and Fling only read the
+  old form (`state=3`), so it always saw "nothing playing". Both forms are read now (found on a
+  Xiaomi Mi TV casting through the built-in Cast receiver).
+- macOS: **one refused handshake no longer ends the pairing.** A TV that has just woken up or
+  restarted can drop the first TLS handshakes; for a paired TV Fling now tries again after
+  2, 4 and 6 s before it believes the TV forgot this Mac. Not again for a TV that refused in
+  the last minute; key presses during the wait are dropped instead of arriving late (the
+  panel says "Reconnecting to the TV…" in grey); choosing another TV or starting a pairing
+  stops the wait at once.
+- macOS: **when the TV really has forgotten this Mac**, Fling drops its "paired" mark: the
+  panel shows "Pair with TV" at once and says what happened and what to press. If the TV
+  turns out to trust this Mac after all, the next successful connect puts the mark back.
+- macOS: errors are **red**, "…in progress" notes grey; the remote's messages are in plain
+  words (no raw network / certificate errors — those go to ~/Library/Logs/Fling.log).
+- macOS: **the chosen TV survives a restart** and stays chosen when it doesn't answer a TV
+  search (shown offline) instead of being swapped for another TV; a failed search keeps the
+  known TVs. The footer dot is a real check (green / red / grey), and when the TV in use is
+  offline while another known TV answers, the panel offers it: "“Living room” is offline —
+  switch to “Bedroom”", one click.
+- macOS: with the remote not paired, the Mac keyboard's remote keys aren't sent into the
+  void: Fling says once to pair.
+- macOS: **Samsung TVs (Smart View) in the TV list and on the panel's remote.** Found over SSDP
+  (then the TV's `/api/v2/`), remembered when off, and listed next to Chromecast and Google TV.
+  The d-pad, OK, back, home, volume, mute, power, typing, the Mac keyboard and the app grid
+  drive the TV over its own network remote (WebSocket 8002, 8001 on older sets); the TV asks
+  "Allow?" once and Fling keeps its token in UserDefaults. *Cast this tab* / *Cast clipboard
+  URL* send media links over DLNA (UPnP AVTransport), YouTube to the TV's YouTube app, other
+  pages to its browser; *Turn TV On* wakes it over the network. Tested against a local
+  simulator only (see [docs/smart-view.md](docs/smart-view.md#on-a-mac)).
+- macOS: **the TV chooser is sorted by kind** — Google TV / Android TV, Chromecast, Samsung —
+  in the panel and the right-click menu, each TV labelled with its kind; the current TV first.
+- macOS: **Mirror screen (AirPlay)…** for a Samsung TV opens System Settings ▸ Displays, with a
+  hint for Control Center ▸ Screen Mirroring. macOS has no Miracast, and Fling doesn't pretend
+  to: AirPlay (built into Samsung TVs from 2018 on) is macOS's own route.
+- macOS: **the browser extension works with the Mac app.** The same local bridge as on Windows /
+  Linux (`127.0.0.1:47613`, extensions and local tools only): cast the tab from where the page's
+  video is, the popup's remote, right-click casts. The unpacked Chrome / Firefox extension ships
+  inside the app (*Settings → Casting → Show extension folder*). Safari needs Xcode to build.
+- macOS: **⌃⌥⌘C casts the current tab from anywhere** without Accessibility access (upstream's
+  ⌘⇧C still works where granted); Firefox, Edge, Brave… through the extension.
+- macOS: **files from the Mac to the TV** — videos, music, photos, folders and m3u / pls playlists
+  as a queue (next / previous, repeat, shuffle), **photo slideshows**, subtitles next to a video
+  (srt / ass / Windows-1251 converted), resume where a film was left off.
+- macOS: **notification when the TV moves to the next video / track** (can be turned off).
+- macOS: **Settings window** — language, open at login, casting browser tabs and the extension
+  hint, notifications, the hotkey, the extension link, queue options. No themes: the Mac app
+  follows the system's appearance.
+- macOS: *Cast clipboard URL* also takes a copied file path and keeps `?t=` start times.
+- macOS: **Tools window** (right-click menu ▸ Tools & Catalog…) finds catt, adb and scrcpy
+  already on the Mac (Homebrew, uv, Android SDK, PATH) and shows each copy's path and version,
+  which one is used, the newest version the publisher offers and copies too old for Fling.
+  Install / Update runs `brew install` / `brew upgrade` (catt: `uv tool install`, getting uv
+  the way `macos/install.sh` does) only when clicked, with the command and its output shown;
+  without Homebrew it says in plain words what to install and links the official pages.
+- macOS: **Catalog** tab — the same official TV apps as the PC build (VLC, Kodi, Jellyfin,
+  Moonlight, LocalSend, Tailscale, Material Files, F-Droid) with the same checks before
+  anything reaches the TV: the publisher's SHA-256 (GitHub digest and checksum file must agree;
+  VideoLAN / Kodi checksum from the official host with redirects refused; Tailscale's own
+  `.sha256`; F-Droid's index verified through its signed `entry.jar` against the pinned
+  repository key, with no rollback to an older index), then the APK's package name and the
+  developer's pinned signing certificate (APK Signature Scheme v2/v3/v3.1 or v1). Shows which
+  apps are on the TV and their versions, installs, updates, opens and removes them over ADB.
+- macOS: **a guard built into Fling Port**, the Mac counterpart of fling-guard
+  ([SECURITY.md → macOS](SECURITY.md#what-protects-you-after-the-install-macos)).
+  `install.sh` installs nothing unless the files match the release's signed `SHA256SUMS.txt`
+  (minisign, or the installed Fling Port's own verifier), and refuses older releases.
+  At every start Fling Port checks its own code signature and the hash recorded at install.
+  Every program it starts (catt, osascript, adb, scrcpy…) is checked first: system folders,
+  Apple / Developer ID / App Store signatures pass; unsigned tools such as uv's Python or
+  Homebrew builds run after you allow them once, and are asked about again when they change.
+  Unsigned code in temporary folders is refused. A child process using more than 30% of the
+  machine for 90 s is stopped. Log: `~/Library/Logs/Fling Port/guard.log`. Builds from
+  source only report.
+- macOS: the app is signed with the **hardened runtime** (microphone and Apple Events allowed).
+- macOS: `Fling --verify-release`, `--guard-check`, `--guard-selfcheck` command-line checks.
+
+## [0.7.2] - 2026-11-28
 
 ### Changed
 
@@ -19,6 +155,24 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   Light / Dark keep a chosen named theme (Graphite, OLED…).
 - Android Settings: theme and language as icon rows (moon, globe) with compact switches,
   each in its own section.
+
+## [0.7.1] - 2026-11-28
+
+### Added
+
+- Linux: **a normal installer** — `Fling-Setup-<version>-linux.run` on the Releases page. Download,
+  open (double-click opens it in a terminal window), done: no `git clone`, no root. It works on
+  any distribution: what the system lacks comes from the official sources — PyQt6 and lz4 from
+  PyPI, adb and scrcpy as the publishers' builds with their checksums checked. On Debian/Ubuntu,
+  Arch, Fedora and openSUSE it offers the missing system packages first (`--no-system` skips
+  them). Running a newer `.run` updates Fling and restarts it; `--uninstall` removes it.
+  Built by `linux/make-run.sh` (reproducible), signed with the release in `SHA256SUMS.txt`.
+
+### Changed
+
+- `linux/install.sh` no longer needs Debian/Ubuntu: it knows apt, pacman, dnf and zypper, asks
+  for the password only for packages that are really missing, installs every `desktop/*.py`
+  and gives Fling its own menu icon.
 
 ## [0.7.0] - 2026-11-28
 
