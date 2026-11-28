@@ -105,6 +105,7 @@ android {
             manifest.srcFile("AndroidManifest.xml")
             java.setSrcDirs(listOf("src"))
             res.setSrcDirs(listOf("res"))
+            assets.setSrcDirs(listOf("assets"))     // tv-icons.dex (tvtool/build.sh)
         }
         getByName("github") {
             manifest.srcFile("flavors/github/AndroidManifest.xml")

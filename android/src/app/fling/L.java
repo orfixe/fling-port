@@ -161,7 +161,19 @@ final class L {
         e("Снимок экрана ТВ", "TV screenshot");
         e("Сделать снимок", "Take screenshot");
         e("Делаю снимок экрана ТВ…", "Taking a TV screenshot…");
-        e("Сохранено в Pictures/Fling", "Saved to Pictures/Fling");
+        e("Сохранить", "Save");
+        e("Добавить приложение с ТВ", "Add an app from the TV");
+        e("Заменить на…", "Replace with…");
+        e("Убрать %s", "Remove %s");
+        e("Перетащите плитку, чтобы переставить", "Drag a tile to move it");
+        e("По умолчанию", "Default");
+        e("Загружаю приложения с ТВ…", "Loading the TV's apps…");
+        e("Список приложений ТВ берётся через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети».", "The TV's app list comes over ADB — turn on Developer options → Network debugging on the TV.");
+        e("Не удалось получить список приложений с ТВ.", "Couldn't get the TV's app list.");
+        e("Все приложения с ТВ уже на плитках.", "All the TV's apps are already on tiles.");
+        e("Не удалось открыть приложение на ТВ.", "Couldn't open the app on the TV.");
+        e("Снимок сохранён в «Скриншоты»", "Saved to Screenshots");
+        e("Не удалось сохранить снимок", "Couldn't save the screenshot");
         e("Снимок чёрный: видео защищено от снимков (DRM у YouTube/Netflix). Меню и главный экран ТВ снимаются нормально.", "The screenshot is black: the video is protected (DRM in YouTube/Netflix). Menus and the home screen capture fine.");
         e("Снимок экрана: подтвердите на ТВ «Разрешить отладку».", "Screenshot: accept “Allow debugging” on the TV.");
         e("Снимок экрана работает через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети».", "Screenshots need ADB — on the TV enable Developer options → Network debugging.");
@@ -256,7 +268,7 @@ final class L {
         e("Сменить", "Switch");
         e("Fling для Android · дома по Wi‑Fi, не из дома — через Tailscale", "Fling for Android · Wi‑Fi at home, Tailscale when away");
         e("Ищу телевизор в сети…", "Looking for a TV on the network…");
-        e("Пульт для телевизора и трансляция с телефона", "TV remote and casting from your phone");
+        e("Пульт и трансляция на телевизор", "Remote and casting for your TV");
         e("Воспроизводится", "Playing");
         e("ТВ не принимает команды по Chromecast для этого видео. Нажмите «Связать с ТВ» ниже — пауза и перемотка будут работать как кнопки пульта.",
           "The TV ignores Chromecast commands for this video. Tap “Pair with TV” below — pause and skip are sent as remote buttons.");
@@ -352,7 +364,7 @@ final class L {
         e("В сети", "Online");
         e("Включите его, чтобы ТВ из tailnet были на связи.", "Turn it on to reach the TVs on your tailnet.");
         e("Добавить по адресу", "Add by address");
-        e("Дома · Wi‑Fi", "At home · Wi‑Fi");
+        e("Wi‑Fi", "Wi‑Fi");
         e("Искать снова", "Search again");
         e("Ищу телевизоры…", "Looking for TVs…");
         e("Нажмите на ТВ, чтобы переключиться.", "Tap a TV to switch to it.");

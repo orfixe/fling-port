@@ -247,6 +247,13 @@ final class Atv {
                 if (g != gen) throw new Superseded();
                 if (i >= waits.length) {
                     refusedAt.put(host, SystemClock.elapsedRealtime());
+                    if (paired(host) && !sam(host)) {
+                        // tried 2 + 4 + 6 s: not a hiccup. The screen shows "Pair with TV" instead of
+                        // a remote that sends keys nowhere.
+                        prefs.edit().remove("paired_" + host).apply();
+                        Diag.log("atv", host + " doesn't trust this phone any more: pairing mark removed");
+                        l.onPairing("idle", "");
+                    }
                     throw e;
                 }
                 Diag.log("atv", "TLS refused by " + host + " (" + e.getMessage() + "), retrying in " + waits[i] / 1000 + " s");
@@ -263,14 +270,21 @@ final class Atv {
         this.host = host;
         sock = Tls.connect(host, 6466, true, 8000);
         out = new BufferedOutputStream(sock.getOutputStream());
-        started = new CountDownLatch(1);
+        final CountDownLatch st = started = new CountDownLatch(1);
+        final boolean[] closedEarly = new boolean[1];
         final SSLSocket s = sock;
-        Thread t = new Thread(() -> readLoop(s), "atv-read");
+        Thread t = new Thread(() -> readLoop(s, st, closedEarly), "atv-read");
         t.setDaemon(true);
         t.start();
-        if (!started.await(16, TimeUnit.SECONDS)) {
+        if (!st.await(16, TimeUnit.SECONDS)) {
             disconnectNow();
             throw new IOException(L.t("Телевизор не ответил."));
+        }
+        if (closedEarly[0]) {
+            // The TV took the TLS handshake and hung up before the session started: it logs
+            // "Incoming connection from unknown device" — it has forgotten this phone's certificate.
+            disconnectNow();
+            throw new javax.net.ssl.SSLException("the TV closed the session at once: it doesn't trust this phone");
         }
         connected = true;
     }
@@ -287,7 +301,7 @@ final class Atv {
         io.execute(this::disconnectNow);
     }
 
-    private void readLoop(SSLSocket s) {
+    private void readLoop(SSLSocket s, CountDownLatch st, boolean[] closedEarly) {
         try {
             InputStream in = s.getInputStream();
             while (true) {
@@ -298,6 +312,10 @@ final class Atv {
             }
         } catch (Exception ignored) {
         } finally {
+            if (st.getCount() > 0) {                 // ended before the TV said it's on: not a session
+                closedEarly[0] = true;
+                st.countDown();
+            }
             if (s == sock) {
                 connected = false;
                 isOn = null;

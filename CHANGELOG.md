@@ -12,6 +12,22 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [0.5.9] - 2026-11-28
 
+### Added
+
+- Android: **your own app tiles, per TV, with real icons.** Hold a tile to rearrange: drag it
+  to another place, ✕ removes it, **+** adds an app installed on the TV, "Done" finishes. The
+  names and icons come from the TV itself (a 3 KB helper Fling runs over ADB, like
+  scrcpy-server) and are kept on the phone, so they show without ADB too.
+
+### Fixed
+
+- Android: **a TV that has forgotten this phone looked connected**: the remote was shown and
+  keys went nowhere. The TV takes the TLS handshake and hangs up ("unknown device"); Fling now
+  reads that as "doesn't trust this phone", tries again (2, 4, 6 s) and then shows "Pair with
+  TV". App tiles still open apps over ADB meanwhile.
+- Android: the TV screenshot is saved only when you tap "Save", into the phone's own
+  Screenshots folder (DCIM/Screenshots on Samsung), not Pictures/Fling.
+
 ### Changed
 
 - Android: **dialogs in Fling's own look** — the update offer, "Allow installing", the GitHub

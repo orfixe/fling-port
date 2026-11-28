@@ -190,7 +190,7 @@ final class DevicePicker {
         root.addView(searching, ui.margins(Ui.lp(-1, -2), 4, 0, 0, 16));
 
         // at home
-        root.addView(ui.label(L.t("Дома · Wi‑Fi")), ui.margins(Ui.lp(-1, -2), 12, 4, 12, 8));
+        root.addView(ui.label(L.t("Wi‑Fi")), ui.margins(Ui.lp(-1, -2), 12, 4, 12, 8));
         homeList = ui.col();
         root.addView(homeList, Ui.lp(-1, -2));
         LinearLayout empty = ui.card();
