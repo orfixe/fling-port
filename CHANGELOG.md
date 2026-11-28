@@ -10,6 +10,19 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.5.8] - 2026-11-28
+
+### Fixed
+
+- Android: **"An update is available" kept coming back after updating.** Releases 0.5.6 and
+  0.5.7 carried the 0.5.5 APK, so the app compared its 0.5.5 with the release's 0.5.7, offered
+  the update, installed the same 0.5.5 again — and offered it again. This APK is 0.5.8.
+- Android: **one failed handshake no longer says "the TV doesn't trust this phone any more".**
+  A TV that has just woken up or restarted can drop the first TLS handshakes; for a paired TV
+  Fling now tries again after 2, 4 and 6 s before asking to pair. Not again for a TV that
+  refused the phone in the last minute, key presses during the wait are dropped instead of
+  arriving late, and switching TVs or closing the app stops the wait at once.
+
 ## [0.5.7] - 2026-11-28
 
 ### Fixed
@@ -663,7 +676,8 @@ unchanged.
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.7...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.8...HEAD
+[0.5.8]: https://github.com/orfixe/fling-port/compare/v0.5.7...v0.5.8
 [0.5.7]: https://github.com/orfixe/fling-port/compare/v0.5.6...v0.5.7
 [0.5.6]: https://github.com/orfixe/fling-port/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/orfixe/fling-port/compare/v0.5.4...v0.5.5

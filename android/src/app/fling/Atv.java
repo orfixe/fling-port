@@ -5,6 +5,7 @@ package app.fling;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.SystemClock;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -13,6 +14,8 @@ import java.io.OutputStream;
 import java.security.MessageDigest;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAPublicKey;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -65,6 +68,28 @@ final class Atv {
 
     private SSLSocket pairSock;
 
+    /** A TV right after it wakes or restarts can drop the first TLS handshakes, and Android TV
+     *  says "pair again" with any TLS error. For a paired TV: try again after 2, 4 and 6 s before
+     *  telling the user to pair; not again for a TV that refused this phone in the last minute
+     *  (each queued key press would wait 12 s more). */
+    private static final long[] RETRY_MS = {2000, 4000, 6000};
+    private static final long REFUSED_MEMORY_MS = 60_000;
+    private final Map<String, Long> refusedAt = new ConcurrentHashMap<>();
+    /** A connect is waiting between retries: key presses are dropped, not queued behind it. */
+    private volatile boolean retrying;
+    /** Bumped by disconnect() and pairing: a retry waiting meanwhile gives up quietly. */
+    private volatile int gen;
+
+    /** A connect made pointless by disconnect() / another TV / pairing: no error to show. */
+    private static final class Superseded extends IOException {
+        Superseded() { super("superseded"); }
+    }
+
+    private boolean recentlyRefused(String host) {
+        Long t = refusedAt.get(host);
+        return t != null && SystemClock.elapsedRealtime() - t < REFUSED_MEMORY_MS;
+    }
+
     Atv(Context ctx, Listener l) {
         this.ctx = ctx;
         this.l = l;
@@ -110,6 +135,8 @@ final class Atv {
 
     void startPairing(String host) {
         if (sam(host)) { sam.connect(host); return; }
+        gen++;                                             // a connect retrying meanwhile gives up
+        refusedAt.remove(host);
         Tls.forget(host);                                  // pairing again: the TV may have a new certificate
         io.execute(() -> {
             l.onPairing("starting", "");
@@ -200,6 +227,7 @@ final class Atv {
         if (!paired(host)) return;
         io.execute(() -> {
             try { connectNow(host); } catch (Exception e) {
+                if (e instanceof Superseded) return;
                 // the TV refusing this phone needs the user (pair again); the TV being away doesn't
                 if (e instanceof javax.net.ssl.SSLException) l.onError(message(e)); else l.onOffline(message(e));
             }
@@ -208,6 +236,28 @@ final class Atv {
 
     private void connectNow(String host) throws Exception {
         if (connected && host.equals(this.host)) return;
+        final int g = gen;
+        long[] waits = paired(host) && !recentlyRefused(host) ? RETRY_MS : new long[0];
+        for (int i = 0; ; i++) {
+            try {
+                connectOnce(host);
+                refusedAt.remove(host);
+                return;
+            } catch (javax.net.ssl.SSLException e) {
+                if (g != gen) throw new Superseded();
+                if (i >= waits.length) {
+                    refusedAt.put(host, SystemClock.elapsedRealtime());
+                    throw e;
+                }
+                Diag.log("atv", "TLS refused by " + host + " (" + e.getMessage() + "), retrying in " + waits[i] / 1000 + " s");
+                retrying = true;
+                try { Thread.sleep(waits[i]); } finally { retrying = false; }
+                if (g != gen) throw new Superseded();
+            }
+        }
+    }
+
+    private void connectOnce(String host) throws Exception {
         disconnectNow();
         Tls.ensureIdentity(ctx);
         this.host = host;
@@ -232,6 +282,7 @@ final class Atv {
     }
 
     void disconnect() {
+        gen++;                                              // a retry waiting gives up at once
         if (sam != null) sam.disconnect();
         io.execute(this::disconnectNow);
     }
@@ -317,13 +368,21 @@ final class Atv {
     }
 
     private void command(String host, ThrowingSend body) {
+        if (retrying) {                                     // would run 2–12 s late: drop it
+            Diag.log("atv", "key dropped: still reconnecting");
+            return;
+        }
+        if (!paired(host) && recentlyRefused(host)) {       // refused a moment ago: say it, don't knock again
+            l.onError(L.t("Телевизор больше не доверяет этому телефону — свяжите его с ТВ заново."));
+            return;
+        }
         io.execute(() -> {
             try {
                 connectNow(host);
                 body.run();
             } catch (Exception e) {
                 disconnectNow();
-                l.onError(message(e));
+                if (!(e instanceof Superseded)) l.onError(message(e));
             }
         });
     }
