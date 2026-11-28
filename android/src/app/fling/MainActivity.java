@@ -1064,21 +1064,38 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         });
     }
 
+    /** ADB first: it opens any installed app by its package. Over the remote protocol many TVs
+     *  (Google TV on Xiaomi, for one) refuse market://launch?id=… and https:// links; only an
+     *  app's own link (vnd.youtube.launch://, netflix://) opens there. */
     private void launchTile(String[] app) {
         final String h = host;
         if (h == null) { showError(L.t("Устройство не выбрано")); return; }
-        if (!paired() && "ok".equals(Adb.lastState) && app[2].matches("[A-Za-z][\\w]*(\\.[\\w]+)+")) {
-            // no remote, but ADB: open the app by its package (LEANBACK first, then a phone-style launcher)
+        final String link = app[1], pkg = app[2], name = app[0];
+        if (sam.handles(h)) { atv.launch(h, !link.isEmpty() ? link : pkg); return; }   // Samsung's own apps
+        final boolean ownLink = link.contains("://") && !link.startsWith("http://") && !link.startsWith("https://")
+                && !link.startsWith("market://");
+        boolean adbMaybe = Adb.lastState == null || "ok".equals(Adb.lastState);
+        if (adbMaybe && pkg.matches("[A-Za-z][\\w]*(\\.[\\w]+)+")) {
             bg(() -> {
+                boolean opened = false;
                 try {
-                    String out = adb.shell(h, "monkey -p " + app[2] + " -c android.intent.category.LEANBACK_LAUNCHER 1");
-                    if (out == null || out.contains("No activities found"))
-                        adb.shell(h, "monkey -p " + app[2] + " -c android.intent.category.LAUNCHER 1");
-                } catch (Exception e) { main.post(() -> showError(L.t("Не удалось открыть приложение на ТВ."))); }
+                    for (String cat : new String[]{"LEANBACK_LAUNCHER", "LAUNCHER"}) {
+                        String out = adb.shell(h, "monkey -p " + pkg + " -c android.intent.category." + cat + " 1");
+                        if (out != null && !out.contains("No activities found") && !out.contains("Error")) { opened = true; break; }
+                    }
+                } catch (Exception ignored) {}
+                final boolean ok = opened;
+                main.post(() -> {
+                    if (ok) return;
+                    if (paired() && ownLink) atv.launch(h, link);          // ADB couldn't: the remote may still
+                    else if ("ok".equals(Adb.lastState)) showError(L.f("%s не установлено на ТВ.", name));
+                    else showError(L.f("%s открывается через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети».", name));
+                });
             });
             return;
         }
-        atv.launch(h, !app[1].isEmpty() ? app[1] : "market://launch?id=" + app[2]);
+        if (paired() && ownLink) { atv.launch(h, link); return; }
+        showError(L.f("%s открывается через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети».", name));
     }
 
     /** The apps installed on the TV (over ADB), to add (idx -1) or to put in place of tile idx. */

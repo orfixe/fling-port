@@ -10,6 +10,16 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-11-28
+
+### Fixed
+
+- PC and Android: **app tiles did nothing** for most apps. Many TVs (Google TV on Xiaomi, for
+  one) refuse to open an app by its package or an https:// link over the remote protocol —
+  only an app's own link (YouTube, Netflix) works there. Tiles now open apps over ADB, which
+  opens any installed app; an app that isn't on the TV says so ("Prime Video isn't installed
+  on the TV"), and without ADB Fling says to turn on network debugging.
+
 ## [0.6.1] - 2026-11-28
 
 ### Added
@@ -733,7 +743,8 @@ unchanged.
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.6.1...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/orfixe/fling-port/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/orfixe/fling-port/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/orfixe/fling-port/compare/v0.5.8...v0.6.0
 [0.5.8]: https://github.com/orfixe/fling-port/compare/v0.5.7...v0.5.8

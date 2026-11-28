@@ -90,6 +90,9 @@ EN = [
     ("Открыть приложение можно, когда пульт связан с ТВ или подключён ADB.",
      "Apps open once the remote is paired with the TV or ADB is connected."),
     ("приложение не найдено на ТВ", "the app isn't on the TV"),
+    ("%s не установлено на ТВ.", "%s isn't installed on the TV."),
+    ("%s открывается через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети».",
+     "%s opens over ADB — turn on Developer options → Network debugging on the TV."),
     # more menu, power, sleep timer
     ("Ещё: сцены, таймер сна, включение", "More: scenes, sleep timer, power"),
     ("Включить ТВ", "Turn on the TV"), ("Выключить ТВ", "Turn off the TV"),
@@ -282,22 +285,41 @@ class Remote(QObject):
         if not s.ip:
             s._set(last_error="Телевизор не выбран — нажмите «Выбрать» внизу панели.")
             return
-        if s.tv_paired:
-            s.atv.launch(s.ip, app.get("link") or app.get("pkg"))
+        if F.SV.is_sv(s.device):                              # Samsung: its own remote knows the apps
+            s.tv_launch(app.get("link") or app.get("pkg"))
             return
-        if not s.adb_ok():
-            s._set(last_error="Открыть приложение можно, когда пульт связан с ТВ или подключён ADB.")
-            return
-        ip, ways = s.ip, adb_launch_args(app)
+        # ADB first: it opens any installed app by its package. Over the remote protocol many TVs
+        # (Google TV on Xiaomi, for one) refuse market://launch?id=… and https:// links: only an
+        # app's own link (vnd.youtube.launch://, netflix://) opens there.
+        link = app.get("link") or ""
+        own_link = "://" in link and not link.startswith(("http://", "https://", "market://"))
+        name = app.get("name") or label_for(app.get("pkg") or "")
+        if s.adb_ok():
+            ip, ways = s.ip, adb_launch_args(app)
 
-        def work():
-            for args in ways:
-                r = F.adb_cmd(ip, args, timeout=12)
-                out = (r.stdout or "") + (r.stderr or "")
-                if r.returncode == 0 and "No activities found" not in out and "Error" not in out:
-                    return None
-            return "приложение не найдено на ТВ"
-        s.bg(work, lambda err, e: (e or err) and s._set(last_error=tr("Не удалось открыть приложение: ") + tr(str(e or err))))
+            def work():
+                for args in ways:
+                    r = F.adb_cmd(ip, args, timeout=12)
+                    out = (r.stdout or "") + (r.stderr or "")
+                    if r.returncode == 0 and "No activities found" not in out and "Error" not in out:
+                        return None
+                return "missing"
+
+            def done(err, e):
+                if not (e or err):
+                    return
+                if s.tv_paired and own_link:                  # ADB couldn't: the remote may still
+                    s.atv.launch(s.ip, link)
+                elif err == "missing":
+                    s._set(last_error=tr("%s не установлено на ТВ.") % name)
+                else:
+                    s._set(last_error=tr("Не удалось открыть приложение: ") + tr(str(e or err)))
+            s.bg(work, done)
+            return
+        if s.tv_paired and own_link:
+            s.atv.launch(s.ip, link)
+            return
+        s._set(last_error=tr("%s открывается через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети».") % name)
 
     def tv_apps(self, on_done) -> list[str] | None:
         """Launcher apps installed on the TV (ADB). Cached per TV; None while loading."""

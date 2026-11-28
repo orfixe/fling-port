@@ -172,6 +172,8 @@ final class L {
         e("Не удалось получить список приложений с ТВ.", "Couldn't get the TV's app list.");
         e("Все приложения с ТВ уже на плитках.", "All the TV's apps are already on tiles.");
         e("Не удалось открыть приложение на ТВ.", "Couldn't open the app on the TV.");
+        e("%s не установлено на ТВ.", "%s isn't installed on the TV.");
+        e("%s открывается через ADB — включите на ТВ «Для разработчиков» → «Отладка по сети».", "%s opens over ADB — turn on Developer options → Network debugging on the TV.");
         e("Снимок сохранён в «Скриншоты»", "Saved to Screenshots");
         e("Не удалось сохранить снимок", "Couldn't save the screenshot");
         e("Снимок чёрный: видео защищено от снимков (DRM у YouTube/Netflix). Меню и главный экран ТВ снимаются нормально.", "The screenshot is black: the video is protected (DRM in YouTube/Netflix). Menus and the home screen capture fine.");
