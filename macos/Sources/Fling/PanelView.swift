@@ -21,8 +21,10 @@ struct PanelView: View {
                     Separator()
                     ADBSection(adb: ADBGlue.shared, state: state)   // port: ADB (ADBView.swift)
                     if let error = state.lastError {
+                        // Port: errors red, "…in progress" notes grey (as on Windows / Linux)
                         Text(tr(error))
-                            .font(.system(size: 10.5)).foregroundStyle(.orange)
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(TVConnectionText.isProgressNote(error) ? Color.secondary : Color.red)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.horizontal, 14).padding(.vertical, 4)
                     }

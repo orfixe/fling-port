@@ -43,7 +43,7 @@ struct RemoteView: View {
                 if state.tvPaired { controls } else { setup }
                 if case .failed(let why) = state.tvPairing {
                     Text(tr(why))
-                        .font(.system(size: 11)).foregroundStyle(.orange)
+                        .font(.system(size: 11)).foregroundStyle(.red)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 14).padding(.bottom, 7)
                 }
@@ -136,7 +136,7 @@ struct RemoteView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 6)
             MenuRow(title: "Turn TV On", icon: "power") { Task { await state.wakeTV() } }
-            MenuRow(title: "Set Up TV Power…", icon: "dot.radiowaves.left.and.right",
+            MenuRow(title: "Pair with TV", icon: "dot.radiowaves.left.and.right",
                     accented: true) {
                 Task { await state.startTVPairing() }
             }

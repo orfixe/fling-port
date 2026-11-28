@@ -227,29 +227,64 @@ struct TVPinEntry: View {
 struct DeviceFooter: View {
     @ObservedObject var state: AppState
 
+    private var online: Bool? { state.selectedDevice.flatMap { state.tvOnline[$0.ip] } }
+    private var dotColor: Color {
+        guard state.selectedDevice != nil else { return .secondary }
+        switch online {
+        case true?: return .green
+        case false?: return .red
+        case nil: return .secondary
+        }
+    }
+    private var dotHelp: String {
+        guard state.selectedDevice != nil else { return "" }
+        switch online {
+        case true?: return tr("Online")
+        case false?: return tr("Offline — Fling can't reach this TV")
+        case nil: return tr("Checking…")
+        }
+    }
+
     var body: some View {
-        HStack(spacing: 7) {
-            Circle()
-                .fill(state.selectedDevice == nil ? Color.secondary : Color.green)
-                .frame(width: 6, height: 6)
-            Text(tr(state.selectedDevice?.name ?? "No device found"))
-                .font(.system(size: 11.5))
-                .lineLimit(1)
-            TailnetBadge(state: state)    // port: "via Tailscale · 38 ms"
-            Spacer()
-            // Port: always there, for the TVs on Tailscale (RemoteAccessView.swift)
-            Menu(tr(state.devices.count > 1 ? "Switch" : "TVs")) {
-                ForEach(state.devices) { device in
-                    Button(tr(device.name) + (device.isTailnet ? " · Tailscale" : "")) {
-                        Task { await state.select(device: device) }
-                    }
+        VStack(alignment: .leading, spacing: 4) {
+            // Port: the TV in use is offline and another known TV answers — one click.
+            if let alt = state.suggestedDevice, let cur = state.selectedDevice {
+                Button(tr("“{a}” is offline — switch to “{b}”")
+                        .replacingOccurrences(of: "{a}", with: cur.name)
+                        .replacingOccurrences(of: "{b}", with: alt.name)) {
+                    Task { await state.select(device: alt) }
                 }
-                if !state.devices.isEmpty { Divider() }
-                Button(tr("TVs on Tailscale…")) { RemoteAccessWindow.show(state: state) }
+                .buttonStyle(.plain)
+                .font(.system(size: 11))
+                .foregroundStyle(Color.accentColor)
             }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .font(.system(size: 11))
+            HStack(spacing: 7) {
+                // Port: a real check (green answers, red doesn't, grey not checked yet)
+                Circle()
+                    .fill(dotColor)
+                    .frame(width: 6, height: 6)
+                Text(tr(state.selectedDevice?.name ?? "No device found"))
+                    .font(.system(size: 11.5))
+                    .lineLimit(1)
+                    .help(dotHelp)
+                TailnetBadge(state: state)    // port: "via Tailscale · 38 ms"
+                Spacer()
+                // Port: always there, for the TVs on Tailscale (RemoteAccessView.swift)
+                Menu(tr(state.devices.count > 1 ? "Switch" : "TVs")) {
+                    ForEach(state.devices) { device in
+                        Button(tr(device.name)
+                               + (device.isTailnet ? " · Tailscale" : "")
+                               + (state.tvOnline[device.ip] == false ? " — " + tr("Offline") : "")) {
+                            Task { await state.select(device: device) }
+                        }
+                    }
+                    if !state.devices.isEmpty { Divider() }
+                    Button(tr("TVs on Tailscale…")) { RemoteAccessWindow.show(state: state) }
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .font(.system(size: 11))
+            }
         }
         .padding(.horizontal, 14)
         .padding(.top, 5)

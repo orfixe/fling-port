@@ -66,6 +66,26 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   ADB block, or Finder "Open With → Fling Port".
 - macOS: Fling runs its own adb server on its own port and stops only that one on quit —
   Android Studio's adb is left alone.
+### Fixed
+
+- macOS: **one refused handshake no longer ends the pairing.** A TV that has just woken up or
+  restarted can drop the first TLS handshakes; for a paired TV Fling now tries again after
+  2, 4 and 6 s before it believes the TV forgot this Mac. Not again for a TV that refused in
+  the last minute; key presses during the wait are dropped instead of arriving late (the
+  panel says "Reconnecting to the TV…" in grey); choosing another TV or starting a pairing
+  stops the wait at once.
+- macOS: **when the TV really has forgotten this Mac**, Fling drops its "paired" mark: the
+  panel shows "Pair with TV" at once and says what happened and what to press. If the TV
+  turns out to trust this Mac after all, the next successful connect puts the mark back.
+- macOS: errors are **red**, "…in progress" notes grey; the remote's messages are in plain
+  words (no raw network / certificate errors — those go to ~/Library/Logs/Fling.log).
+- macOS: **the chosen TV survives a restart** and stays chosen when it doesn't answer a TV
+  search (shown offline) instead of being swapped for another TV; a failed search keeps the
+  known TVs. The footer dot is a real check (green / red / grey), and when the TV in use is
+  offline while another known TV answers, the panel offers it: "“Living room” is offline —
+  switch to “Bedroom”", one click.
+- macOS: with the remote not paired, the Mac keyboard's remote keys aren't sent into the
+  void: Fling says once to pair.
 
 ## [0.5.8] - 2026-11-28
 
