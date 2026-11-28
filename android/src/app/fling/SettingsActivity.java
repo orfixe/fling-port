@@ -129,16 +129,13 @@ public class SettingsActivity extends Activity {
         // of its own below, for whenever the theme ends up dark (Auto at night too)
         String cur = Ui.theme(this);
         String[] names = {L.t("Авто"), L.t("Светлая"), L.t("Тёмная")};
-        LinearLayout seg = ui.segmented(names, java.util.Arrays.asList(Ui.THEMES).indexOf(cur), idx -> {
+        LinearLayout seg = ui.segmentedCompact(names, java.util.Arrays.asList(Ui.THEMES).indexOf(cur), idx -> {
             String id = Ui.THEMES[idx];
             if (id.equals(Ui.theme(this))) return;
             prefs.edit().putString("theme", id).apply();
             restyle();
         });
-        LinearLayout box = ui.col();
-        box.setPadding(ui.dp(12), ui.dp(12), ui.dp(12), ui.dp(6));
-        box.addView(seg, Ui.lp(-1, -2));
-        c.addView(box);
+        c.addView(ui.iconRow("moon", L.t("Тема"), seg));
         if (!cur.equals("light"))
             c.addView(toggle("AMOLED", null,
                     "amoled", false, this::restyle));
@@ -388,13 +385,12 @@ public class SettingsActivity extends Activity {
     private void buildLanguage() {
         section(L.t("Язык"));
         LinearLayout c = card();
-        c.setPadding(ui.dp(12), ui.dp(12), ui.dp(12), ui.dp(12));
-        LinearLayout seg = ui.segmented(new String[]{"Русский", "English"}, L.english() ? 1 : 0, idx -> {
+        LinearLayout seg = ui.segmentedCompact(new String[]{"RU", "EN"}, L.english() ? 1 : 0, idx -> {
             boolean en = idx == 1, was = L.english();
             L.setLang(this, en ? "en" : "ru");
             if (en != was) restyle();
         });
-        c.addView(seg, Ui.lp(-1, -2));
+        c.addView(ui.iconRow("globe", L.english() ? "Language" : "Язык", seg));
     }
 
     @Override protected void onResume() {

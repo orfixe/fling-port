@@ -678,6 +678,14 @@ final class Ui {
                     c.drawRoundRect(new RectF(s * .28f, s * .1f, s * .72f, s * .9f), s * .08f, s * .08f, p);
                     fill(c, s, .44f, .38f, .44f, .62f, .62f, .5f);
                     break;
+                case "globe": {                     // language: the globe with a meridian and parallels
+                    c.drawCircle(m, m, s * .36f, p);
+                    c.drawOval(new RectF(s * .34f, s * .14f, s * .66f, s * .86f), p);
+                    c.drawLine(s * .14f, m, s * .86f, m, p);
+                    c.drawArc(new RectF(s * .2f, s * .06f, s * .8f, s * .4f), 30, 120, false, p);
+                    c.drawArc(new RectF(s * .2f, s * .6f, s * .8f, s * .94f), 210, 120, false, p);
+                    break;
+                }
                 case "moon": {                      // sleep timer
                     Path a = new Path();
                     a.addCircle(m, m, s * .32f, Path.Direction.CW);
@@ -999,6 +1007,30 @@ final class Ui {
     }
 
     // ------------------------------------------------------------ segmented control
+
+    /** A settings row: an icon, its name, and a control at the end (a switch, a compact segmented). */
+    LinearLayout iconRow(String glyph, String title, View control) {
+        LinearLayout r = row();
+        r.setGravity(Gravity.CENTER_VERTICAL);
+        r.setPadding(dp(12), dp(10), dp(12), dp(10));
+        r.addView(icon(glyph, onSurfVar, 20), lp(dp(22), dp(22)));
+        TextView t = text(title, 16, fg, false);
+        t.setPadding(dp(14), 0, dp(10), 0);
+        r.addView(t, lpW(1));
+        r.addView(control, lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return r;
+    }
+
+    /** The segmented control sized to its words (for the end of a row). */
+    LinearLayout segmentedCompact(String[] items, int selected, java.util.function.IntConsumer on) {
+        LinearLayout box = segmented(items, selected, on);
+        for (int i = 0; i < box.getChildCount(); i++) {
+            View v = box.getChildAt(i);
+            v.setLayoutParams(lp(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            v.setPadding(dp(12), dp(6), dp(12), dp(6));
+        }
+        return box;
+    }
 
     LinearLayout segmented(String[] items, int selected, java.util.function.IntConsumer on) {
         LinearLayout box = row();

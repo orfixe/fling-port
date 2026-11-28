@@ -3288,6 +3288,32 @@ def logo_pixmap(size=64, casting=False, dpr=1.0):
 
 # ---------------------------------------------------------------- widgets (PanelRows.swift / RemoteView.swift)
 
+class MiniSeg(QWidget):
+    """A small segmented control (the panel's theme and language), as on Android."""
+    def __init__(self, items, selected, on):
+        super().__init__()
+        lay = QHBoxLayout(self); lay.setContentsMargins(2, 2, 2, 2); lay.setSpacing(0)
+        self.setStyleSheet(f"MiniSeg{{background:{Theme.css(T.fg_a(0.07))};border-radius:8px}}")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._b = []
+        for i, t in enumerate(items):
+            b = QPushButton(t)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            b.clicked.connect(lambda _=False, i=i: (self._select(i), on(i)))
+            lay.addWidget(b); self._b.append(b)
+        self._select(selected)
+
+    def _select(self, idx):
+        for i, b in enumerate(self._b):
+            on = i == idx
+            b.setStyleSheet(
+                "QPushButton{border:none;border-radius:6px;padding:3px 9px;font-size:11.5px;"
+                + (f"background:{Theme.css(T.acc_a(0.22))};color:{Theme.css(T.accent)};font-weight:600}}" if on
+                   else f"background:transparent;color:{Theme.css(T.fg_a(0.7))}}}"
+                        f"QPushButton:hover{{background:{Theme.css(T.fg_a(0.08))}}}"))
+
+
 class Separator(QWidget):
     def __init__(self):
         super().__init__()
@@ -5943,22 +5969,25 @@ class Panel(QWidget):
                        wrap=True)
         credit.setOpenExternalLinks(True)
         credit.setToolTip("github.com/tatianathevisionary/fling")
-        # bottom line: credit on the left, a small dimmed language flag on the right
+        # theme and language right on the panel: a moon with Auto | Light | Dark, a globe with RU | EN
+        import fling_settings
+        qs = QHBoxLayout(); qs.setContentsMargins(14, 2, 14, 6); qs.setSpacing(6)
+        moon = QLabel(); moon.setPixmap(fling_settings.icon("moon", 15, T.fg_a(0.6)).pixmap(15, 15))
+        qs.addWidget(moon)
+        cur = load_conf().get("theme", "auto")
+        names = ["Auto", "Light", "Dark"] if LANG == "en" else ["Авто", "Светлая", "Тёмная"]
+        self.theme_seg = MiniSeg(names, 1 if cur in fling_themes.LIGHT_IDS else 2 if cur in fling_themes.DARK_IDS else 0,
+                                 self._set_theme)
+        qs.addWidget(self.theme_seg)
+        qs.addStretch(1)
+        globe = QLabel(); globe.setPixmap(fling_settings.icon("globe", 15, T.fg_a(0.6)).pixmap(15, 15))
+        qs.addWidget(globe)
+        self.lang_seg = MiniSeg(["RU", "EN"], 0 if LANG == "ru" else 1,
+                                lambda i: self._toggle_lang() if ("ru", "en")[i] != LANG else None)
+        qs.addWidget(self.lang_seg)
+        v.addLayout(qs)
         cr = QHBoxLayout(); cr.setContentsMargins(14, 0, 10, 6); cr.setSpacing(6)
         cr.addWidget(credit, 1)
-        self.lang = QToolButton()
-        self.lang.setIcon(flag_icon(LANG, 14, 10)); self.lang.setIconSize(QSize(14, 10))
-        self.lang.setToolTip({"ru": "Русский → English", "en": "English → Русский"}[LANG])
-        self.lang.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.lang.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.lang.setStyleSheet(f"QToolButton{{border:none;border-radius:3px;padding:2px}}"
-                                f"QToolButton:hover{{background:{Theme.css(T.fg_a(0.08))}}}")
-        dim = QGraphicsOpacityEffect(self.lang); dim.setOpacity(0.45)   # quiet until the mouse is over it
-        self.lang.setGraphicsEffect(dim)
-        self.lang.enterEvent = lambda e: dim.setOpacity(1.0)
-        self.lang.leaveEvent = lambda e: dim.setOpacity(0.45)
-        self.lang.clicked.connect(self._toggle_lang)
-        cr.addWidget(self.lang, 0, Qt.AlignmentFlag.AlignVCenter)
         v.addLayout(cr)
 
         # App shortcuts that aren't TV-remote keys (remote keys go through eventFilter)
@@ -6388,6 +6417,17 @@ class Panel(QWidget):
         if w is None:
             w = s._live = LiveWindow(s)
         w.show_from(self)
+
+    def _set_theme(self, i):
+        c = load_conf()
+        want = ("auto", "light", "dark")[i]
+        if (want == "dark" and c.get("theme") in fling_themes.DARK_IDS) or                 (want == "light" and c.get("theme") in fling_themes.LIGHT_IDS):
+            return                                   # already such a theme (Graphite, OLED…): keep it
+        if c.get("theme", "auto") == want:
+            return
+        c["theme"] = want
+        save_conf(c)
+        restart_ui()
 
     def _toggle_lang(self):
         c = load_conf()

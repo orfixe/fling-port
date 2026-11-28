@@ -348,6 +348,7 @@ final class L {
         e("Свой цвет", "Your own colour");
         e("Субтитры", "Subtitles");
         e("Первые шаги", "First steps");
+        e("Тема", "Theme");
         e("О телевизоре", "About the TV");
         e("Сведения о ТВ и действия с ним работают через отладку по Wi‑Fi — Настройки → «Первые шаги».", "TV details and actions work over Wireless debugging — Settings → First steps.");
         e("Спрашиваю ТВ…", "Asking the TV…");

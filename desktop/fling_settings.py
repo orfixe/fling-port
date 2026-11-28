@@ -234,6 +234,11 @@ def paint_icon(p: QPainter, name, r: QRectF, color: QColor, weight=1.6):
         p.drawEllipse(c, s * .38, s * .38)
         p.drawEllipse(c, s * .16, s * .38)
         p.drawLine(at(.13, .5), at(.87, .5))
+    elif name == "moon":                                   # theme: a crescent
+        pa = QPainterPath()
+        pa.addEllipse(c, s * .36, s * .36)
+        cut = QPainterPath(); cut.addEllipse(at(.66, .34), s * .3, s * .3)
+        p.drawPath(pa.subtracted(cut))
     elif name == "info":
         p.drawEllipse(c, s * .38, s * .38)
         p.drawLine(at(.5, .46), at(.5, .7))
