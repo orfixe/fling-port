@@ -14,6 +14,14 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ### Fixed
 
+- PC: **automatic updates were stopped by Fling's own guard.** In the signed builds the guard
+  blocked the downloaded setup (it is neither in the install's file list nor
+  Authenticode-signed) and showed "Fling stopped a program…". The guard now lets through
+  exactly the setup whose SHA-256 is in the release's SHA256SUMS.txt signed with the release
+  key — the list the updater already checked — and stops watching while it installs.
+  **From 0.5.5 or 0.5.6, install 0.5.7 by hand once** (download the setup from the release
+  page); later updates install by themselves.
+
 - PC: **`fling quit` with no Fling running started the whole app** for a moment (it connected
   to the TV and left a TV search behind). Now it does nothing.
 - PC: **the setup could hang for ~30 s** when it was run while Fling was searching for TVs:

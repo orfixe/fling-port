@@ -163,6 +163,13 @@ fn trusted_path() -> PathBuf {
     base.join("Fling").join("guard-trusted.txt")
 }
 
+/// Where Fling's updater keeps a downloaded setup next to the release's signed checksum list
+/// (fling_update.DIR): `%LOCALAPPDATA%\Fling\updates`.
+fn updates_dir() -> String {
+    let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
+    norm(&base.join("Fling").join("updates").to_string_lossy()) + "\\"
+}
+
 /// (size, modified) of a file: a cached hash is reused only while this is unchanged.
 fn file_key(path: &str) -> Option<(u64, std::time::SystemTime)> {
     let md = std::fs::metadata(path).ok()?;
@@ -212,6 +219,31 @@ impl Rules {
                 }
             }
         }
+    }
+
+    /// The update setup Fling's updater runs: `Fling-Setup-<v>.exe` in the updates folder whose
+    /// SHA-256 is in the SHA256SUMS.txt beside it, that list signed with the release key as a
+    /// release (trusted comment "fling-release version=<v>"). Returns <v>. Nobody can make such a
+    /// pair without the release key — the same check fling_update did before it downloaded.
+    fn verified_update(&mut self, path: &str) -> Option<String> {
+        let n = norm(path);
+        let name = n.strip_prefix(&updates_dir())?.to_string();
+        if name.contains('\\') || !name.starts_with("fling-setup-") || !name.ends_with(".exe") {
+            return None;
+        }
+        let dir = Path::new(path).parent()?;
+        let sums = std::fs::read(dir.join("SHA256SUMS.txt")).ok()?;
+        let sig = std::fs::read_to_string(dir.join("SHA256SUMS.txt.minisig")).ok()?;
+        let tc = check::verify(&sums, &sig).ok()?;
+        let v = tc.strip_prefix("fling-release version=")?.trim().to_string();
+        if name != format!("fling-setup-{}.exe", v.to_lowercase()) {
+            return None;                        // the list is for another version
+        }
+        let want = String::from_utf8_lossy(&sums).lines().find_map(|l| {
+            let (h, f) = l.split_once("  ")?;
+            f.trim().trim_start_matches('*').eq_ignore_ascii_case(&name).then(|| h.trim().to_lowercase())
+        })?;
+        (self.hash(path)? == want).then_some(v)
     }
 
     /// Why this program may run, or None.
@@ -383,7 +415,11 @@ pub fn watch(pid: u32) -> i32 {
         if got != 0 && key == job as usize {
             let id = ov as usize as u32;
             match msg {
-                MSG_NEW_PROCESS => on_new(id, pid, &rules, &mut procs, &mut warned),
+                MSG_NEW_PROCESS => {
+                    if on_new(id, pid, &rules, &mut procs, &mut warned) {
+                        break;                  // an update is installing: hand over
+                    }
+                }
                 MSG_EXIT_PROCESS | MSG_ABNORMAL_EXIT_PROCESS => {
                     if let Some(p) = procs.remove(&id) {
                         unsafe { CloseHandle(p.h) };
@@ -408,18 +444,30 @@ pub fn watch(pid: u32) -> i32 {
     0
 }
 
+/// Returns true when a verified update setup started: the guard hands over and stops watching.
 fn on_new(id: u32, main_pid: u32, rules: &Arc<Mutex<Rules>>, procs: &mut HashMap<u32, Proc>,
-          warned: &mut HashSet<String>) {
+          warned: &mut HashSet<String>) -> bool {
     let h = unsafe {
         OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION, 0, id)
     };
     if h.is_null() {
-        return; // already gone
+        return false; // already gone
     }
     let path = image_path(h).unwrap_or_default();
     if id != main_pid {
         let mut r = rules.lock().unwrap();
-        match r.allowed(&path) {
+        let allowed = r.allowed(&path);
+        // The setup replaces this install (the guard too) and closes Fling; its own helper
+        // (Inno's setup.tmp in %TEMP%) can't be listed anywhere. Step aside for it: watching on
+        // would block that helper, or count the files it replaces as tampering and stop it.
+        if allowed.is_none() {
+            if let Some(v) = r.verified_update(&path) {
+                log(&format!("update {id} {path} (signed release {v}): the setup takes over, guard stops watching"));
+                unsafe { CloseHandle(h) };
+                return true;
+            }
+        }
+        match allowed {
             Some(why) => log(&format!("start {id} {path} ({why})")),
             None if r.enforce => {
                 unsafe { TerminateProcess(h, 0xF1) };
@@ -438,12 +486,13 @@ fn on_new(id: u32, main_pid: u32, rules: &Arc<Mutex<Rules>>, procs: &mut HashMap
                                  malware.\nDetails: {}", log_path().display())
                     });
                 }
-                return;
+                return false;
             }
             None => log(&format!("would block {id} {path} (report only)")),
         }
     }
     procs.insert(id, Proc { h, path, cpu: cpu_time(h), hot_since: None });
+    false
 }
 
 fn cpu_tick(main_pid: u32, secs: f64, ncpu: f64, rules: &Arc<Mutex<Rules>>,
