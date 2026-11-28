@@ -22,6 +22,16 @@ public final class Icons {
         int size = Integer.parseInt(args[0]);
         for (int i = 1; i < args.length; i++) {
             String pkg = args[i];
+            if (pkg.indexOf('/') > 0) {                     // a component (the screensaver): its own name
+                try {
+                    android.content.ComponentName cn = android.content.ComponentName.unflattenFromString(pkg);
+                    String label = String.valueOf(pm.getServiceInfo(cn, 0).loadLabel(pm)).replace('\t', ' ').replace('\n', ' ');
+                    System.out.println(pkg + "\t" + label + "\t");
+                } catch (Throwable t) {
+                    System.out.println(pkg + "\t\t");
+                }
+                continue;
+            }
             try {
                 ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
                 String label = String.valueOf(pm.getApplicationLabel(ai)).replace('\t', ' ').replace('\n', ' ');

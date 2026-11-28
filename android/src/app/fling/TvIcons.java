@@ -31,6 +31,8 @@ final class TvIcons {
     private static final int SIZE = 96;
     private static final Pattern PKG = Pattern.compile("[A-Za-z][\\w]*(\\.[\\w]+)+");
     private static final Map<String, Bitmap> mem = new ConcurrentHashMap<>();
+    private static final Map<String, String> labels = new ConcurrentHashMap<>();
+    private static final java.util.Set<String> asked = java.util.Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private TvIcons() {}
 
@@ -56,7 +58,28 @@ final class TvIcons {
     }
 
     /** The app's own name as the TV shows it, read before; or null. */
-    static String label(Context c, String pkg) { return pkg == null ? null : names(c).getString(pkg, null); }
+    static String label(Context c, String pkg) {
+        if (pkg == null) return null;
+        String l = labels.get(pkg);
+        if (l == null && (l = names(c).getString(pkg, null)) != null) labels.put(pkg, l);
+        return l;
+    }
+
+    /** The name read before, without a Context (null if this run hasn't seen it yet). */
+    static String peek(String pkg) { return pkg == null ? null : labels.get(pkg); }
+
+    /** The TV's own name and icon of the app on screen now, once per run, when not known yet
+     *  ("Dreamx" is the TV's "Sleep mode", say). Off the UI thread; then runs `then` on success. */
+    static void learn(Context c, Adb adb, String host, String pkg, Runnable then) {
+        if (pkg == null || host == null || label(c, pkg) != null || !asked.add(pkg)) return;
+        new Thread(() -> {
+            try {
+                if (fetch(c, adb, host, java.util.Collections.singletonList(pkg)) > 0 && then != null) then.run();
+            } catch (Exception e) {
+                Diag.log("icons", "name of " + pkg + ": " + e.getMessage());
+            }
+        }, "tv-label").start();
+    }
 
     /** Which of these the phone has no icon for yet. */
     static List<String> missing(Context c, List<String> pkgs) {
@@ -90,7 +113,7 @@ final class TvIcons {
                     if (b == null) continue;
                     try (FileOutputStream o = new FileOutputStream(new File(dir(c), f[0] + ".png"))) { o.write(png); }
                     mem.put(f[0], b);
-                    if (!f[1].trim().isEmpty()) e.putString(f[0], f[1].trim());
+                    if (!f[1].trim().isEmpty()) { e.putString(f[0], f[1].trim()); labels.put(f[0], f[1].trim()); }
                     got++;
                 } catch (IllegalArgumentException ignored) {}   // a broken line: skip it
             }

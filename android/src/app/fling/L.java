@@ -345,6 +345,13 @@ final class L {
         e("Графит", "Graphite");
         e("Пульт и трансляция", "Remote and casting");
         e("Уведомление с кнопками", "Playback notification");
+        e("Пульт в уведомлении", "Remote in the notification");
+        e("Что сейчас на ТВ и кнопки: питание, громкость, пауза, домой — со шторки и экрана блокировки.", "What's on the TV and keys — power, volume, pause, home — from the shade and the lock screen.");
+        e("Пульт ТВ", "TV remote");
+        e("Питание", "Power");
+        e("Тише", "Volume down");
+        e("Громче", "Volume up");
+        e("Пауза / пуск", "Play / pause");
         e("Пока на ТВ что-то играет: пауза, перемотка и громкость с экрана блокировки.", "While something plays on the TV: pause, skip and volume from the lock screen.");
         e("Кнопки громкости управляют ТВ", "Volume keys control the TV");
         e("Пока Fling открыт, кнопки громкости телефона меняют громкость ТВ.", "While Fling is open, the phone's volume keys change the TV volume.");

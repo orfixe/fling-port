@@ -11,6 +11,8 @@
     <!-- media notification while something plays on the TV (CastService) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- the TV remote in the notification (TvRemoteService): a connected device, over the LAN -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- sleep timer: turns the TV off on time (SleepTimer) -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
@@ -85,6 +87,11 @@
             android:name=".CastService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <service
+            android:name=".TvRemoteService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
 
         <receiver android:name=".SleepTimer" android:exported="false" />
 

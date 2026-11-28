@@ -10,10 +10,14 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
-## [0.5.9] - 2026-11-28
+## [0.6.0] - 2026-11-28
 
 ### Added
 
+- Android: **the TV in the notification.** What's on the TV now — by the name the TV itself
+  gives it ("Sleep mode", not "Dreamx") — and keys for power, volume −/+, play/pause and home,
+  from the shade and the lock screen. Keys go over ADB (no pairing needed) or the paired remote.
+  Settings → "Remote in the notification"; a swipe hides it until Fling opens again.
 - Android: **your own app tiles, per TV, with real icons.** Hold a tile to rearrange: drag it
   to another place, ✕ removes it, **+** adds an app installed on the TV, "Done" finishes. The
   names and icons come from the TV itself (a 3 KB helper Fling runs over ADB, like
@@ -34,8 +38,8 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   token, the TV address, remote access, the TV screenshot and the guide are rounded cards in
   the app's colours with the main answer as a tonal accent button. They were the system
   dialogs of Android 5: square, ALL-CAPS buttons, system colours.
-- Android: **the top of the main screen** says what Fling is ("TV remote and casting from your
-  phone") and shows the TV with a dot: green — connected, red — not. The "At home" chip is gone
+- Android: **the top of the main screen** says what Fling is ("Remote and casting for your
+  TV") and shows the TV with a dot: green — connected, red — not. The "At home" chip is gone
   (it read like the Wi‑Fi's name); a tap on the TV's name says whether it goes through
   Tailscale and with what delay.
 - Android: the AMOLED switch says what it does and where it helps: "Black instead of dark grey.
@@ -708,8 +712,8 @@ unchanged.
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.9...HEAD
-[0.5.9]: https://github.com/orfixe/fling-port/compare/v0.5.8...v0.5.9
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/orfixe/fling-port/compare/v0.5.8...v0.6.0
 [0.5.8]: https://github.com/orfixe/fling-port/compare/v0.5.7...v0.5.8
 [0.5.7]: https://github.com/orfixe/fling-port/compare/v0.5.6...v0.5.7
 [0.5.6]: https://github.com/orfixe/fling-port/compare/v0.5.5...v0.5.6

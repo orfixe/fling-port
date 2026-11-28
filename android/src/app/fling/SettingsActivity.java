@@ -249,6 +249,13 @@ public class SettingsActivity extends Activity {
     private void buildBehaviour() {
         section(L.t("Пульт и трансляция"));
         LinearLayout c = card();
+        c.addView(toggle(L.t("Пульт в уведомлении"), L.t("Что сейчас на ТВ и кнопки: питание, громкость, пауза, домой — со шторки и экрана блокировки."),
+                "remote_notify", true, () -> {
+                    if (!prefs.getBoolean("remote_notify", true)) TvRemoteService.hide(this);
+                    else TvRemoteService.show(this, getSharedPreferences("fling", MODE_PRIVATE).getString("host", null),
+                            getSharedPreferences("fling", MODE_PRIVATE).getString("name", null));
+                }));
+        c.addView(ui.separator());
         c.addView(toggle(L.t("Уведомление с кнопками"), L.t("Пока на ТВ что-то играет: пауза, перемотка и громкость с экрана блокировки."), "notify", true));
         c.addView(ui.separator());
         c.addView(toggle(L.t("Кнопки громкости управляют ТВ"), L.t("Пока Fling открыт, кнопки громкости телефона меняют громкость ТВ."), "volKeys", true));

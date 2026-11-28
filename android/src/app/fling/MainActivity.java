@@ -250,6 +250,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         super.onResume();
         if (!look.equals(lookNow())) { recreate(); return; }   // back from Settings with a new theme or language
         resumed = true;
+        TvRemoteService.foregroundAtv = atv;                          // the notification's keys go through this session
+        if (prefs.getBoolean("remote_notify", true)) TvRemoteService.show(this, host, devName);
         if (prefs.getBoolean("keepOn", false)) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         else getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (!prefs.getBoolean("welcome_done", false) && !prefs.contains("host")) {   // first launch: the language first
@@ -284,6 +286,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     @Override protected void onPause() {
         super.onPause();
         resumed = false;
+        if (TvRemoteService.foregroundAtv == atv) TvRemoteService.foregroundAtv = null;
         main.removeCallbacks(poll);
         main.removeCallbacks(tick);
         main.removeCallbacks(probe);
@@ -447,6 +450,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 adbBusy = false;
                 if (!h.equals(host)) return;
                 if (res != null || !"ok".equals(Adb.lastState)) adbSt = res;
+                if ("ok".equals(Adb.lastState)) fetchTileIcons(apps());   // ADB is up: the tiles' icons, once
                 sync();
             });
         });
@@ -487,9 +491,16 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     /** The remote or Cast couldn't (re)connect on its own: check the TV at once, the status line shows it. */
     @Override public void onOffline(String message) { Diag.log("tv", "offline: " + message); main.post(() -> { if (resumed) { main.removeCallbacks(probe); main.post(probe); } }); }
 
-    @Override public void onPower(Boolean on) { main.post(() -> { tvOn = on; sync(); }); }
+    @Override public void onPower(Boolean on) { main.post(() -> { tvOn = on; sync(); TvRemoteService.now(this, tvApp, tvOn); }); }
 
-    @Override public void onApp(String pkg) { main.post(() -> { tvApp = pkg; sync(); }); }
+    @Override public void onApp(String pkg) {
+        main.post(() -> {
+            tvApp = pkg;
+            sync();
+            TvRemoteService.now(this, tvApp, tvOn);
+            if ("ok".equals(Adb.lastState)) TvIcons.learn(this, adb, host, pkg, () -> main.post(this::sync));   // its real name
+        });
+    }
 
     @Override public void onPairing(String state, String message) {
         Diag.log("pair", state + (message == null || message.isEmpty() ? "" : ": " + message));
@@ -899,6 +910,9 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         tileBadges.clear();
         List<String[]> list = apps();
         for (String[] a : list) if (!a[2].isEmpty()) tileNames.put(a[2], a[0]);
+        boolean icons = false;
+        for (String[] a : list) if (TvIcons.icon(this, a[2]) != null) { icons = true; break; }
+        final int tileH = ui.dp(icons ? 64 : 38);                 // one height for every tile, "+" too
         int n = list.size() + (list.size() < MAX_APPS ? 1 : 0);   // + the "+" tile
         LinearLayout r = null;
         for (int i = 0; i < n; i++) {
@@ -911,31 +925,32 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 TextView c = ui.chip(app[0], v -> { if (!editTiles) launchTile(app); });
                 c.setTag(app[2]);
                 withIcon(c, app[2], 26);
+                c.setMinHeight(tileH);
                 c.setOnLongClickListener(v -> { startTileDrag(cell, idx); return true; });
                 chips.add(c);
-                cell.addView(c, new FrameLayout.LayoutParams(-1, -1));
-                TextView x = ui.text("✕", 11, 0xFFFFFFFF, true);   // remove: a small round badge on the corner
+                cell.addView(c, new FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT));
+                TextView x = ui.text("✕", 10, 0xFFFFFFFF, true);   // remove: a small round badge in the corner
                 x.setGravity(Gravity.CENTER);
                 x.setBackground(ui.oval(ui.red));
                 x.setContentDescription(L.f("Убрать %s", app[0]));
                 x.setOnClickListener(v -> { List<String[]> l = apps(); if (idx < l.size()) { l.remove(idx); saveApps(l); } });
                 x.setVisibility(editTiles ? View.VISIBLE : View.GONE);
                 tileBadges.add(x);
-                FrameLayout.LayoutParams xp = new FrameLayout.LayoutParams(ui.dp(22), ui.dp(22), Gravity.TOP | Gravity.END);
-                xp.setMargins(0, -ui.dp(6), -ui.dp(6), 0);
-                cell.setClipChildren(false);
+                FrameLayout.LayoutParams xp = new FrameLayout.LayoutParams(ui.dp(18), ui.dp(18), Gravity.TOP | Gravity.END);
+                xp.setMargins(0, ui.dp(3), ui.dp(3), 0);
                 cell.addView(x, xp);
                 cell.setOnDragListener((v, ev) -> onTileDrag(v, ev, idx));
                 cellView = cell;
             } else {
                 TextView c = ui.chip("+", v -> pickTvApp(-1));
                 c.setTextColor(ui.fgA(0.6f));
+                c.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 20);
+                c.setMinHeight(tileH);
                 c.setContentDescription(L.t("Добавить приложение с ТВ"));
                 cellView = c;
             }
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1);
+            LinearLayout.LayoutParams p = Ui.lpW(1);
             p.setMargins(i % 4 == 0 ? 0 : ui.dp(3), 0, i % 4 == 3 ? 0 : ui.dp(3), 0);
-            r.setClipChildren(false);
             r.addView(cellView, p);
         }
         for (int k = n % 4; k != 0 && k < 4; k++) {             // keep the last row's tiles the same width
@@ -943,7 +958,6 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             p.setMargins(ui.dp(3), 0, k == 3 ? 0 : ui.dp(3), 0);
             r.addView(new View(this), p);
         }
-        appGrid.setClipChildren(false);
         // under the tiles while editing: what to do, back to the defaults, done
         LinearLayout bar = ui.row();
         TextView hint = ui.text(L.t("Перетащите плитку, чтобы переставить"), 12, ui.fgA(0.5f), false);
@@ -974,7 +988,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         setEditTiles(true);
         cell.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
         android.content.ClipData data = android.content.ClipData.newPlainText("fling-tile", String.valueOf(idx));
-        if (cell.startDragAndDrop(data, new View.DragShadowBuilder(cell), idx, 0)) cell.setAlpha(0.3f);
+        View tile = ((FrameLayout) cell).getChildAt(0);              // the tile itself: no ✕ in the shadow
+        if (cell.startDragAndDrop(data, new View.DragShadowBuilder(tile), idx, 0)) cell.setAlpha(0.3f);
     }
 
     /** Another tile under the finger lights up; dropping there puts the dragged tile in its place. */
@@ -1160,6 +1175,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         adbSt = null; adbNext = 0;   // now-playing came from the old TV; read the new one right away
         prefs.edit().putString("host", h).putString("name", name).apply();
         buildApps();                                                   // this TV's own tiles
+        if (prefs.getBoolean("remote_notify", true)) TvRemoteService.show(this, h, name);
         reachable = null; pathMs = -1;
         connectDevice();
         atv.adopt(h);                                                  // paired at home → paired here too
@@ -2076,6 +2092,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         if (pkg == null) return null;
         String tile = tileNames.get(pkg);
         if (tile != null) return tile;
+        String tv = TvIcons.peek(pkg);                              // as the TV itself calls it
+        if (tv != null) return tv;
         for (String[] a : TV_APPS) if (a[2].equals(pkg)) return a[0];
         for (String[] a : KNOWN_APPS) if (a[0].equals(pkg)) return a[1];
         String tail = pkg.substring(pkg.lastIndexOf('.') + 1);
