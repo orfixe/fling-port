@@ -413,6 +413,10 @@ public class SettingsActivity extends Activity {
                     "upd_auto", true));
         }   // trailing: the version, short enough for 320 dp
         c.addView(ui.row(L.t("Как пользоваться"), "help", null, false, v -> Help.show(this, ui)));
+        c.addView(ui.row(L.t("Первые шаги"), "gear", null, false, v -> {   // shows on the main screen
+            prefs.edit().putBoolean("setup_shown", false).apply();
+            finish();
+        }));
         c.addView(ui.row(L.t("Отчёт для разработчика"), "send", null, false, v -> Diag.report(this)));
         c.addView(ui.row(L.t("Показать подсказки снова"), "refresh", null, false, v -> {
             getSharedPreferences("fling", MODE_PRIVATE).edit().putBoolean("help_seen", false).apply();

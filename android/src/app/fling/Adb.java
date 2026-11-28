@@ -120,7 +120,10 @@ final class Adb {
     }
 
     /** Host → until-elapsedRealtime: do not send AUTH pubkey again (that re-prompts the TV). */
-    private final Map<String, Long> noPubkeyUntil = new HashMap<>();
+    private final Map<String, Long> noPubkeyUntil = new java.util.concurrent.ConcurrentHashMap<>();
+    /** The person asked (First steps → Check): show "Allow debugging?" now and wait for them longer. */
+    private volatile boolean askNow;
+    void promptNow(String host) { if (host != null) noPubkeyUntil.remove(host); askNow = true; }
 
     /** Runs one shell command; returns its output. Throws with a readable state on failure. */
     synchronized String shell(String host, String command) throws Exception {
@@ -190,7 +193,8 @@ final class Adb {
                     // Public key → TV "Allow debugging?" dialog. Only once per quiet window.
                     send(o, AUTH, 3, 0, androidPubKey());
                     sentKey = true;
-                    s.setSoTimeout(30000);
+                    s.setSoTimeout(askNow ? 90000 : 30000);
+                    askNow = false;
                 } else {
                     lastState = "unauthorized";
                     noPubkeyUntil.put(host, SystemClock.elapsedRealtime() + 300_000L);

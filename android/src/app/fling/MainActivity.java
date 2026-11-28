@@ -273,25 +273,27 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         if (!look.equals(lookNow())) { recreate(); return; }   // back from Settings with a new theme or language
         resumed = true;
         TvRemoteService.foregroundAtv = atv;                          // the notification's keys go through this session
+        maybeSetup();
         if (prefs.getBoolean("remote_notify", true)) TvRemoteService.show(this, host, devName);
         if (prefs.getBoolean("keepOn", false)) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         else getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (!prefs.getBoolean("welcome_done", false) && !prefs.contains("host")) {   // first launch: the language first
+            welcomeShowing = true;
             Welcome.show(this, ui, () -> {
+                welcomeShowing = false;
                 prefs.edit().putBoolean("welcome_done", true).putBoolean("help_seen", true).apply();
                 if (!look.equals(lookNow())) {                            // another language: rebuild, then the tips
                     prefs.edit().putBoolean("tour_after_lang", true).apply();
                     recreate(); return;
                 }
-                main.postDelayed(this::startTour, 600);
+                maybeSetup();                                             // first steps (the tour stays on "?")
             });
-        } else if (!prefs.getBoolean("help_seen", false)) {           // first launch: show the guide once
+        } else if (!prefs.getBoolean("help_seen", false)) {           // first launch: first steps, not the tour too
             prefs.edit().putBoolean("help_seen", true).apply();
-            main.postDelayed(this::startTour, 900);                    // after the screen has been laid out
         }
         if (prefs.getBoolean("welcome_done", false) && prefs.getBoolean("tour_after_lang", false)) {
             prefs.edit().remove("tour_after_lang").apply();
-            main.postDelayed(this::startTour, 900);
+            maybeSetup();
         }
         discovery.start();
         sam.discover(() -> main.post(() -> onDevices(lastFound)));   // Samsung TVs (SSDP) join the same list
@@ -1242,6 +1244,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         adbSt = null; adbNext = 0;   // now-playing came from the old TV; read the new one right away
         prefs.edit().putString("host", h).putString("name", name).apply();
         buildApps();                                                   // this TV's own tiles
+        maybeSetup();
         if (prefs.getBoolean("remote_notify", true)) TvRemoteService.show(this, h, name);
         reachable = null; pathMs = -1;
         connectDevice();
@@ -1323,7 +1326,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private String menuLabel(Discovery.Device d) {
         List<String> marks = new ArrayList<>();
         if (nameClash(d)) marks.add(d.host);                 // tell identical names apart
-        if (atv.paired(d.host)) marks.add(L.t("пульт ✓"));   // network remote already paired
+        if (atv.paired(d.host)) marks.add("Android TV Remote ✓");   // network remote already paired
         if (Tailnet.isTailnetHost(d.host)) marks.add("Tailscale");   // remote access address
         else if (isManual(d)) marks.add(L.t("по IP"));       // not found by discovery
         return (d.host.equals(host) ? "✓  " : "") + d.name + (marks.isEmpty() ? "" : "  ·  " + String.join(", ", marks));
@@ -1336,7 +1339,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             public String current() { return host; }
             public boolean paired(String h) { return atv.paired(h); }
             public boolean manual(Discovery.Device d) { return isManual(d); }
-            public void select(Discovery.Device d) { selectDevice(d); }
+            public void select(Discovery.Device d) { tvPicked = true; selectDevice(d); }
             public void addByAddress(String text) { addByIp(text); }
             public void addAdbOnly(String h, String name) {
                 Discovery.Device d = new Discovery.Device(name, h, "manual");
@@ -1345,6 +1348,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 manual.add(d);
                 saveManual(manual);
                 devices = withManual(devices);
+                tvPicked = true;
                 selectDevice(d);
             }
             public void forget(Discovery.Device d) { forgetManual(d); }
@@ -2277,6 +2281,184 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         upd.setPadding(0, ui.dp(10), 0, ui.dp(10));
         if (BuildConfig.SELF_UPDATE) upd.setOnClickListener(v -> updater.check(true));
         root.addView(upd, ui.margins(Ui.lp(-1, -2), 0, 4, 0, 0));
+    }
+
+    // ================================================================ first steps
+
+    private android.app.Dialog setupDlg;
+    private boolean welcomeShowing;
+    /** The person chose the TV in the list (First steps waits for this, not for auto-discovery). */
+    private boolean tvPicked;
+    private int adbAsks;
+    private Runnable setupTick;
+
+    /** "First steps": on the first start, and again from Settings. One step at a time, each
+     *  moving on by itself once it is done: the TV → network debugging (then the 3 KB helper
+     *  installs itself) → pairing → YouTube by code (optional) → done. */
+    private void maybeSetup() {
+        if (prefs.getBoolean("setup_shown", false) || setupDlg != null || welcomeShowing) return;
+        main.postDelayed(() -> {                                      // re-checked when it fires: the welcome may be up
+            if (isFinishing() || isDestroyed() || welcomeShowing || setupDlg != null || prefs.getBoolean("setup_shown", false)) return;
+            prefs.edit().putBoolean("setup_shown", true).apply();
+            showSetup();
+        }, 900);
+    }
+
+    /** The helper ran on the TV: there are app icons from it. */
+    private boolean helperReady() {
+        for (String[] a : apps()) if (TvIcons.icon(this, a[2]) != null) return true;
+        return false;
+    }
+
+    private void showSetup() {
+        final int TV = 0, ADB = 1, HELPER = 2, PAIR = 3, YT = 4, DONE = 5;
+        final int[] step = {TV};
+        final boolean[] skipped = new boolean[6];
+        final android.app.Dialog d = new android.app.Dialog(this);
+        d.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout box = ui.col();
+        android.graphics.drawable.GradientDrawable bg = ui.round(ui.card, 28);
+        if (ui.card == ui.page) bg.setStroke(Math.max(1, ui.dp(1)), ui.fgA(0.16f));
+        box.setBackground(bg);
+        box.setPadding(ui.dp(24), ui.dp(22), ui.dp(24), ui.dp(16));
+        TextView progress = ui.label("");
+        box.addView(progress);
+        TextView title = ui.text("", 20, ui.fg, true);
+        box.addView(title, ui.margins(Ui.lp(-1, -2), 0, 8, 0, 0));
+        TextView body = ui.text("", 15, ui.fgA(0.75f), false);
+        body.setLineSpacing(ui.dp(3), 1f);
+        box.addView(body, ui.margins(Ui.lp(-1, -2), 0, 10, 0, 0));
+        EditText code = ui.field("", true);
+        box.addView(code, ui.margins(Ui.lp(-1, -2), 0, 14, 0, 0));
+        TextView main1 = ui.text("", 15, ui.accent, true);
+        main1.setGravity(Gravity.CENTER);
+        main1.setMinHeight(ui.dp(48));
+        main1.setBackground(ui.rippleRound(ui.accA(ui.dark ? 0.22f : 0.14f), 14));
+        box.addView(main1, ui.margins(Ui.lp(-1, -2), 0, 18, 0, 0));
+        TextView skip = ui.text(L.t("Пропустить шаг"), 14, ui.fgA(0.6f), false);
+        skip.setGravity(Gravity.CENTER);
+        skip.setMinHeight(ui.dp(44));
+        box.addView(skip, ui.margins(Ui.lp(-1, -2), 0, 6, 0, 0));
+        d.setContentView(box);
+        android.view.Window w = d.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+            w.setLayout(Math.min(getResources().getDisplayMetrics().widthPixels - ui.dp(32), ui.dp(420)),
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+
+        final Runnable[] render = new Runnable[1];
+        render[0] = () -> {
+            int s = step[0];
+            progress.setText(s < DONE ? L.f("Шаг %d из %d", s + 1, 5) : L.t("Готово"));
+            code.setVisibility(View.GONE);
+            skip.setVisibility(s == TV || s == DONE ? View.GONE : View.VISIBLE);
+            main1.setVisibility(View.VISIBLE);
+            switch (s) {
+                case TV:
+                    title.setText(L.t("Найдите телевизор"));
+                    body.setText(L.t("Телефон и ТВ должны быть в одной сети Wi‑Fi. Fling найдёт ТВ сам — выберите его в списке."));
+                    tvPicked = false;
+                    main1.setText(L.t("Выбрать телевизор"));
+                    main1.setOnClickListener(v -> openPicker());
+                    break;
+                case ADB:
+                    title.setText(L.t("Включите отладку по сети"));
+                    body.setText(adbAsks >= 2 && !"asking".equals(Adb.lastState)
+                            ? L.t("Окно на ТВ так и не появилось? На ТВ выключите и снова включите «Отладка по сети» (или перезагрузите ТВ), затем нажмите «Проверить».")
+                            : "asking".equals(Adb.lastState)
+                            ? L.t("Смотрите на ТВ: «Разрешить отладку?» — отметьте «Всегда разрешать с этого компьютера» и нажмите «Разрешить».")
+                            : "unauthorized".equals(Adb.lastState)
+                            ? L.t("ТВ не получил разрешения. Нажмите «Проверить» — на ТВ снова появится запрос, у вас будет полторы минуты.")
+                            : L.t("На ТВ: Настройки → Система → Об устройстве → 7 раз нажмите «Сборка ОС». Затем Настройки → Система → «Для разработчиков» → включите «Отладка по сети»."));
+                    main1.setText(L.t("Проверить"));
+                    main1.setOnClickListener(v -> {
+                        adbAsks++;
+                        adb.promptNow(host);                      // the TV asks again now, not in 5 minutes
+                        Adb.lastState = "asking";
+                        adbNext = 0; pollAdb();
+                        render[0].run();
+                    });
+                    break;
+                case HELPER:
+                    title.setText(L.t("Ставлю помощник на ТВ"));
+                    body.setText(L.t("3 КБ: Fling узнаёт названия и иконки приложений ТВ. Это займёт несколько секунд."));
+                    main1.setVisibility(View.GONE);
+                    fetchTileIcons(apps());
+                    break;
+                case PAIR:
+                    title.setText(L.t("Свяжите пульт"));
+                    boolean pin = pairState.equals("pin") || pairState.equals("verifying");
+                    body.setText(pin ? L.t("Введите код с экрана ТВ.")
+                            : pairState.equals("failed") && !pairMsg.isEmpty() ? pairMsg
+                            : L.t("Один раз: на ТВ появится код из 6 символов. После этого работают текст, голос и пульт без ADB."));
+                    code.setVisibility(pin ? View.VISIBLE : View.GONE);
+                    code.setHint("A1B2C3");
+                    main1.setText(pin ? L.t("Связать") : L.t("Показать код на ТВ"));
+                    main1.setOnClickListener(v -> {
+                        if (pin) atv.finishPairing(code.getText().toString().trim());
+                        else atv.startPairing(host);
+                    });
+                    break;
+                case YT:
+                    title.setText(L.t("YouTube по коду — по желанию"));
+                    body.setText(L.t("Точная перемотка YouTube и скорость. На ТВ: YouTube → Настройки → «Подключить телевизор по коду» — введите код здесь."));
+                    code.setVisibility(View.VISIBLE);
+                    code.setHint("1234 5678 9012");
+                    main1.setText(L.t("Подключить"));
+                    main1.setOnClickListener(v -> {
+                        String c = code.getText().toString();
+                        bg(() -> {
+                            try {
+                                yt.pair(c);
+                                prefs.edit().putString("yt_seek", "lounge").apply();
+                            } catch (Exception e) {
+                                main.post(() -> body.setText(L.t("Не получилось: ") + e.getMessage()));
+                            }
+                        });
+                    });
+                    break;
+                default:
+                    title.setText(L.t("Всё готово"));
+                    StringBuilder b = new StringBuilder();
+                    b.append(adbOk() ? "✓ " : "— ").append(L.t("Отладка по сети")).append('\n');
+                    b.append(helperReady() ? "✓ " : "— ").append(L.t("Помощник на ТВ")).append('\n');
+                    b.append(paired() ? "✓ " : "— ").append(L.t("Пульт связан")).append('\n');
+                    b.append(ytExact() ? "✓ " : "— ").append("YouTube");
+                    body.setText(b.toString());
+                    main1.setText(L.t("Начать"));
+                    main1.setOnClickListener(v -> d.dismiss());
+            }
+        };
+        skip.setOnClickListener(v -> { skipped[step[0]] = true; step[0]++; render[0].run(); });
+        setupTick = new Runnable() {
+            @Override public void run() {
+                int s = step[0];
+                boolean done = s == TV ? tvPicked && host != null
+                        : s == ADB ? adbOk()
+                        : s == HELPER ? helperReady()
+                        : s == PAIR ? paired()
+                        : s == YT && ytExact();
+                if (s == ADB && !done) render[0].run();             // "Allow debugging?" may have appeared
+                if (s == PAIR && !done) {
+                    String key = pairState + "|" + pairMsg;
+                    if (!key.equals(body.getTag())) { body.setTag(key); render[0].run(); }
+                }
+                if (done && s < DONE) {
+                    step[0]++;
+                    if (step[0] == HELPER && isSamsung()) step[0] = DONE;   // Samsung: its own remote
+                    render[0].run();
+                }
+                main.postDelayed(this, 1000);
+            }
+        };
+        render[0].run();                                            // always from the TV list: step 1
+        d.setOnDismissListener(x -> { main.removeCallbacks(setupTick); setupDlg = null; });
+        setupDlg = d;
+        d.show();
+        setupTick.run();
+        tvPicked = false;
+        openPicker();                                               // the TVs first, on top; then the steps
     }
 
     /** Short tips, one at a time, over the real screen (Tour); the long guide stays one tap away. */

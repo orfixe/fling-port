@@ -439,9 +439,11 @@ final class DevicePicker {
         // what answers: Cast · remote · ADB · Samsung, plus pairing and origin
         List<String> tags = new ArrayList<>();
         if (p != null && p.cast) tags.add("Cast");
-        if (host.paired(d.host)) tags.add(L.t("пульт ✓"));
-        else if (p != null && p.remote) tags.add(L.t("пульт"));
-        if (p != null && p.samsung) tags.add("Samsung");
+        // the protocols by their real names: Android TV Remote (port 6466), Samsung's Smart TV remote
+        boolean sams = p != null && p.samsung;
+        String remote = sams ? "Samsung Remote" : "Android TV Remote";
+        if (host.paired(d.host)) tags.add(remote + " ✓");
+        else if (p != null && (p.remote || sams)) tags.add(remote);
         if (p != null && p.adb) tags.add("ADB");
         if (Tailnet.isTailnetHost(d.host)) tags.add(p != null && p.any() ? "Tailscale · " + p.ms + " " + L.t("мс") : "Tailscale");
         else if (host.manual(d)) tags.add(L.t("добавлен по IP"));
