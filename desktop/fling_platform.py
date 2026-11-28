@@ -77,8 +77,14 @@ def build_info() -> dict:
     return info
 
 
+UPDATING = False      # set by fling_update right before the setup runs: start nothing new
+
+
 def run(cmd, **kw) -> subprocess.CompletedProcess:
     """subprocess.run that never flashes a console window."""
+    if UPDATING:          # Fling is about to close for the setup: no new catt / adb that would be cut off
+        text = kw.get("text") or kw.get("encoding")
+        return subprocess.CompletedProcess(cmd, 1, "" if text else b"", "" if text else b"")
     return subprocess.run(cmd, **NOWIN, **kw)
 
 
@@ -653,6 +659,83 @@ def start_guard() -> str:
         print("guard:", e, flush=True)
         return "missing"
     return state
+
+
+# ---------------------------------------------------------------- helpers before an update (Windows)
+
+def kill_helpers(keep: tuple[int, ...] = ()) -> int:
+    """Before the setup replaces the install: stop every program Fling started
+    (`Fling.exe --catt …` scans, adb, scrcpy…) and the adb server running from the
+    install folder, so none of them writes to a pipe that is gone or holds a file open.
+    fling-guard and the pids in `keep` (the setup itself) are left alone. Returns how many were stopped.
+    Plain kernel32 calls: no taskkill.exe for the guard to check."""
+    if not IS_WIN:
+        return 0
+    import ctypes
+    from ctypes import wintypes as W
+
+    class PE(ctypes.Structure):
+        _fields_ = [("dwSize", W.DWORD), ("cntUsage", W.DWORD), ("th32ProcessID", W.DWORD),
+                    ("th32DefaultHeapID", ctypes.c_size_t), ("th32ModuleID", W.DWORD),
+                    ("cntThreads", W.DWORD), ("th32ParentProcessID", W.DWORD),
+                    ("pcPriClassBase", ctypes.c_long), ("dwFlags", W.DWORD),
+                    ("szExeFile", W.WCHAR * 260)]
+
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.CreateToolhelp32Snapshot.restype = W.HANDLE
+    k32.OpenProcess.restype = W.HANDLE
+    snap = k32.CreateToolhelp32Snapshot(0x2, 0)              # TH32CS_SNAPPROCESS
+    if not snap or snap == W.HANDLE(-1).value:
+        return 0
+    procs: dict[int, tuple[int, str]] = {}                   # pid -> (parent, exe name)
+    try:
+        e = PE()
+        e.dwSize = ctypes.sizeof(PE)
+        ok = k32.Process32FirstW(snap, ctypes.byref(e))
+        while ok:
+            procs[e.th32ProcessID] = (e.th32ParentProcessID, e.szExeFile.lower())
+            ok = k32.Process32NextW(snap, ctypes.byref(e))
+    finally:
+        k32.CloseHandle(snap)
+
+    def image(pid) -> str:
+        h = k32.OpenProcess(0x1000, False, pid)              # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return ""
+        try:
+            buf, n = ctypes.create_unicode_buffer(1024), W.DWORD(1024)
+            return buf.value if k32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(n)) else ""
+        finally:
+            k32.CloseHandle(h)
+
+    me = os.getpid()
+    targets: set[int] = set()
+    todo = [me]                                             # everything below this process
+    while todo:
+        p = todo.pop()
+        for pid, (parent, name) in procs.items():
+            if parent == p and pid not in targets and pid != me and name != GUARD_EXE:
+                if pid in keep:
+                    continue                                # the setup and whatever it starts
+                targets.add(pid)
+                todo.append(pid)
+    app_dir = os.path.normcase(os.path.dirname(sys.executable)) + os.sep if FROZEN else None
+    if app_dir:                                             # the adb server outlives its client: find it by path
+        for pid, (_, name) in procs.items():
+            if name == "adb.exe" and pid != me and os.path.normcase(image(pid)).startswith(app_dir):
+                targets.add(pid)
+    n = 0
+    for pid in targets:
+        h = k32.OpenProcess(0x0001 | 0x100000, False, pid)  # PROCESS_TERMINATE | SYNCHRONIZE
+        if not h:
+            continue
+        try:
+            if k32.TerminateProcess(h, 0):
+                k32.WaitForSingleObject(h, 2000)
+                n += 1
+        finally:
+            k32.CloseHandle(h)
+    return n
 
 
 # ---------------------------------------------------------------- start at login

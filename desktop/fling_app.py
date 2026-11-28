@@ -61,7 +61,7 @@ SOCKET = "fling-panel"
 SEEK = 30
 GLOBAL_SHORTCUT = P.GLOBAL_SHORTCUT
 SHORTCUT_LABEL = P.SHORTCUT_LABEL
-VERSION = "0.5.5"
+VERSION = "0.5.6"
 
 # ---------------------------------------------------------------- config
 
@@ -600,11 +600,21 @@ class ATV(QObject):
                     self.app.emit(None)
                     self.volume.emit(None)
             remote.add_is_available_updated_callback(avail)
-            try:
-                await remote.async_connect()
-            except BaseException:
-                self.connected = False
-                raise
+            # androidtvremote2 calls any TLS error "InvalidAuth: Need to pair again". Right after
+            # Fling restarts (an update) the TV may still hold the old session and drop the first
+            # handshakes — that cost people their pairing. For a known-good pair, try again a few
+            # times before believing the TV has really forgotten this computer.
+            waits = (2, 4, 6) if self.paired(host) else ()
+            for attempt in range(len(waits) + 1):
+                try:
+                    await remote.async_connect()
+                    break
+                except BaseException as e:
+                    self.connected = False
+                    if type(e).__name__ != "InvalidAuth" or attempt == len(waits) or remote is not self.remote:
+                        raise
+                    print(f"remote: {e} — retrying in {waits[attempt]} s", flush=True)
+                    await asyncio.sleep(waits[attempt])
             self.connected = True
             remote.keep_reconnecting()
             self.power.emit(remote.is_on)
@@ -615,6 +625,19 @@ class ATV(QObject):
     def connect(self, host):
         if self.paired(host):
             self._go(self._connect(host))
+
+    def close(self, timeout: float = 2.0):
+        """Close the remote session politely (quit, update), so the TV doesn't keep a
+        half-open one that trips the next Fling's first connect. Blocks up to `timeout`."""
+        async def run():
+            r, self.remote, self.connected = self.remote, None, False
+            if r:
+                r.disconnect()
+                await asyncio.sleep(0.2)            # let the TLS close_notify reach the TV
+        try:
+            asyncio.run_coroutine_threadsafe(run(), self.loop).result(timeout)
+        except Exception as e:
+            print("remote: close:", e, flush=True)
 
     def _send(self, host, fn):
         async def run():
@@ -1557,6 +1580,15 @@ class State(QObject):
         self.sv.scan(self._merge_sv)                   # Samsung TVs and Miracast displays, in parallel
         def done(found, e):
             self.scanning = False                      # search finished (UI stops showing "Searching…")
+            if P.UPDATING:                             # the scan was cut off for the setup: change nothing
+                return
+            if e is not None:
+                # catt failed (cut off, crashed, timed out): that says nothing about which TVs are
+                # there. Keep the Android TV / Chromecast list we had — treating it as "none found"
+                # used to switch the chosen TV to the Samsung found in parallel, and the remote
+                # looked unpaired after an update.
+                print("scan: catt failed, keeping the known TVs:", e, flush=True)
+                found = [d for d in self.devices if not SV.is_sv(d)]
             found = list(found or [])                  # catt scan result, may be empty
             found += [d for d in self.devices if SV.is_sv(d)]   # Samsung / Miracast found meanwhile
             known = {d["ip"] for d in found}           # IPs seen on the network right now
@@ -1564,10 +1596,17 @@ class State(QObject):
             if not found:
                 self.changed.emit()
                 return
+            if self.device and self.device["ip"] not in [d["ip"] for d in found]:
+                same = [d for d in found if d["name"] == self.device["name"]]
+                if same:                               # the same TV under a new address (DHCP)
+                    self.device = same[0]
+                else:
+                    # the chosen TV didn't answer this time (asleep, off, a slow mDNS reply): keep
+                    # it — its dot shows it offline — instead of quietly switching to another TV
+                    found.append(self.device)
             self.devices = found
-            if not self.device or self.device["ip"] not in [d["ip"] for d in found]:
-                same = [d for d in found if self.device and d["name"] == self.device["name"]]
-                self.device = same[0] if same else found[0]
+            if not self.device:
+                self.device = found[0]
             self.conf.update(devices=[d for d in found if not SV.is_miracast(d)], device=self.device)
             save_conf(self.conf)
             if SV.is_sv(self.device):
@@ -2050,7 +2089,11 @@ class State(QObject):
         elif self.ip and self.adb_ok():
             self._adb_key(code)
         elif self.ip:
-            self.atv.key(self.ip, code)
+            # not paired and no other way to the TV: don't knock on the remote port with every
+            # press (each one only fails again) — say once what to do
+            msg = "Пульт не связан с телевизором. Нажмите «Связать с ТВ» и введите код с экрана ТВ."
+            if self.last_error != msg:
+                self._set(last_error=msg)
 
     def _adb_key(self, code):
         """Fallback remote: `adb shell input keyevent` (KEY codes are Android key codes).
@@ -2553,6 +2596,8 @@ EN_PHRASES += [   # the report for the developer (fling_report)
 ]
 EN_PHRASES += [   # plain-words errors
     ("Телевизор не выбран — нажмите «Выбрать» внизу панели.", "No TV chosen — click “Choose” at the bottom of the panel."),
+    ("Пульт не связан с телевизором. Нажмите «Связать с ТВ» и введите код с экрана ТВ.",
+     "The remote isn't paired with the TV. Click “Pair with TV” and type the code from the TV screen."),
     ("Телевизор забыл этот компьютер — так бывает после сброса или обновления ТВ. Нажмите «Связать с ТВ» и введите код с экрана телевизора.",
      "The TV has forgotten this computer — it happens after a TV reset or update. Click “Pair with TV” and type the code from the TV screen."),
     ("Пульт не отвечает: телевизор выключен или в другой сети. Fling подключится сам, когда ТВ появится.",
@@ -7434,6 +7479,8 @@ class Tray(QObject):
         self.timer = QTimer(interval=2000)
         self.timer.timeout.connect(self.poll)
         self.timer.start()
+        state.pause_polling = self.timer.stop            # the updater: nothing new before the setup
+        state.resume_polling = self.timer.start
 
     def activated(self, reason):
         if reason in (QSystemTrayIcon.ActivationReason.Trigger,
@@ -7758,7 +7805,16 @@ def catt_main(args):
             if getattr(sys, name) is None:
                 setattr(sys, name, open(os.devnull, "w"))
     from catt.cli import main as cm
-    return cm()
+    try:
+        return cm()
+    except OSError as e:
+        # The Fling that started us went away (an update or restart closed it) and took our
+        # pipe with it: Windows reports the write as EINVAL (22) or EPIPE. Nobody reads us
+        # any more — exit quietly instead of PyInstaller's "Unhandled exception" window.
+        import errno
+        if e.errno in (errno.EINVAL, errno.EPIPE) or isinstance(e, BrokenPipeError):
+            os._exit(0)
+        raise
 
 
 fling_tools.bind_ui(sys.modules[__name__])   # the Tools window uses label(), glyph(), T …
@@ -7892,6 +7948,7 @@ def main():
     app.aboutToQuit.connect(state.media.shutdown)        # stop serving files to the LAN
     app.aboutToQuit.connect(CAST.close)
     app.aboutToQuit.connect(state.screen.stop)
+    app.aboutToQuit.connect(state.atv.close)             # no half-open remote session left on the TV
     QLocalServer.removeServer(SOCKET)
     server = QLocalServer()
     server.listen(SOCKET)

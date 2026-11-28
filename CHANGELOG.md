@@ -10,6 +10,24 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-11-28
+
+### Fixed
+
+- PC: **after an automatic update the remote looked unpaired and Fling had switched to
+  another TV.** A TV search cut short (by the update, a crash or a time-out) counted as
+  "no Android TV on the network", so Fling picked another TV it saw in parallel (a Samsung)
+  and saved it. A failed search now keeps the TVs Fling knew, and a chosen TV that doesn't
+  answer once (asleep, off) stays chosen, shown offline, instead of being swapped out.
+- PC: **one failed connect no longer drops the pairing.** The remote library calls any TLS
+  hiccup "pair again"; for a TV that was paired, Fling now retries three times (2, 4, 6 s)
+  before it shows "Pair with TV".
+- PC: **"OSError: [Errno 22] Invalid argument" window during an update.** Before running the
+  setup, Fling stops what it started (TV searches, adb, scrcpy), starts nothing new and
+  closes the remote session properly; a TV search left without its Fling exits quietly.
+- PC: with the remote not paired and no ADB / Bluetooth, keys aren't sent into the void any
+  more: Fling says once to pair the remote.
+
 ## [0.5.5] - 2026-11-27
 
 ### Fixed
@@ -625,7 +643,8 @@ unchanged.
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.5...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.5.6...HEAD
+[0.5.6]: https://github.com/orfixe/fling-port/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/orfixe/fling-port/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/orfixe/fling-port/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/orfixe/fling-port/compare/v0.5.2...v0.5.3

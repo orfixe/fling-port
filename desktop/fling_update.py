@@ -312,14 +312,34 @@ class Updater(QObject):
         self._idle.stop()
         print(f"update: installing {v}", flush=True)
         self.notify(F.tr("Fling обновляется до %s и сейчас перезапустится.") % v)
+        # Before the setup: no new background work, the TV remote session closed politely
+        # (a session the TV still holds open makes the new Fling's first connect fail),
+        # and every helper Fling started stopped — `Fling.exe --catt scan` children used
+        # to crash with "OSError: [Errno 22]" writing to the pipe of the closed Fling.
+        P.UPDATING = True
+        pause = getattr(self.state, "pause_polling", None)
+        if pause:
+            pause()
+        try:
+            self.state.atv.close()
+        except Exception as e:
+            print("update: remote close:", e, flush=True)
+        print(f"update: stopped {P.kill_helpers()} helper(s)", flush=True)
         try:
             # per-user setup: no UAC; it closes this Fling and, with /relaunch=1, starts the new one
-            subprocess.Popen([path, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/relaunch=1"],
-                             close_fds=True, creationflags=0x00000008 | 0x00000200)   # detached
+            setup = subprocess.Popen([path, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/relaunch=1"],
+                                     close_fds=True, creationflags=0x00000008 | 0x00000200)   # detached
         except OSError as e:
+            P.UPDATING = False
+            if pause:
+                getattr(self.state, "resume_polling", lambda: None)()
             self.status.emit("error:" + str(e))
             return
-        QTimer.singleShot(1500, self.quit_app)
+
+        def quit_now():
+            P.kill_helpers(keep=(setup.pid,))           # anything a worker thread started meanwhile
+            self.quit_app()
+        QTimer.singleShot(1500, quit_now)
 
     def _save(self):
         try:
