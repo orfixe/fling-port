@@ -18,6 +18,7 @@ struct PanelView: View {
                     castSection
                     Separator()
                     RemoteView(state: state)
+                    if state.isSamsungSelected { SamsungRows(state: state) }   // port: Smart View
                     if let error = state.lastError {
                         Text(tr(error))
                             .font(.system(size: 10.5)).foregroundStyle(.orange)

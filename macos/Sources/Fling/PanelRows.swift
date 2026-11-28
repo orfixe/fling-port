@@ -238,8 +238,11 @@ struct DeviceFooter: View {
             Spacer()
             if state.devices.count > 1 {
                 Menu(tr("Switch")) {
-                    ForEach(state.devices) { device in
-                        Button(tr(device.name)) { Task { await state.select(device: device) } }
+                    // Port: sorted by kind, each labelled with it (Google TV, Chromecast, Samsung)
+                    ForEach(state.devicesByKind) { device in
+                        Button(state.chooserLabel(device, translate: { tr($0) })) {
+                            Task { await state.select(device: device) }
+                        }
                     }
                 }
                 .menuStyle(.borderlessButton)

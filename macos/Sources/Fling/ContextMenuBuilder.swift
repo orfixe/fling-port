@@ -25,8 +25,10 @@ struct ContextMenuBuilder {
             }))
         }
         if !state.devices.isEmpty {
-            menu.addItem(submenu("Device", items: state.devices.map { device in
-                let item = action(device.name) { Task { await state.select(device: device) } }
+            menu.addItem(submenu("Device", items: state.devicesByKind.map { device in
+                let item = action(state.chooserLabel(device, translate: { tr($0) })) {
+                    Task { await state.select(device: device) }
+                }
                 item.state = device == state.selectedDevice ? .on : .off
                 return item
             }))
