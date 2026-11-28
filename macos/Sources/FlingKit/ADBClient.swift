@@ -8,7 +8,7 @@ import ImageIO
 /// usual install places are probed first, then PATH.
 public enum ADBLocator {
     /// Shown when nothing is found; Fling never installs adb by itself.
-    public static let installCommand = "brew install android-platform-tools"
+    public static let installCommand = "brew install --cask android-platform-tools"
 
     public static func candidates(home: String = NSHomeDirectory(),
                                   env: [String: String] = ProcessInfo.processInfo.environment) -> [String] {

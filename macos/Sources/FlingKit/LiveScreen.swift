@@ -169,8 +169,8 @@ public enum Scrcpy {
 }
 
 /// Finds adb / scrcpy on a Mac where Fling runs from Finder (PATH is only /usr/bin:/bin).
-/// Port note: the ADB work brings a FlingKit adb helper; this lookup is LIVE's own, small,
-/// and can be folded into that one later.
+/// adb comes from ADBLocator (the ADB panel's lookup) unless FLING_ADB / ADB override it,
+/// so LIVE and the ADB panel always use the same adb and the same server (ADBClient.serverPort).
 public enum LiveTools {
     public static func find(_ name: String,
                             environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -181,6 +181,9 @@ public enum LiveTools {
         let override = name == "adb" ? (environment["FLING_ADB"] ?? environment["ADB"])
                                      : environment["FLING_\(name.uppercased())"]
         if let override, !override.isEmpty { candidates.append(override) }
+        if name == "adb", let found = ADBLocator.find(isExecutable: isExecutable, home: home, env: environment) {
+            candidates.append(found)
+        }
         var dirs = ["/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin",
                     "\(home)/.local/bin", "\(home)/bin"]
         if name == "adb" {
@@ -194,7 +197,7 @@ public enum LiveTools {
     }
 
     public static let installScrcpy = "brew install scrcpy"
-    public static let installADB = "brew install --cask android-platform-tools"
+    public static let installADB = ADBLocator.installCommand
 }
 
 /// The `adb -s` serial for the TV at `ip`: one already connected, the wireless-debugging
@@ -237,7 +240,8 @@ public struct LiveADB {
     }
 
     private func adbRun(_ args: [String], timeout: TimeInterval = 8) -> String {
-        guard let r = try? runner.run(adb, args, timeout: timeout) else { return "" }
+        // Fling's own adb server, never Android Studio's on 5037 (see ADBClient)
+        guard let r = try? runner.run(adb, ["-P", String(ADBClient.serverPort)] + args, timeout: timeout) else { return "" }
         return r.stdout + r.stderr
     }
 
@@ -370,6 +374,7 @@ public final class TVScreen: ObservableObject {
         p.arguments = args
         var env = ProcessInfo.processInfo.environment
         env["ADB"] = adb      // one adb server: the one Fling found, not whatever is on PATH
+        env["ANDROID_ADB_SERVER_PORT"] = String(ADBClient.serverPort)   // …and Fling's own server
         let dirs = [(adb as NSString).deletingLastPathComponent, (exe as NSString).deletingLastPathComponent,
                     "/opt/homebrew/bin", "/usr/local/bin"]
         env["PATH"] = (dirs + [env["PATH"] ?? "/usr/bin:/bin"]).joined(separator: ":")

@@ -92,7 +92,10 @@ final class LiveScreenTests: XCTestCase {
         final class FakeADB: ProcessRunning, @unchecked Sendable {
             var connected = false
             var calls: [[String]] = []
-            func run(_ executable: String, _ args: [String], timeout: TimeInterval) throws -> ProcessResult {
+            func run(_ executable: String, _ fullArgs: [String], timeout: TimeInterval) throws -> ProcessResult {
+                // every call goes to Fling's own adb server
+                XCTAssertEqual(Array(fullArgs.prefix(2)), ["-P", String(ADBClient.serverPort)])
+                let args = Array(fullArgs.dropFirst(2))
                 calls.append(args)
                 switch args.first {
                 case "devices":
@@ -137,7 +140,7 @@ final class LiveScreenTests: XCTestCase {
 
 private final class FakeADBUnauthorized: ProcessRunning, @unchecked Sendable {
     func run(_ executable: String, _ args: [String], timeout: TimeInterval) throws -> ProcessResult {
-        ProcessResult(exitCode: 0, stdout: args.first == "devices"
+        ProcessResult(exitCode: 0, stdout: args.dropFirst(2).first == "devices"
                       ? "List of devices attached\n10.0.0.5:5555\tunauthorized\n" : "", stderr: "")
     }
 }
