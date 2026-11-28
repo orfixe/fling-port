@@ -36,6 +36,14 @@ REF="${FLING_REF:-$(cat "$ROOT/macos/UPSTREAM_REF")}"
 git clone --quiet "$UPSTREAM_URL" "$WORK/fling"
 git -C "$WORK/fling" checkout --quiet "$REF"
 cp -R "$ROOT/macos/Sources/." "$WORK/fling/Sources/"
+[ -d "$ROOT/macos/Tests" ] && cp -R "$ROOT/macos/Tests/." "$WORK/fling/Tests/"
+# The browser extension (Chrome-family + Firefox builds), shipped unpacked inside the app:
+# Settings → Casting → "Show extension folder". Same extension as Windows / Linux.
+EXT_OUT="$WORK/extension"
+mkdir -p "$EXT_OUT"
+cp -R "$ROOT/extension/." "$EXT_OUT/"
+rm -rf "$EXT_OUT/dist"
+python3 "$EXT_OUT/build.py" chrome firefox >/dev/null
 
 (
   cd "$WORK/fling"
@@ -50,6 +58,8 @@ cp -R "$ROOT/macos/Sources/." "$WORK/fling/Sources/"
   cp "$BIN" "$APP/Contents/MacOS/Fling"
   # Port-specific plist (own bundle id) — not upstream com.damionrashford.fling
   cp "$ROOT/macos/Info.plist" "$APP/Contents/Info.plist"
+  mkdir -p "$APP/Contents/Resources/extension"
+  cp -R "$EXT_OUT/dist/chrome" "$EXT_OUT/dist/firefox" "$APP/Contents/Resources/extension/"
   codesign --force --deep --sign "$SIGN_ID" "$APP"
   codesign --verify --verbose "$APP"
   echo "built: $APP"

@@ -10,6 +10,23 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+### Added
+
+- macOS: **the browser extension works with the Mac app.** The same local bridge as on Windows /
+  Linux (`127.0.0.1:47613`, extensions and local tools only): cast the tab from where the page's
+  video is, the popup's remote, right-click casts. The unpacked Chrome / Firefox extension ships
+  inside the app (*Settings → Casting → Show extension folder*). Safari needs Xcode to build.
+- macOS: **⌃⌥⌘C casts the current tab from anywhere** without Accessibility access (upstream's
+  ⌘⇧C still works where granted); Firefox, Edge, Brave… through the extension.
+- macOS: **files from the Mac to the TV** — videos, music, photos, folders and m3u / pls playlists
+  as a queue (next / previous, repeat, shuffle), **photo slideshows**, subtitles next to a video
+  (srt / ass / Windows-1251 converted), resume where a film was left off.
+- macOS: **notification when the TV moves to the next video / track** (can be turned off).
+- macOS: **Settings window** — language, open at login, casting browser tabs and the extension
+  hint, notifications, the hotkey, the extension link, queue options. No themes: the Mac app
+  follows the system's appearance.
+- macOS: *Cast clipboard URL* also takes a copied file path and keeps `?t=` start times.
+
 ## [0.5.8] - 2026-11-28
 
 ### Fixed

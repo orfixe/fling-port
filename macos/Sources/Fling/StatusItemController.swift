@@ -51,6 +51,13 @@ final class StatusItemController: NSObject {
             return event.window === popover.contentViewController?.view.window
         }
 
+        // Port: the extension bridge / notifications ask about and open the panel
+        PortServices.shared.isPanelShown = { [weak popover] in popover?.isShown ?? false }
+        PortServices.shared.openPanel = { [weak self] in
+            guard let self, !self.popover.isShown, let button = self.statusItem.button else { return }
+            self.togglePopover(button)
+        }
+
         // Not awaited: `refresh()` is subprocess I/O, and blocking init on it
         // stops the run loop from ever drawing the status item.
         Task { await state.refresh() }

@@ -8,6 +8,8 @@ struct PanelView: View {
     /// consent dialogs.
     var probesPermissions = true
     @State private var missingGrants: [Browser] = []
+    /// Port: Settings → General → "Casting browser tabs" hides the tab block.
+    @ObservedObject private var portSettings = PortSettings.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -73,6 +75,7 @@ struct PanelView: View {
 
     private func idle(reason: String?) -> some View {
         VStack(alignment: .leading, spacing: 0) {
+            if portSettings.showTabs {     // port: Settings → Casting browser tabs
             if state.installedBrowsers.count > 1 {
                 SourcePicker(state: state, options: state.installedBrowsers)
             }
@@ -121,10 +124,12 @@ struct PanelView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 14).padding(.bottom, 6)
             }
+            }   // port: showTabs
 
             MenuRow(title: "Cast clipboard URL", icon: "doc.on.clipboard") {
-                Task { await state.castClipboard() }
+                Task { await PortServices.shared.castClipboard() }   // port: files, ?t= start
             }
+            PortPanelRows(state: state)   // port: other browsers, files, slideshow, queue
 
             // Paired idle gets TV volume keys in the TV section instead; two
             // volume controls at once read as a mistake.
@@ -142,6 +147,7 @@ struct PanelView: View {
                 LoginItem.toggle()
             }
             MenuRow(title: Lang.switchTitle) { Lang.toggle() }
+            MenuRow(title: "Settings…", shortcut: "⌘,") { PortServices.shared.openSettings() }   // port
             MenuRow(title: "Quit Fling", shortcut: "⌘Q") { NSApp.terminate(nil) }
             Separator()
         }
@@ -188,6 +194,7 @@ struct PanelView: View {
             }
 
             VolumeRow(state: state)          // same slot as idle
+            PortPanelRows(state: state, casting: true)   // port: the queue strip
 
             Separator()
             MenuRow(title: "Cast this tab instead", shortcut: "⌘⇧C") {
