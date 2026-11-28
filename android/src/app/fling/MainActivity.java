@@ -337,13 +337,13 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         } catch (Exception ignored) { netCb = null; }
     }
 
-    /** "Local network" / "Tailscale · 38 ms" / "No connection" — how the TV is reached, never the
-     *  Wi‑Fi's name (Fling doesn't read it: that needs the location permission). */
+    /** The connection in words, for a tap on the TV's name and for screen readers; on screen it
+     *  is only the dot: green — the TV answers, red — it doesn't, grey — checking. */
     private String pathLabel() {
-        if (reachable == null) return null;
+        if (reachable == null) return L.t("Проверяю связь с ТВ…");
         if (!reachable) return L.t("Нет связи с ТВ");
-        if (viaTailnet) return pathMs > 0 ? L.f("Через Tailscale · %d мс", pathMs) : L.t("Через Tailscale");
-        return L.t("Локальная сеть");
+        if (viaTailnet) return pathMs > 0 ? L.f("Связь с ТВ через Tailscale · %d мс", pathMs) : L.t("Связь с ТВ через Tailscale");
+        return L.t("Связь с ТВ есть");
     }
 
     // ================================================================ LIVE
@@ -1258,19 +1258,22 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         ht.setPadding(0, 0, ui.dp(12), 0);
         TextView title = ui.text("Fling", 26, ui.fg, true);
         ht.addView(title);
-        subtitleHeader = ui.text("", 13, ui.fgA(0.5f), false);
+        subtitleHeader = ui.text(L.t("Пульт для телевизора и трансляция с телефона"), 13, ui.fgA(0.5f), false);
         subtitleHeader.setPadding(0, ui.dp(3), 0, 0);
         ht.addView(subtitleHeader);
-        pathChip = ui.text("", 12, ui.fgA(0.6f), true);                // Home / Tailscale · 38 ms
+        pathChip = ui.text("", 14, ui.fgA(0.8f), true);                 // ● TV name: green / red / grey
         pathChip.setSingleLine(true);
         pathChip.setEllipsize(TextUtils.TruncateAt.END);
         pathChip.setGravity(Gravity.CENTER_VERTICAL);
-        pathChip.setCompoundDrawablePadding(ui.dp(6));
-        pathChip.setPadding(ui.dp(8), ui.dp(4), ui.dp(10), ui.dp(4));
-        pathChip.setBackground(ui.round(ui.fgA(ui.dark ? 0.1f : 0.06f), 12));
+        pathChip.setCompoundDrawablePadding(ui.dp(8));
+        pathChip.setPadding(0, ui.dp(4), ui.dp(8), ui.dp(4));
         LinearLayout.LayoutParams pc = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        pc.topMargin = ui.dp(8);
-        pathChip.setOnClickListener(v -> { main.removeCallbacks(probe); main.post(probe); say(L.t("Проверяю связь с ТВ…")); });
+        pc.topMargin = ui.dp(6);
+        pathChip.setOnClickListener(v -> {                              // the dot in words, and a fresh check
+            if (host == null) return;
+            say(pathLabel());
+            main.removeCallbacks(probe); main.post(probe);
+        });
         ht.addView(pathChip, pc);
         header.addView(ht, Ui.lpW(1));
         liveKey = ui.text("● LIVE", 13, ui.red, true);                // same name as the desktop's LIVE
@@ -1739,17 +1742,17 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         final Cast.Status st = view();
         boolean paired = paired();
 
-        subtitleHeader.setText(host == null ? L.t("Ищу телевизор в сети…")
-                : st != null && st.hasMedia() ? L.f("Сейчас на «%s»", nz(devName, host)) : L.f("Пульт и трансляция на «%s»", nz(devName, host)));
-
-        String path = host == null ? null : pathLabel();
-        pathChip.setVisibility(path == null ? View.GONE : View.VISIBLE);
-        if (path != null) {
-            pathChip.setText(path);
-            int dot = !Boolean.TRUE.equals(reachable) ? ui.red : viaTailnet ? ui.accent : ui.green;
+        if (host == null) {
+            pathChip.setText(L.t("Ищу телевизор в сети…"));
+            pathChip.setCompoundDrawablesRelativeWithIntrinsicBounds(null, null, null, null);
+            pathChip.setContentDescription(null);
+        } else {
+            pathChip.setText(nz(devName, host));
+            int dot = reachable == null ? ui.fgA(0.3f) : reachable ? ui.green : ui.red;
             android.graphics.drawable.GradientDrawable d = ui.oval(dot);
-            d.setSize(ui.dp(8), ui.dp(8));
+            d.setSize(ui.dp(10), ui.dp(10));
             pathChip.setCompoundDrawablesRelativeWithIntrinsicBounds(d, null, null, null);
+            pathChip.setContentDescription(nz(devName, host) + ". " + pathLabel());
         }
         liveKey.setAlpha(host != null && "ok".equals(Adb.lastState) ? 1f : 0.45f);
 

@@ -18,8 +18,10 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   token, the TV address, remote access, the TV screenshot and the guide are rounded cards in
   the app's colours with the main answer as a tonal accent button. They were the system
   dialogs of Android 5: square, ALL-CAPS buttons, system colours.
-- Android: the connection chip says **"Local network"** instead of "At home" — it tells how the
-  TV is reached (directly or through Tailscale), not where you are or the Wi‑Fi's name.
+- Android: **the top of the main screen** says what Fling is ("TV remote and casting from your
+  phone") and shows the TV with a dot: green — connected, red — not. The "At home" chip is gone
+  (it read like the Wi‑Fi's name); a tap on the TV's name says whether it goes through
+  Tailscale and with what delay.
 - Android: the AMOLED switch says what it does and where it helps: "Black instead of dark grey.
   Saves battery on OLED and AMOLED screens." (it promised battery savings on every screen).
   The guide describes the theme as Auto / Light / Dark plus the AMOLED switch.

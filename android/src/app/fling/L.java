@@ -151,9 +151,9 @@ final class L {
         e("Tailscale выключен. Включите его, чтобы управлять ТВ не из дома.", "Tailscale is off. Turn it on to control the TV away from home.");
         e("Добавить ТВ…", "Add a TV…");
         e("Открыть Tailscale", "Open Tailscale");
-        e("Локальная сеть", "Local network");
-        e("Через Tailscale", "Via Tailscale");
-        e("Через Tailscale · %d мс", "Via Tailscale · %d ms");
+        e("Связь с ТВ есть", "Connected to the TV");
+        e("Связь с ТВ через Tailscale", "Connected to the TV via Tailscale");
+        e("Связь с ТВ через Tailscale · %d мс", "Connected to the TV via Tailscale · %d ms");
         e("Нет связи с ТВ", "No connection to the TV");
         e("Экран ТВ на телефоне", "TV screen on the phone");
         e("Экран ТВ на телефоне: смотрите и управляйте — дома и через Tailscale.", "The TV screen on your phone: watch and control it, at home or over Tailscale.");
@@ -256,8 +256,7 @@ final class L {
         e("Сменить", "Switch");
         e("Fling для Android · дома по Wi‑Fi, не из дома — через Tailscale", "Fling for Android · Wi‑Fi at home, Tailscale when away");
         e("Ищу телевизор в сети…", "Looking for a TV on the network…");
-        e("Сейчас на «%s»", "Now on “%s”");
-        e("Пульт и трансляция на «%s»", "Remote and casting for “%s”");
+        e("Пульт для телевизора и трансляция с телефона", "TV remote and casting from your phone");
         e("Воспроизводится", "Playing");
         e("ТВ не принимает команды по Chromecast для этого видео. Нажмите «Связать с ТВ» ниже — пауза и перемотка будут работать как кнопки пульта.",
           "The TV ignores Chromecast commands for this video. Tap “Pair with TV” below — pause and skip are sent as remote buttons.");

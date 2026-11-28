@@ -238,7 +238,7 @@ final class DevicePicker {
         addBtn.setOnClickListener(v -> add());
         ar.addView(addBtn, ui.margins(Ui.lp(-2, -2), 8, 0, 0, 0));
         addCard.addView(ar);
-        addHint = ui.text(L.t("Дома — IP из настроек ТВ (Сеть). Через Tailscale — 100.x.y.z или имя MagicDNS."), 12, ui.fgA(0.5f), false);
+        addHint = ui.text(L.t("В локальной сети — IP из настроек ТВ (Сеть). Через Tailscale — 100.x.y.z или имя MagicDNS."), 12, ui.fgA(0.5f), false);
         addHint.setPadding(ui.dp(2), ui.dp(8), 0, 0);
         addCard.addView(addHint);
         root.addView(addCard, Ui.lp(-1, -2));
