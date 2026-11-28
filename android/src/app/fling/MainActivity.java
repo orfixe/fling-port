@@ -479,6 +479,18 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     private boolean paired() { return atv.paired(host); }
 
+    /** A remote key: the paired remote (or Samsung's own), else `input keyevent` over ADB — so the
+     *  buttons keep working while the phone isn't paired, as the notification's do. */
+    private void tvKey(int code) {
+        final String h = host;
+        if (h == null) return;
+        if (atv.paired(h) || !"ok".equals(Adb.lastState)) { atv.key(h, code); return; }
+        bg(() -> {
+            try { adb.shell(h, "input keyevent " + code); }
+            catch (Exception e) { main.post(() -> showError(L.t("Нет соединения с ТВ"))); }
+        });
+    }
+
     // ================================================================ callbacks (background threads)
 
     @Override public void onStatus(Cast.Status s) {
@@ -912,7 +924,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         for (String[] a : list) if (!a[2].isEmpty()) tileNames.put(a[2], a[0]);
         boolean icons = false;
         for (String[] a : list) if (TvIcons.icon(this, a[2]) != null) { icons = true; break; }
-        final int tileH = ui.dp(icons ? 64 : 38);                 // one height for every tile, "+" too
+        final int tileH = ui.dp(icons ? 50 : 38);                 // one height for every tile, "+" too
         int n = list.size() + (list.size() < MAX_APPS ? 1 : 0);   // + the "+" tile
         LinearLayout r = null;
         for (int i = 0; i < n; i++) {
@@ -921,10 +933,12 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             if (i < list.size()) {
                 final int idx = i;
                 final String[] app = list.get(i);
+                String tvName = TvIcons.label(this, app[2]);           // a name made from the package -> the TV's own
+                if (tvName != null && app[0].equals(labelFor(app[2]))) app[0] = tvName;
                 final FrameLayout cell = new FrameLayout(this);
                 TextView c = ui.chip(app[0], v -> { if (!editTiles) launchTile(app); });
                 c.setTag(app[2]);
-                withIcon(c, app[2], 26);
+                withIcon(c, app[2], 20);
                 c.setMinHeight(tileH);
                 c.setOnLongClickListener(v -> { startTileDrag(cell, idx); return true; });
                 chips.add(c);
@@ -1027,8 +1041,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         android.graphics.drawable.BitmapDrawable d = new android.graphics.drawable.BitmapDrawable(getResources(), b);
         d.setBounds(0, 0, ui.dp(dp), ui.dp(dp));
         t.setCompoundDrawablesRelative(null, d, null, null);
-        t.setCompoundDrawablePadding(ui.dp(5));
-        t.setPadding(t.getPaddingLeft(), ui.dp(10), t.getPaddingRight(), ui.dp(9));
+        t.setCompoundDrawablePadding(ui.dp(3));
+        t.setPadding(t.getPaddingLeft(), ui.dp(6), t.getPaddingRight(), ui.dp(5));
     }
 
     /** Hosts whose tile icons were asked for in this run: once each, not on every redraw. */
@@ -1366,14 +1380,14 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         String title = L.t("Удалённый доступ");
         if (!Tailnet.installed(this)) {
             ui.ask(this, title,
-                    L.t("Чтобы управлять ТВ не из дома, поставьте Tailscale на телефон и на ТВ. На ТВ его ставит Fling для ПК — из «Каталога»."),
+                    L.t("Чтобы управлять телевизором вне дома, установите Tailscale на телефон и на ТВ. На ТВ его установит Fling для ПК — из «Каталога»."),
                     null, new String[]{L.t("Установить Tailscale"), L.t("Отмена")},
                     new Runnable[]{() -> Tailnet.openStore(this), null});
         } else {
             ui.ask(this, title,
                     Tailnet.vpnActive(this)
                             ? L.t("Tailscale включён. Добавьте ТВ по его адресу 100.x.y.z или имени MagicDNS.")
-                            : L.t("Tailscale выключен. Включите его, чтобы управлять ТВ не из дома."),
+                            : L.t("Tailscale выключен. Включите его, чтобы управлять телевизором вне дома."),
                     null, new String[]{L.t("Добавить ТВ…"), L.t("Открыть Tailscale"), L.t("Отмена")},
                     new Runnable[]{this::askIp, () -> Tailnet.open(this), null});
         }
@@ -1383,14 +1397,14 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     private void togglePlay() {
         if (adbSt != null && adbSt.hasMedia() && paired()) {
-            atv.key(host, Atv.PLAY_PAUSE);
+            tvKey(Atv.PLAY_PAUSE);
             adbSt.elapsed = adbSt.elapsedNow(); adbSt.updatedAt = SystemClock.elapsedRealtime();
             adbSt.state = adbSt.playing() ? "PAUSED" : "PLAYING";
             adbNext = 0; main.postDelayed(this::pollAdb, 1200);
             sync(); return;
         }
         if (st == null) return;
-        if (paired()) { atv.key(host, Atv.PLAY_PAUSE); return; }
+        if (paired()) { tvKey(Atv.PLAY_PAUSE); return; }
         if (st.stuck()) { showError(L.t("Телевизор игнорирует паузу по Chromecast (так ведёт себя YouTube на ТВ). Нажмите «Связать с ТВ» ниже — пауза будет работать как кнопка пульта.")); return; }
         if (st.playing()) cast.pause(); else cast.play();
         st = cast.status();   // Cast updates its status optimistically without onStatus
@@ -1399,13 +1413,13 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     private void seek(int s) {
         if (adbSt != null && adbSt.hasMedia() && paired()) {
-            for (int i = 0; i < Math.max(1, Math.abs(s) / 10); i++) atv.key(host, s > 0 ? Atv.FFWD : Atv.REWIND);
+            for (int i = 0; i < Math.max(1, Math.abs(s) / 10); i++) tvKey(s > 0 ? Atv.FFWD : Atv.REWIND);
             adbNext = 0; main.postDelayed(this::pollAdb, 1500);
             return;
         }
         if (st != null && st.stuck()) {
             if (!paired()) { showError(L.t("Перемотка этого видео работает только после «Связать с ТВ» — кнопка ниже.")); return; }
-            for (int i = 0; i < 3; i++) atv.key(host, s > 0 ? Atv.FFWD : Atv.REWIND);
+            for (int i = 0; i < 3; i++) tvKey(s > 0 ? Atv.FFWD : Atv.REWIND);
             return;
         }
         cast.seekBy(s);
@@ -1418,7 +1432,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     @Override public boolean onKeyDown(int code, KeyEvent e) {
         if ((code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN) && host != null && volKeys()) {
             boolean up = code == KeyEvent.KEYCODE_VOLUME_UP;
-            if (paired()) atv.key(host, up ? Atv.VOL_UP : Atv.VOL_DOWN);
+            if (paired()) tvKey(up ? Atv.VOL_UP : Atv.VOL_DOWN);
             else if (st != null && st.volume >= 0) {
                 int v = Math.max(0, Math.min(100, (volPending >= 0 ? volPending : st.volume) + (up ? 5 : -5)));
                 volPending = v;
@@ -1881,7 +1895,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         tvNow.setPadding(0, ui.dp(4), 0, 0);
         hv.addView(tvNow);
         hdr.addView(hv, Ui.lpW(1));
-        hdr.addView(ui.key("power", null, 40, false, v -> atv.key(host, Atv.POWER)));
+        hdr.addView(ui.key("power", null, 40, false, v -> tvKey(Atv.POWER)));
         ctlBox.addView(hdr);
 
         // app grid, 4 per row: the user's own per TV (long press a tile, "+" adds one)
@@ -1903,35 +1917,40 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         LinearLayout dp = ui.col();
         dp.setGravity(Gravity.CENTER_HORIZONTAL);
         dp.setPadding(0, ui.dp(6), 0, ui.dp(6));
-        dp.addView(ui.key("up", null, 52, false, v -> atv.key(host, Atv.UP)));
+        dp.addView(ui.key("up", null, 52, false, v -> tvKey(Atv.UP)));
         LinearLayout mid = ui.row();
         mid.setGravity(Gravity.CENTER);
         mid.setPadding(0, ui.dp(8), 0, ui.dp(8));
-        mid.addView(ui.key("back", null, 46, false, v -> atv.key(host, Atv.BACK)));
+        mid.addView(ui.key("back", null, 46, false, v -> tvKey(Atv.BACK)));
         mid.addView(new View(this), Ui.lp(ui.dp(14), 1));
-        mid.addView(ui.key("left", null, 52, false, v -> atv.key(host, Atv.LEFT)));
+        mid.addView(ui.key("left", null, 52, false, v -> tvKey(Atv.LEFT)));
         mid.addView(new View(this), Ui.lp(ui.dp(10), 1));
-        mid.addView(ui.key(null, "OK", 70, true, v -> atv.key(host, Atv.OK)));
+        mid.addView(ui.key(null, "OK", 70, true, v -> tvKey(Atv.OK)));
         mid.addView(new View(this), Ui.lp(ui.dp(10), 1));
-        mid.addView(ui.key("right", null, 52, false, v -> atv.key(host, Atv.RIGHT)));
+        mid.addView(ui.key("right", null, 52, false, v -> tvKey(Atv.RIGHT)));
         mid.addView(new View(this), Ui.lp(ui.dp(14), 1));
-        mid.addView(ui.key("home", null, 46, false, v -> atv.key(host, Atv.HOME)));
+        mid.addView(ui.key("home", null, 46, false, v -> tvKey(Atv.HOME)));
         dp.addView(mid);
-        dp.addView(ui.key("down", null, 52, false, v -> atv.key(host, Atv.DOWN)));
+        dp.addView(ui.key("down", null, 52, false, v -> tvKey(Atv.DOWN)));
         dpadBox = dp;
         ctlBox.addView(dp);
-        padBox = ui.new Touchpad(code -> atv.key(host, code));
+        padBox = ui.new Touchpad(code -> tvKey(code));
         ctlBox.addView(padBox);
 
-        // volume pills
+        // volume: round keys with just the symbol, like a remote's
         LinearLayout vk = ui.row();
-        vk.setPadding(ui.dp(6), ui.dp(10), ui.dp(6), ui.dp(4));
-        LinearLayout.LayoutParams p1 = Ui.lpW(1); p1.setMargins(0, 0, ui.dp(4), 0);
-        LinearLayout.LayoutParams p2 = Ui.lpW(1); p2.setMargins(ui.dp(4), 0, ui.dp(4), 0);
-        LinearLayout.LayoutParams p3 = Ui.lpW(1); p3.setMargins(ui.dp(4), 0, 0, 0);
-        vk.addView(ui.pill("spk_minus", L.t("Громк −"), v -> atv.key(host, Atv.VOL_DOWN)), p1);
-        vk.addView(ui.pill("spk_slash", L.t("Без звука"), v -> atv.key(host, Atv.MUTE)), p2);
-        vk.addView(ui.pill("spk_plus", L.t("Громк +"), v -> atv.key(host, Atv.VOL_UP)), p3);
+        vk.setGravity(Gravity.CENTER);
+        vk.setPadding(ui.dp(6), ui.dp(12), ui.dp(6), ui.dp(4));
+        String[][] vol = {{"spk_minus", "Тише"}, {"spk_slash", "Без звука"}, {"spk_plus", "Громче"}};
+        int[] codes = {Atv.VOL_DOWN, Atv.MUTE, Atv.VOL_UP};
+        for (int i = 0; i < 3; i++) {
+            final int code = codes[i];
+            View k = ui.key(vol[i][0], null, 56, false, v -> { v.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP); tvKey(code); });
+            k.setContentDescription(L.t(vol[i][1]));
+            LinearLayout.LayoutParams kp = Ui.lp(ui.dp(56), ui.dp(56));
+            kp.setMargins(ui.dp(i == 0 ? 0 : 14), 0, ui.dp(i == 2 ? 0 : 14), 0);
+            vk.addView(k, kp);
+        }
         ctlBox.addView(vk);
         TextView hw = ui.text(L.t("Кнопки громкости телефона тоже управляют ТВ"), 12, ui.fgA(0.35f), false);
         hw.setGravity(Gravity.CENTER);
@@ -2026,7 +2045,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         r.addView(sw);
         f.addView(r);
         root.addView(f, ui.margins(Ui.lp(-1, -2), 0, 0, 0, 8));
-        TextView hint = ui.text(L.t("Fling для Android · дома по Wi‑Fi, не из дома — через Tailscale"), 12, ui.fgA(0.3f), false);
+        TextView hint = ui.text(L.t("Fling для Android · дома — по Wi‑Fi, вне дома — через Tailscale"), 12, ui.fgA(0.3f), false);
         hint.setGravity(Gravity.CENTER);
         root.addView(hint, ui.margins(Ui.lp(-1, -2), 0, 6, 0, 0));
         // authorship: Fling is Damion Rashford's and Tatiana's app; this is an unofficial port by orfixe

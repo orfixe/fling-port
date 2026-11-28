@@ -74,6 +74,7 @@ final class Ui {
     static String accentId(Context c) {
         String a = c.getSharedPreferences("fling", Context.MODE_PRIVATE).getString("accent", "blue");
         if (a.equals("you") && android.os.Build.VERSION.SDK_INT < 31) return "blue";   // no wallpaper colours before Android 12
+        if (a.equals("custom")) return a;                              // any hue from the rainbow
         return java.util.Arrays.asList(ACCENTS).contains(a) ? a : "blue";
     }
 
@@ -96,7 +97,19 @@ final class Ui {
         a.getTheme().applyStyle(accentRes(accentId(a))[1], true);
     }
 
-    static int accentColor(Context c, String id) { return c.getColor(accentRes(id)[0]); }
+    static int accentColor(Context c, String id) {
+        if (id.equals("custom")) {
+            boolean dark = (c.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                    == Configuration.UI_MODE_NIGHT_YES;
+            return hueColor(c.getSharedPreferences("fling", Context.MODE_PRIVATE).getFloat("accent_hue", 210f), dark);
+        }
+        return c.getColor(accentRes(id)[0]);
+    }
+
+    /** The accent for a rainbow hue: bright on dark, a little deeper on light, readable on both. */
+    static int hueColor(float hue, boolean dark) {
+        return Color.HSVToColor(new float[]{((hue % 360) + 360) % 360, dark ? 0.62f : 0.82f, dark ? 1f : 0.86f});
+    }
 
     /** {colour, style} resources of an accent id. */
     private static int[] accentRes(String id) {
@@ -855,7 +868,7 @@ final class Ui {
             p.setColor(fgA(0.35f));
             p.setTextSize(dp(13));
             p.setTextAlign(Paint.Align.CENTER);
-            c.drawText(L.t("Свайп — навигация · тап — OK"), getWidth() / 2f, getHeight() / 2f, p);
+            c.drawText(L.t("Свайп — стрелки · касание — OK"), getWidth() / 2f, getHeight() / 2f, p);
             p.setTextSize(dp(11));
             p.setColor(fgA(0.25f));
             c.drawText(L.t("долгое нажатие — назад"), getWidth() / 2f, getHeight() / 2f + dp(18), p);

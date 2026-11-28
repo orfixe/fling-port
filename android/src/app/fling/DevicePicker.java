@@ -396,7 +396,7 @@ final class DevicePicker {
         LinearLayout t = ui.col();
         t.setPadding(ui.dp(12), 0, ui.dp(8), 0);
         t.addView(ui.text(!inst ? L.t("Tailscale не установлен") : on ? L.t("Tailscale включён") : L.t("Tailscale выключен"), 15, ui.fg, false));
-        TextView h = ui.text(!inst ? L.t("Нужен на телефоне и на ТВ, чтобы управлять ТВ не из дома.")
+        TextView h = ui.text(!inst ? L.t("Нужен на телефоне и на ТВ, чтобы управлять телевизором вне дома.")
                 : on ? L.t("ТВ из tailnet добавляется один раз — по адресу ниже.")
                 : L.t("Включите его, чтобы ТВ из tailnet были на связи."), 12, ui.fgA(0.5f), false);
         h.setPadding(0, ui.dp(2), 0, 0);

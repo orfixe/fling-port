@@ -138,7 +138,7 @@ public class SettingsActivity extends Activity {
         box.addView(seg, Ui.lp(-1, -2));
         c.addView(box);
         if (!cur.equals("light"))
-            c.addView(toggle("AMOLED", L.t("Чёрный фон вместо тёмно-серого. На экранах OLED и AMOLED бережёт заряд."),
+            c.addView(toggle("AMOLED", L.t("Полностью чёрный фон в тёмной теме. На экранах AMOLED экономит заряд батареи."),
                     "amoled", false, this::restyle));
     }
 
@@ -189,11 +189,55 @@ public class SettingsActivity extends Activity {
             row.addView(swatch(id, id.equals(cur)), Ui.lpW(1));
         }
         for (int i = ids.size(); i % 4 != 0; i++) row.addView(new View(this), Ui.lpW(1));   // keep the last row on the grid
-        TextView name = ui.text(accentName(cur), 14, ui.fgA(0.6f), false);
+        // any colour: drag along the rainbow, the dot shows it at once, letting go applies it
+        LinearLayout rr = ui.row();
+        final View dot = new View(this);
+        final int[] live = {Ui.accentColor(this, cur.equals("custom") ? "custom" : cur)};
+        android.graphics.drawable.GradientDrawable dd = ui.oval(live[0]);
+        dot.setBackground(dd);
+        final TextView name = ui.text(accentName(cur), 14, ui.fgA(0.6f), false);
+        View bar = new View(this) {
+            final Paint pt = new Paint(Paint.ANTI_ALIAS_FLAG);
+            float hue = cur.equals("custom") ? prefs.getFloat("accent_hue", 210f) : -1f;
+            @Override protected void onDraw(Canvas cv) {
+                float w = getWidth(), h = getHeight(), r = h / 2f;
+                int[] hues = new int[13];
+                for (int i = 0; i < hues.length; i++) hues[i] = Ui.hueColor(i * 30f, ui.dark);
+                pt.setShader(new android.graphics.LinearGradient(r, 0, w - r, 0, hues, null, android.graphics.Shader.TileMode.CLAMP));
+                cv.drawRoundRect(0, h * 0.3f, w, h * 0.7f, r, r, pt);
+                pt.setShader(null);
+                if (hue >= 0) {                                  // the thumb on the chosen hue
+                    float x = r + (w - 2 * r) * hue / 360f;
+                    pt.setColor(0xFFFFFFFF);
+                    cv.drawCircle(x, h / 2f, r * 0.62f, pt);
+                    pt.setColor(Ui.hueColor(hue, ui.dark));
+                    cv.drawCircle(x, h / 2f, r * 0.45f, pt);
+                }
+            }
+            @Override public boolean onTouchEvent(android.view.MotionEvent e) {
+                float r = getHeight() / 2f;
+                hue = Math.max(0f, Math.min(359.9f, (e.getX() - r) / (getWidth() - 2 * r) * 360f));
+                live[0] = Ui.hueColor(hue, ui.dark);
+                dd.setColor(live[0]);
+                name.setText(L.t("Свой цвет"));
+                invalidate();
+                getParent().requestDisallowInterceptTouchEvent(e.getAction() != android.view.MotionEvent.ACTION_UP);
+                if (e.getAction() == android.view.MotionEvent.ACTION_UP) {
+                    prefs.edit().putString("accent", "custom").putFloat("accent_hue", hue).apply();
+                    restyle();
+                }
+                return true;
+            }
+        };
+        bar.setContentDescription(L.t("Свой цвет"));
+        rr.addView(bar, ui.margins(Ui.lpW(1), 6, 0, 12, 0));
+        rr.addView(dot, Ui.lp(ui.dp(30), ui.dp(30)));
+        bar.setMinimumHeight(ui.dp(36));
+        c.addView(rr, ui.margins(Ui.lp(-1, -2), 10, 14, 10, 0));
         name.setGravity(Gravity.CENTER);
-        c.addView(name, ui.margins(Ui.lp(-1, -2), 8, 12, 8, 0));
+        c.addView(name, ui.margins(Ui.lp(-1, -2), 8, 10, 8, 0));
         if (!Ui.dynamicAvailable()) {
-            TextView n = ui.text(L.t("Цвета обоев (Material You) доступны с Android 12."), 12, ui.fgA(0.4f), false);
+            TextView n = ui.text(L.t("Monet (цвета обоев) доступен с Android 12."), 12, ui.fgA(0.4f), false);
             n.setGravity(Gravity.CENTER);
             c.addView(n, ui.margins(Ui.lp(-1, -2), 8, 6, 8, 0));
         }
@@ -208,9 +252,11 @@ public class SettingsActivity extends Activity {
                 pt.setStyle(Paint.Style.FILL);
                 pt.setColor(color);
                 cv.drawCircle(cx, cy, r, pt);
-                if (id.equals("you")) {   // wallpaper colours: a second tone in the lower half
-                    pt.setColor(Ui.alpha(ui.fg, 0.25f));
-                    cv.drawArc(cx - r, cy - r, cx + r, cy + r, 0, 180, true, pt);
+                if (id.equals("you") && android.os.Build.VERSION.SDK_INT >= 31) {   // Monet: the wallpaper's three tones
+                    pt.setColor(getColor(android.R.color.system_accent2_300));
+                    cv.drawArc(cx - r, cy - r, cx + r, cy + r, 90, 120, true, pt);
+                    pt.setColor(getColor(android.R.color.system_accent3_300));
+                    cv.drawArc(cx - r, cy - r, cx + r, cy + r, 210, 120, true, pt);
                 }
                 if (on) {
                     pt.setStyle(Paint.Style.STROKE);
@@ -233,13 +279,14 @@ public class SettingsActivity extends Activity {
 
     private static String accentName(String id) {
         switch (id) {
-            case "you": return L.t("Цвета обоев (Material You)");
+            case "you": return L.t("Monet — цвета обоев");
             case "indigo": return L.t("Индиго");
             case "purple": return L.t("Фиолетовый");
             case "pink": return L.t("Розовый");
             case "teal": return L.t("Бирюзовый");
             case "green": return L.t("Зелёный");
             case "graphite": return L.t("Графит");
+            case "custom": return L.t("Свой цвет");
             default: return L.t("Синий");
         }
     }
@@ -249,18 +296,18 @@ public class SettingsActivity extends Activity {
     private void buildBehaviour() {
         section(L.t("Пульт и трансляция"));
         LinearLayout c = card();
-        c.addView(toggle(L.t("Пульт в уведомлении"), L.t("Что сейчас на ТВ и кнопки: питание, громкость, пауза, домой — со шторки и экрана блокировки."),
+        c.addView(toggle(L.t("Пульт в уведомлении"), L.t("Показывает, что идёт на телевизоре, и даёт управлять им из шторки и с экрана блокировки."),
                 "remote_notify", true, () -> {
                     if (!prefs.getBoolean("remote_notify", true)) TvRemoteService.hide(this);
                     else TvRemoteService.show(this, getSharedPreferences("fling", MODE_PRIVATE).getString("host", null),
                             getSharedPreferences("fling", MODE_PRIVATE).getString("name", null));
                 }));
         c.addView(ui.separator());
-        c.addView(toggle(L.t("Уведомление с кнопками"), L.t("Пока на ТВ что-то играет: пауза, перемотка и громкость с экрана блокировки."), "notify", true));
+        c.addView(toggle(L.t("Уведомление с кнопками"), L.t("Пока на телевизоре что-то воспроизводится: пауза, перемотка и громкость на экране блокировки."), "notify", true));
         c.addView(ui.separator());
-        c.addView(toggle(L.t("Кнопки громкости управляют ТВ"), L.t("Пока Fling открыт, кнопки громкости телефона меняют громкость ТВ."), "volKeys", true));
+        c.addView(toggle(L.t("Кнопки громкости управляют ТВ"), L.t("Пока Fling открыт, кнопки громкости телефона регулируют громкость телевизора."), "volKeys", true));
         c.addView(ui.separator());
-        c.addView(toggle(L.t("Не гасить экран"), L.t("Экран телефона не гаснет, пока открыт Fling."), "keepOn", false));
+        c.addView(toggle(L.t("Не отключать экран, пока открыт Fling"), L.t("Телефон не уйдёт в спящий режим, пока вы пользуетесь пультом."), "keepOn", false));
     }
 
     private View toggle(String title, String hint, String key, boolean def) { return toggle(title, hint, key, def, null); }
@@ -315,9 +362,9 @@ public class SettingsActivity extends Activity {
         LinearLayout c = card();
         if (BuildConfig.SELF_UPDATE) {                   // the GitHub build; Play updates the app itself
             c.addView(ui.row(L.t("Проверить обновления"), "refresh", Updater.installedVersion(this), false, v -> updater.check(true)));
-            c.addView(toggle(L.t("Сообщать о новых версиях"), L.t("Раз в день Fling проверяет GitHub, даже закрытый, и присылает уведомление, когда вышла новая версия."),
+            c.addView(toggle(L.t("Сообщать о новых версиях"), L.t("Раз в день Fling проверяет обновления на GitHub, даже когда закрыт, и сообщает о новой версии."),
                     "upd_notify", true, () -> Updater.background(this)));
-            c.addView(toggle(L.t("Устанавливать обновления автоматически"), L.t("Новая версия скачивается и ставится сама, пока Fling закрыт. Android может один раз попросить подтверждение."),
+            c.addView(toggle(L.t("Устанавливать обновления автоматически"), L.t("Новая версия скачивается и устанавливается сама, пока Fling закрыт. Android может один раз попросить подтверждение."),
                     "upd_auto", true));
         }   // trailing: the version, short enough for 320 dp
         c.addView(ui.row(L.t("Как пользоваться"), "help", null, false, v -> Help.show(this, ui)));

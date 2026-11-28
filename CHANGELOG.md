@@ -10,6 +10,27 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-28
+
+### Added
+
+- Android: **any accent colour** — drag along the rainbow under the colour circles; the dot
+  next to it shows the colour at once, letting go applies it. The wallpaper colours are
+  called **Monet** and their circle shows the wallpaper's three tones.
+
+### Changed
+
+- Android: volume down, mute and volume up are **round keys with just their symbol**, like
+  on a remote; app tiles with icons are oblong again (smaller icon, less padding); a tile
+  named from its package takes the TV's own name ("HDrezka App", not "Hdrezkaapp").
+- Android: clearer texts — "Keep the screen on while Fling is open", the AMOLED switch, the
+  notification remote, volume keys, updates; "away from home" instead of "not from home".
+
+### Fixed
+
+- Android: **the remote's keys did nothing while the phone wasn't paired** (arrows, home,
+  back, volume…). They now go over ADB then, as the notification's keys do.
+
 ## [0.6.0] - 2026-11-28
 
 ### Added
@@ -712,7 +733,8 @@ unchanged.
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.6.0...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/orfixe/fling-port/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/orfixe/fling-port/compare/v0.5.8...v0.6.0
 [0.5.8]: https://github.com/orfixe/fling-port/compare/v0.5.7...v0.5.8
 [0.5.7]: https://github.com/orfixe/fling-port/compare/v0.5.6...v0.5.7

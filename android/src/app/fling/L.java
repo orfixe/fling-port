@@ -83,10 +83,10 @@ final class L {
         e("Отправить отчёт", "Send the report");
         e("Отчёт не получился: ", "The report failed: ");
         e("Устанавливать обновления автоматически", "Install updates automatically");
-        e("Новая версия скачивается и ставится сама, пока Fling закрыт. Android может один раз попросить подтверждение.",
-          "A new version downloads and installs by itself while Fling is closed. Android may ask to confirm once.");
-        e("Раз в день Fling проверяет GitHub, даже закрытый, и присылает уведомление, когда вышла новая версия.",
-          "Once a day Fling checks GitHub, even when closed, and sends a notification when a new version is out.");
+        e("Новая версия скачивается и устанавливается сама, пока Fling закрыт. Android может один раз попросить подтверждение.",
+                "A new version downloads and installs by itself while Fling is closed. Android may ask you to confirm once.");
+        e("Раз в день Fling проверяет обновления на GitHub, даже когда закрыт, и сообщает о новой версии.",
+                "Once a day Fling checks GitHub for updates, even when closed, and tells you about a new version.");
         e("Связь оборвалась, повторяю (%d из %d)…", "The connection dropped, trying again (%d of %d)…");
         e("Не найден сервер %s: нет интернета или DNS не отвечает.", "Can't find the server %s: no internet, or DNS isn't answering.");
         e("Сервер %s не ответил вовремя. Попробуйте ещё раз или в другой сети.", "The server %s didn't answer in time. Try again, or on another network.");
@@ -145,10 +145,10 @@ final class L {
         // remote access (Tailscale) and the path chip
         e("Удалённый доступ…", "Remote access…");
         e("Удалённый доступ", "Remote access");
-        e("Чтобы управлять ТВ не из дома, поставьте Tailscale на телефон и на ТВ. На ТВ его ставит Fling для ПК — из «Каталога».", "To control the TV away from home, install Tailscale on the phone and on the TV. Fling for PC installs it on the TV from its Catalog.");
+        e("Чтобы управлять телевизором вне дома, установите Tailscale на телефон и на ТВ. На ТВ его установит Fling для ПК — из «Каталога».", "To control the TV away from home, install Tailscale on the phone and on the TV. Fling for PC installs it on the TV from its Catalog.");
         e("Установить Tailscale", "Install Tailscale");
         e("Tailscale включён. Добавьте ТВ по его адресу 100.x.y.z или имени MagicDNS.", "Tailscale is on. Add the TV by its 100.x.y.z address or MagicDNS name.");
-        e("Tailscale выключен. Включите его, чтобы управлять ТВ не из дома.", "Tailscale is off. Turn it on to control the TV away from home.");
+        e("Tailscale выключен. Включите его, чтобы управлять телевизором вне дома.", "Tailscale is off. Turn it on to control the TV away from home.");
         e("Добавить ТВ…", "Add a TV…");
         e("Открыть Tailscale", "Open Tailscale");
         e("Связь с ТВ есть", "Connected to the TV");
@@ -259,14 +259,14 @@ final class L {
         e("На телевизоре", "On the TV");
         e("Кнопки", "Buttons");
         e("Тачпад", "Touchpad");
-        e("Громк −", "Vol −");
+        
         e("Без звука", "Mute");
-        e("Громк +", "Vol +");
+        
         e("Кнопки громкости телефона тоже управляют ТВ", "The phone's volume buttons control the TV too");
         e("Напечатать на ТВ", "Type on TV");
         e("Слушаю — нажмите микрофон ещё раз, когда закончите.", "Listening — tap the mic again when done.");
         e("Сменить", "Switch");
-        e("Fling для Android · дома по Wi‑Fi, не из дома — через Tailscale", "Fling for Android · Wi‑Fi at home, Tailscale when away");
+        e("Fling для Android · дома — по Wi‑Fi, вне дома — через Tailscale", "Fling for Android · at home over Wi‑Fi, away through Tailscale");
         e("Ищу телевизор в сети…", "Looking for a TV on the network…");
         e("Пульт и трансляция на телевизор", "Remote and casting for your TV");
         e("Воспроизводится", "Playing");
@@ -288,7 +288,7 @@ final class L {
         e("Откройте Fling", "Open Fling");
         e("Обновить", "Update");
         e("Обновить данные", "Refresh");
-        e("Свайп — навигация · тап — OK", "Swipe to move · tap for OK");
+        e("Свайп — стрелки · касание — OK", "Swipe — arrows · tap — OK");
         e("долгое нажатие — назад", "long press for Back");
         e("Язык", "Language");
 
@@ -330,12 +330,12 @@ final class L {
         e("Светлая", "Light");
         e("Тёмная", "Dark");
         e("Авто", "Auto");
-        e("Чёрный фон вместо тёмно-серого. На экранах OLED и AMOLED бережёт заряд.", "Black instead of dark grey. Saves battery on OLED and AMOLED screens.");
+        e("Полностью чёрный фон в тёмной теме. На экранах AMOLED экономит заряд батареи.", "A pure black background in the dark theme. Saves battery on AMOLED screens.");
         e("Пример видео", "Sample video");
         e("Так будет выглядеть Fling", "This is how Fling will look");
         e("Цвет акцента", "Accent colour");
-        e("Цвета обоев (Material You)", "Wallpaper colours (Material You)");
-        e("Цвета обоев (Material You) доступны с Android 12.", "Wallpaper colours (Material You) need Android 12 or later.");
+        e("Monet — цвета обоев", "Monet — wallpaper colours");
+        e("Monet (цвета обоев) доступен с Android 12.", "Monet (wallpaper colours) needs Android 12.");
         e("Синий", "Blue");
         e("Индиго", "Indigo");
         e("Фиолетовый", "Purple");
@@ -343,20 +343,21 @@ final class L {
         e("Бирюзовый", "Teal");
         e("Зелёный", "Green");
         e("Графит", "Graphite");
+        e("Свой цвет", "Your own colour");
         e("Пульт и трансляция", "Remote and casting");
         e("Уведомление с кнопками", "Playback notification");
         e("Пульт в уведомлении", "Remote in the notification");
-        e("Что сейчас на ТВ и кнопки: питание, громкость, пауза, домой — со шторки и экрана блокировки.", "What's on the TV and keys — power, volume, pause, home — from the shade and the lock screen.");
+        e("Показывает, что идёт на телевизоре, и даёт управлять им из шторки и с экрана блокировки.", "Shows what's on the TV and lets you control it from the shade and the lock screen.");
         e("Пульт ТВ", "TV remote");
         e("Питание", "Power");
         e("Тише", "Volume down");
         e("Громче", "Volume up");
         e("Пауза / пуск", "Play / pause");
-        e("Пока на ТВ что-то играет: пауза, перемотка и громкость с экрана блокировки.", "While something plays on the TV: pause, skip and volume from the lock screen.");
+        e("Пока на телевизоре что-то воспроизводится: пауза, перемотка и громкость на экране блокировки.", "While something plays on the TV: pause, seek and volume on the lock screen.");
         e("Кнопки громкости управляют ТВ", "Volume keys control the TV");
-        e("Пока Fling открыт, кнопки громкости телефона меняют громкость ТВ.", "While Fling is open, the phone's volume keys change the TV volume.");
-        e("Не гасить экран", "Keep the screen on");
-        e("Экран телефона не гаснет, пока открыт Fling.", "The phone screen stays on while Fling is open.");
+        e("Пока Fling открыт, кнопки громкости телефона регулируют громкость телевизора.", "While Fling is open, the phone's volume keys set the TV's volume.");
+        e("Не отключать экран, пока открыт Fling", "Keep the screen on while Fling is open");
+        e("Телефон не уйдёт в спящий режим, пока вы пользуетесь пультом.", "The phone won't go to sleep while you use the remote.");
         e("О приложении", "About");
         e("Проверить обновления", "Check for updates");
 
@@ -377,7 +378,7 @@ final class L {
         e("Нажмите на ТВ, чтобы переключиться.", "Tap a TV to switch to it.");
         e("Найдено: %d", "Found: %d");
         e("Не в сети", "Offline");
-        e("Нужен на телефоне и на ТВ, чтобы управлять ТВ не из дома.", "Needed on the phone and the TV to control the TV away from home.");
+        e("Нужен на телефоне и на ТВ, чтобы управлять телевизором вне дома.", "Needed on the phone and on the TV to control the TV away from home.");
         e("Открыть", "Open");
         e("Проверьте, что ТВ включён и в той же сети Wi‑Fi, что и телефон. Если ТВ в другой подсети, добавьте его по адресу ниже.", "Make sure the TV is on and on the same Wi‑Fi as the phone. If it's on another subnet, add it by its address below.");
         e("Проверяю %s…", "Checking %s…");
@@ -416,8 +417,6 @@ final class L {
         e("Вниз", "Down");
         e("Влево", "Left");
         e("Вправо", "Right");
-        e("Тише", "Volume down");
-        e("Громче", "Volume up");
         e("Пауза / воспроизведение", "Play/pause");
         e("Клавиатура", "Keyboard");
         e("%d мс", "%d ms");
