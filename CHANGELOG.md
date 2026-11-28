@@ -10,6 +10,21 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+### Added
+
+- macOS: **remote modes** under the app grid — Arrows, Touchpad (drag = arrows, click = OK,
+  right-click = Back, middle-click = Home), Numbers (digits, channel ±, Input, Guide, Info,
+  Settings; the Mac's digit keys type digits while it is open) and Media (previous / rewind /
+  play-pause / fast-forward / next, stop, subtitles, audio track, colour buttons). The choice is
+  remembered.
+- macOS: **favourite apps per TV** — right-click a chip to move, rename or remove it; "+" adds the
+  app open on the TV, a catalog app or any package; "Restore the default set".
+- macOS: **scenes** (turn on → open an app → volume …, with remote buttons, waits, the sleep
+  timer, turn off and "switch to this TV first") with an editor window; run them from the "⋯" menu
+  in the remote or the menu-bar icon's right-click menu.
+- macOS: **sleep timer** (15 min – 2 h) with a "the TV turns off in N min" strip and Cancel, plus
+  explicit Turn on / Turn off, in the same "⋯" menu and right-click menu.
+
 ## [0.5.8] - 2026-11-28
 
 ### Fixed
