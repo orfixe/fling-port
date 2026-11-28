@@ -29,8 +29,11 @@ enum Lang {
         isRussian ? "🇷🇺  Язык: Русский → English" : "🇬🇧  Language: English → Русский"
     }
 
-    static func toggle() {
-        UserDefaults.standard.set(isRussian ? "en" : "ru", forKey: key)
+    static func toggle() { set(isRussian ? "en" : "ru") }
+
+    /// Port (Settings → Language): "ru" / "en", nil = follow the system; relaunches.
+    static func set(_ code: String?) {
+        if let code { UserDefaults.standard.set(code, forKey: key) } else { UserDefaults.standard.removeObject(forKey: key) }
         UserDefaults.standard.synchronize()
         // relaunch once this instance has quit
         let p = Process()
@@ -60,6 +63,7 @@ func tr<S: StringProtocol>(_ s: S) -> String {
         LiveL10n.ru,
         PlainWords.russian,
         SamsungRU.exact,
+        RUCasting.exact,
     ]
     let patternTables: [[(NSRegularExpression, String)]] = [
         RU.patterns,

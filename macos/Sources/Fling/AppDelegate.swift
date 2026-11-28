@@ -16,6 +16,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                              prober: TabProber())
         controller = StatusItemController(state: state)
         shortcuts = GlobalShortcuts(state: state)
+        // Port: extension bridge, ⌃⌥⌘C, file queue, notifications, Settings (PortServices.swift)
+        PortServices.shared.start(state: state)
         ADBGlue.install(state: state)       // port: ADB (ADBView.swift)
     }
 

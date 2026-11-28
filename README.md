@@ -185,7 +185,7 @@ browser extensions and local tools and refuses web pages.
 |---|---|
 | Chrome, Edge, Brave, Opera, Vivaldi, Yandex | `chrome://extensions` → Developer mode → **Load unpacked** → the `extension\chrome` folder of the Windows zip, or `fling-chrome-….zip` from Releases, unzipped |
 | Firefox | `about:debugging` → **Load Temporary Add-on** → `fling-firefox-….zip` (a permanent install needs Developer Edition until it's on AMO) |
-| Safari (Mac) | `extension/safari/build-safari.sh` on a Mac with Xcode; needs Fling running on that Mac (not tested yet) |
+| Safari (Mac) | `extension/safari/build-safari.sh` on a Mac with Xcode; needs Fling (the macOS build or `desktop/fling_app.py`) running on that Mac (not tested yet) |
 
 Details: [Windows guide → Part 2](docs/install-windows.md#part-2-the-browser-extension).
 

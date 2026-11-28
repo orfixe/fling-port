@@ -16,7 +16,10 @@ struct ContextMenuBuilder {
         menu.addItem(action(casting ? "Cast this tab instead" : "Cast this tab",
                             key: "C", modifiers: [.command, .shift],
                             enabled: castable) { Task { await state.castCurrentTab() } })
-        menu.addItem(action("Cast clipboard URL") { Task { await state.castClipboard() } })
+        menu.addItem(action("Cast clipboard URL") { Task { await PortServices.shared.castClipboard() } })
+        menu.addItem(.separator())
+        // port: files, slideshow, queue, notifications, Settings
+        PortMenu.items { action($0, key: $1, modifiers: $2, enabled: $3, handler: $4) }.forEach(menu.addItem)
         menu.addItem(.separator())
 
         if state.installedBrowsers.count > 1 {

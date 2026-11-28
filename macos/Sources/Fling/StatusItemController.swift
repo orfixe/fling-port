@@ -51,6 +51,12 @@ final class StatusItemController: NSObject {
             return event.window === popover.contentViewController?.view.window
         }
 
+        // Port: the extension bridge / notifications ask about and open the panel
+        PortServices.shared.isPanelShown = { [weak popover] in popover?.isShown ?? false }
+        PortServices.shared.openPanel = { [weak self] in
+            guard let self, !self.popover.isShown, let button = self.statusItem.button else { return }
+            self.togglePopover(button)
+        }
         // Port: Samsung TVs (Smart View) join the TV list and the remote (FlingKit/Samsung/)
         state.enableSamsung()
 

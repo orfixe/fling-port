@@ -348,6 +348,14 @@ public final class AppState: ObservableObject {
         await cast(raw, kind: URLClassifier.classify(raw))
     }
 
+    /// Port: a link from the browser extension or the global hotkey (PortServices), with
+    /// the page's player position. Clears an old error first: the extension reads `lastError`
+    /// once `castInFlight` drops to tell success from failure.
+    public func castLink(_ url: String, kind: CastKind? = nil, seekTo: TimeInterval? = nil) async {
+        lastError = nil
+        await cast(url, kind: kind ?? URLClassifier.classify(url), seekTo: seekTo)
+    }
+
     public func togglePlayPause() async {
         if isSamsungSelected { await samsung?.transport("Toggle"); return }
         let playing = status.isPlaying
