@@ -36,6 +36,8 @@ REF="${FLING_REF:-$(cat "$ROOT/macos/UPSTREAM_REF")}"
 git clone --quiet "$UPSTREAM_URL" "$WORK/fling"
 git -C "$WORK/fling" checkout --quiet "$REF"
 cp -R "$ROOT/macos/Sources/." "$WORK/fling/Sources/"
+# Port's own unit tests (cd macos/.work/fling && swift test)
+if [ -d "$ROOT/macos/Tests" ]; then cp -R "$ROOT/macos/Tests/." "$WORK/fling/Tests/"; fi
 
 (
   cd "$WORK/fling"
