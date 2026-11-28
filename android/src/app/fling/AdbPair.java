@@ -19,7 +19,6 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.Signature;
 import java.security.cert.CertificateFactory;
@@ -32,7 +31,6 @@ import javax.crypto.Cipher;
 import javax.crypto.Mac;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManager;
@@ -58,18 +56,25 @@ final class AdbPair {
     static synchronized SSLContext tls(PrivateKey priv, RSAPublicKey pub) throws Exception {
         if (tls != null) return tls;
         X509Certificate cert = selfSigned(priv, pub);
-        KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
-        ks.load(null, null);
-        ks.setKeyEntry("adb", priv, new char[0], new java.security.cert.Certificate[]{cert});
-        KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-        kmf.init(ks, new char[0]);
+        // adbd lists its known keys as "certificate authorities"; the stock key manager would then
+        // offer nothing (PEER_DID_NOT_RETURN_A_CERTIFICATE) — always present our ADB key instead
+        final X509Certificate[] chain = {cert};
+        javax.net.ssl.X509ExtendedKeyManager km = new javax.net.ssl.X509ExtendedKeyManager() {
+            public String[] getClientAliases(String t, java.security.Principal[] i) { return new String[]{"adb"}; }
+            public String chooseClientAlias(String[] t, java.security.Principal[] i, Socket s) { return "adb"; }
+            public String chooseEngineClientAlias(String[] t, java.security.Principal[] i, javax.net.ssl.SSLEngine e) { return "adb"; }
+            public String[] getServerAliases(String t, java.security.Principal[] i) { return null; }
+            public String chooseServerAlias(String t, java.security.Principal[] i, Socket s) { return null; }
+            public X509Certificate[] getCertificateChain(String a) { return chain; }
+            public PrivateKey getPrivateKey(String a) { return priv; }
+        };
         TrustManager trustAll = new X509TrustManager() {
             public void checkClientTrusted(X509Certificate[] c, String a) {}
             public void checkServerTrusted(X509Certificate[] c, String a) {}
             public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
         };
         SSLContext c = SSLContext.getInstance("TLSv1.3");
-        c.init(kmf.getKeyManagers(), new TrustManager[]{trustAll}, null);
+        c.init(new javax.net.ssl.KeyManager[]{km}, new TrustManager[]{trustAll}, null);
         return tls = c;
     }
 

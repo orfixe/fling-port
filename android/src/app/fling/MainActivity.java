@@ -2376,7 +2376,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             if (shown[0] != s) {                                    // a new step: an empty field, its own keyboard
                 shown[0] = s;
                 code.setText("");
-                code.setInputType(s == YT ? InputType.TYPE_CLASS_NUMBER
+                code.setInputType(s == YT || s == ADB ? InputType.TYPE_CLASS_NUMBER
                         : InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
             }
             skip.setVisibility(s == TV || s == DONE ? View.GONE : View.VISIBLE);
@@ -2710,7 +2710,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         samBox.setVisibility(isSamsung() ? View.VISIBLE : View.GONE);
         pinFail.setText(pairMsg);
         pinFail.setVisibility(pairState.equals("failed") && !pairMsg.isEmpty() ? View.VISIBLE : View.GONE);
-        if (paired) {
+        if (paired || adbOk()) {                                  // ADB alone shows the remote too: same state
             String now = isSamsung()
                     ? (samState.equals("ready") ? "Samsung · Smart View"
                        : samState.equals("waiting") ? L.t("Нажмите «Разрешить» на экране ТВ")
