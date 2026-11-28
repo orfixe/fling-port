@@ -235,7 +235,8 @@ final class Adb {
 
     // ------------------------------------------------------------ now playing
 
-    private static final Pattern STATE = Pattern.compile("state=(\\d+), position=(-?\\d+).*?speed=([\\d.]+), updated=(\\d+)");
+    /** "state=3, position=…" on older Android, "state=PLAYING(3), position=…" on newer (Google TV). */
+    private static final Pattern STATE = Pattern.compile("state=(?:[A-Z_]+\\()?(\\d+)\\)?, position=(-?\\d+).*?speed=([\\d.]+), updated=(\\d+)");
 
     /** Real now-playing as a Cast.Status (state IDLE when nothing plays). */
     Cast.Status nowPlaying(String host) throws Exception {

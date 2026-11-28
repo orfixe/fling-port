@@ -175,9 +175,24 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private TextView nowTitle, nowSub, nowEl, nowRem, nowHint;
     private Ui.Slider nowProg;                    // the progress bar: drag it to seek
     private View ccKey;
+    private TextView xPhone, xLink, xSpeed, xAudio, xRestart;     // the extra row under the keys
     /** The TV's own volume over ADB ("volume is 8 in range [0..15]"), -1 while unknown. */
     private volatile int tvVol = -1, tvVolMax = -1;
     private boolean adbOk() { return "ok".equals(Adb.lastState); }
+    private YtLounge yt;
+    /** YouTube on the TV is what plays (not Fling's own cast of something else). */
+    private boolean ytOnTv(Cast.Status v) {
+        return v != null && ((v.appId != null && v.appId.contains("youtube")) || (tvApp != null && tvApp.contains("youtube")));
+    }
+    /** Settings → YouTube on the TV: "exact" (Lounge, linked with the TV's code) or keys. */
+    private boolean ytExact() { return "lounge".equals(prefs.getString("yt_seek", "keys")) && yt.paired(); }
+    private void ytDo(YtCmd c) {
+        bg(() -> {
+            try { c.run(); } catch (Exception e) { main.post(() -> showError(L.t("YouTube на ТВ не ответил: ") + e.getMessage())); }
+        });
+        adbNext = 0; main.postDelayed(this::pollAdb, 1500);
+    }
+    private interface YtCmd { void run() throws Exception; }
     /** Media on the TV that Fling controls with keys (an app started on the TV, not Fling's cast). */
     private boolean tvMedia() { return adbSt != null && adbSt.hasMedia() && (paired() || adbOk()); }
     private FrameLayout playKey;
@@ -235,6 +250,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         padMode = prefs.getInt("padMode", 0);
         cast = new Cast(this, this);
         adb = new Adb(this);
+        yt = new YtLounge(this);
         atv = new Atv(this, this);
         sam = new Samsung(this, this);
         atv.sam = sam;                                   // Samsung addresses: the remote goes over Smart View
@@ -441,7 +457,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             Cast.Status r = null;
             try {
                 r = adb.nowPlaying(h);
-                if (r != null && r.hasMedia()) {
+                {
                     java.util.regex.Matcher vm = java.util.regex.Pattern.compile("volume is (\\d+) in range \\[0\\.\\.(\\d+)\\]")
                             .matcher(adb.shell(h, "cmd media_session volume --stream 3 --get"));
                     if (vm.find()) { tvVol = Integer.parseInt(vm.group(1)); tvVolMax = Integer.parseInt(vm.group(2)); }
@@ -1449,33 +1465,59 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     }
 
     private void seek(int s) {
-        if (tvMedia() || (st != null && st.stuck())) {
-            if (!paired() && !adbOk()) { showError(L.t("Перемотка этого видео работает только после «Связать с ТВ» — кнопка ниже.")); return; }
-            seekKeys(Math.max(1, Math.abs(s) / 10) * (s > 0 ? 1 : -1));
-            return;
-        }
-        cast.seekBy(s);
+        Cast.Status v = view();
+        if (v == null) return;
+        double target = Math.max(0, v.elapsedNow() + s);
+        if (v.duration > 0) target = Math.min(target, v.duration);
+        seekTo(target);
     }
 
-    /** n presses of fast-forward (n > 0) or rewind: ~10 s each in YouTube; one ADB command for all. */
-    private void seekKeys(int n) {
+    /** A Cast session playing the same thing seeks to the exact second. Its own position can be
+     *  wrong (YouTube started from a phone reports ~0 s), so the target comes from the TV (view()),
+     *  else seeking "+30 s" jumped back to the start. */
+    private boolean castSeeks(Cast.Status v) {
+        // Only Fling's own cast: YouTube's Cast session on these TVs jumps to 0:00 and pauses on SEEK
+        return st != null && v == st && st.hasMedia() && !st.stuck() && !ytOnTv(st);
+    }
+
+    /** n presses of fast-forward (n > 0) or rewind, then Play: YouTube on the TV treats them as
+     *  scrubbing (paused) and jumps only on Play. One ADB command for all. */
+    private void seekKeys(int n, boolean resume) {
         if (n == 0) return;
         final int code = n > 0 ? Atv.FFWD : Atv.REWIND, k = Math.min(Math.abs(n), 60);
         final String h = host;
         if (!paired() && adbOk() && h != null) {
             StringBuilder cmd = new StringBuilder("input keyevent");
             for (int i = 0; i < k; i++) cmd.append(' ').append(code);
-            bg(() -> { try { adb.shell(h, cmd.toString()); } catch (Exception ignored) {} });
-        } else for (int i = 0; i < k; i++) tvKey(code);
+            bg(() -> {
+                try {
+                    adb.shell(h, cmd.toString());
+                    if (resume) { Thread.sleep(900); adb.shell(h, "input keyevent 126"); }   // Play applies the jump
+                } catch (Exception ignored) {}
+            });
+        } else {
+            for (int i = 0; i < k; i++) tvKey(code);
+            if (resume) tvKey(126);
+        }
         adbNext = 0; main.postDelayed(this::pollAdb, 1500);
     }
 
-    /** Drag on the progress bar: Fling's cast seeks exactly; an app on the TV by 10 s presses. */
+    /** Seek to a second: exactly over Cast when it plays this; else by presses on the TV. */
     private void seekTo(double target) {
         Cast.Status v = view();
         if (v == null) return;
-        if (tvMedia() || v.stuck()) seekKeys((int) Math.round((target - v.elapsedNow()) / 10.0));
-        else cast.seekTo(target);
+        if (ytOnTv(v) && ytExact()) { ytDo(() -> yt.seekTo(target)); return; }   // to the second
+        if (castSeeks(v)) {
+            cast.seekTo(target);
+            adbNext = 0; main.postDelayed(this::pollAdb, 1500);
+            return;
+        }
+        if (tvMedia() || v.stuck()) {
+            if (!paired() && !adbOk()) { showError(L.t("Перемотка этого видео работает только после «Связать с ТВ» — кнопка ниже.")); return; }
+            seekKeys((int) Math.round((target - v.elapsedNow()) / 10.0), v.playing());
+            return;
+        }
+        cast.seekTo(target);
     }
 
     private final Runnable seekNow = () -> {
@@ -1483,19 +1525,80 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         if (v != null && v.duration > 0) seekTo(v.duration * nowProg.value / 100.0);
     };
 
+    /** Continue on the phone: YouTube opens the same video at the same second; the TV pauses. */
+    private void openOnPhone() {
+        Cast.Status v = view();
+        if (v == null) return;
+        String id = v.contentId != null && v.contentId.matches("[\\w-]{11}") ? v.contentId : null;
+        CharSequence title = nowTitle.getText();
+        Intent i;
+        if (id != null) {
+            i = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com/watch?v=" + id + "&t=" + (int) v.elapsedNow() + "s"));
+        } else if (title != null && title.length() > 0) {               // not identified: search it by name
+            i = new Intent(Intent.ACTION_SEARCH).putExtra("query", title.toString());
+        } else return;
+        i.setPackage("com.google.android.youtube");
+        if (v.playing()) togglePlay();
+        try { startActivity(i); }
+        catch (Exception e) {
+            if (id == null) { showError(L.t("YouTube на телефоне не установлен.")); return; }
+            try { startActivity(i.setPackage(null)); } catch (Exception ignored) {}
+        }
+    }
+
+    private void copyLink() {
+        Cast.Status v = view();
+        if (v == null || v.contentId == null) return;
+        String url = "https://youtu.be/" + v.contentId + "?t=" + (int) v.elapsedNow();
+        android.content.ClipboardManager cb = getSystemService(android.content.ClipboardManager.class);
+        if (cb != null) cb.setPrimaryClip(android.content.ClipData.newPlainText("YouTube", url));
+        say(L.t("Ссылка с текущим моментом скопирована."));
+    }
+
+    private static String speedLabel(double r) {
+        String n = r == Math.rint(r) ? String.valueOf((int) r) : String.valueOf(r).replace('.', ',');
+        return n + "×";
+    }
+
+    private void askSpeed() {
+        final double[] rates = {0.5, 0.75, 1, 1.25, 1.5, 2};
+        String[] labels = new String[rates.length + 1];
+        Runnable[] acts = new Runnable[rates.length + 1];
+        for (int i = 0; i < rates.length; i++) {
+            final double r = rates[i];
+            labels[i] = speedLabel(r);
+            acts[i] = () -> {
+                if (ytOnTv(view()) && ytExact()) { ytDo(() -> yt.speed(r)); xSpeed.setText(speedLabel(r)); }
+                else { cast.setRate(r); st = cast.status(); sync(); }
+            };
+        }
+        labels[rates.length] = L.t("Отмена");
+        ui.ask(this, L.t("Скорость"), null, null, labels, acts);
+    }
+
     /** The TV's own volume (0..100 on the slider) over ADB: absolute, works for any app. */
     private void setTvVolume(int pct) {
         final String h = host;
-        final int max = tvVolMax;
-        if (h == null || max <= 0) return;
-        final int level = Math.round(pct * max / 100f);
-        tvVol = level;
-        bg(() -> { try { adb.shell(h, "cmd media_session volume --stream 3 --set " + level); } catch (Exception ignored) {} });
+        if (h == null) return;
+        bg(() -> {
+            try {
+                int max = tvVolMax;
+                if (max <= 0) {                                      // the range, once
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("range \\[0\\.\\.(\\d+)\\]")
+                            .matcher(adb.shell(h, "cmd media_session volume --stream 3 --get"));
+                    if (!m.find()) return;
+                    max = tvVolMax = Integer.parseInt(m.group(1));
+                }
+                int level = Math.round(pct * max / 100f);
+                tvVol = level;
+                adb.shell(h, "cmd media_session volume --stream 3 --set " + level);
+            } catch (Exception ignored) {}
+        });
     }
 
     private final Runnable sendVolume = () -> {
         if (volPending < 0) return;
-        if (adbOk() && tvVolMax > 0 && !isSamsung()) setTvVolume(volPending);   // the TV's volume, whatever plays
+        if (adbOk() && !isSamsung()) setTvVolume(volPending);                  // the TV's volume, whatever plays
         else { cast.setVolume(volPending); st = cast.status(); }
         volPending = -1;
     };
@@ -1804,9 +1907,17 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         playIcon = (ImageView) playKey.getChildAt(0);
         View fwd = seekFwd = ui.key("fwd30", null, 50, false, v -> seek(SEEK));
         // previous / next: only for a queue of phone files
-        prevKey = ui.key("prev", null, 42, false, v -> { if (inQueue()) cast.queueJump(-1); else tvKey(Atv.PREV); });
+        prevKey = ui.key("prev", null, 42, false, v -> {
+            if (inQueue()) cast.queueJump(-1);
+            else if (ytOnTv(view()) && ytExact()) ytDo(() -> yt.previous());
+            else tvKey(Atv.PREV);
+        });
         prevKey.setContentDescription(L.t("Предыдущий"));
-        nextKey = ui.key("next", null, 42, false, v -> { if (inQueue()) cast.queueJump(1); else tvKey(Atv.NEXT); });
+        nextKey = ui.key("next", null, 42, false, v -> {
+            if (inQueue()) cast.queueJump(1);
+            else if (ytOnTv(view()) && ytExact()) ytDo(() -> yt.next());
+            else tvKey(Atv.NEXT);
+        });
         nextKey.setContentDescription(L.t("Следующий"));
         ctl.addView(prevKey, ui.margins(Ui.lp(ui.dp(42), ui.dp(42)), 0, 0, 12, 0));
         ctl.addView(back);
@@ -1816,6 +1927,23 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         ctl.addView(fwd);
         ctl.addView(nextKey, ui.margins(Ui.lp(ui.dp(42), ui.dp(42)), 12, 0, 0, 0));
         nowCard.addView(ctl);
+
+        // more: continue on the phone, the link, speed, audio track, from the start
+        LinearLayout extra = ui.row();
+        extra.setGravity(Gravity.CENTER);
+        xPhone = ui.chip(L.t("На телефоне"), v -> openOnPhone());
+        xLink = ui.chip(L.t("Ссылка"), v -> copyLink());
+        xSpeed = ui.chip("1×", v -> askSpeed());
+        xAudio = ui.chip(L.t("Дорожка"), v -> tvKey(Atv.AUDIO));
+        xRestart = ui.chip(L.t("С начала"), v -> { cast.seekTo(0); st = cast.status(); sync(); });
+        for (TextView t : new TextView[]{xPhone, xLink, xSpeed, xAudio, xRestart}) {
+            t.setPadding(ui.dp(10), ui.dp(7), ui.dp(10), ui.dp(7));
+            extra.addView(t, ui.margins(Ui.lp(-2, -2), 3, 0, 3, 0));
+        }
+        android.widget.HorizontalScrollView xs = new android.widget.HorizontalScrollView(this);
+        xs.setHorizontalScrollBarEnabled(false);
+        xs.addView(extra);
+        nowCard.addView(xs, ui.margins(Ui.lp(-1, -2), 0, 2, 0, 8));
 
         nowHint = ui.text("", 13, ui.fgA(0.6f), false);
         nowHint.setLineSpacing(0, 1.15f);
@@ -2266,7 +2394,18 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             prevKey.setVisibility(queue || tvKeys ? View.VISIBLE : View.GONE);
             nextKey.setVisibility(queue || tvKeys ? View.VISIBLE : View.GONE);
             ccKey.setVisibility(tvKeys ? View.VISIBLE : View.GONE);
-            nowProg.setEnabled(st.duration > 0);
+            boolean ytId = st.contentId != null && st.contentId.matches("[\\w-]{11}");
+            boolean ytApp = ytId || (tvApp != null && tvApp.contains("youtube")) || "YouTube".equals(st.appName);
+            boolean ours = !tvMedia() && !st.stuck();                          // Fling's own cast session
+            xPhone.setVisibility(ytApp ? View.VISIBLE : View.GONE);
+            xLink.setVisibility(ytId ? View.VISIBLE : View.GONE);
+            boolean ytLinked = ytOnTv(st) && ytExact();
+            xSpeed.setVisibility((ours && !ytApp) || ytLinked ? View.VISIBLE : View.GONE);   // a media receiver, or YouTube over Lounge
+            nowProg.setEnabled(st.duration > 0 && (!ytOnTv(st) || ytLinked || !tvMedia()));    // keys can't hit a second
+            xSpeed.setText(speedLabel(st.rate));
+            xAudio.setVisibility(tvKeys ? View.VISIBLE : View.GONE);
+            xRestart.setVisibility(ours && st.duration > 0 ? View.VISIBLE : View.GONE);
+
             // five keys need 300 dp: on narrower phones a queue shows previous / play / next only
             boolean seekKeys = !(queue || tvKeys) || getResources().getConfiguration().screenWidthDp >= 360;
             seekBack.setVisibility(seekKeys ? View.VISIBLE : View.GONE);

@@ -85,6 +85,10 @@ public final class LiveActivity extends Activity implements SurfaceHolder.Callba
 
     // views
     private FrameLayout root, overlay;
+    /** The three groups of keys: moved under the video when upright, to its sides when sideways. */
+    private LinearLayout leftKeys, bottomKeys, below;
+    private View dpadView;
+    private boolean portrait;
     private AspectFrame frame;
     private SurfaceView video;
     private LinearLayout status, chipRow;
@@ -129,6 +133,7 @@ public final class LiveActivity extends Activity implements SurfaceHolder.Callba
         w.setStatusBarColor(Color.BLACK);
         w.setNavigationBarColor(Color.BLACK);
         setContentView(build());
+        arrange();
         cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
     }
 
@@ -155,6 +160,53 @@ public final class LiveActivity extends Activity implements SurfaceHolder.Callba
         h.removeCallbacksAndMessages(null);
         ctl.shutdown();
         super.onDestroy();
+    }
+
+    /** Rotation without a restart (configChanges): the stream keeps going, the keys move. */
+    @Override public void onConfigurationChanged(android.content.res.Configuration c) {
+        super.onConfigurationChanged(c);
+        arrange();
+    }
+
+    /** Upright: video on top, the remote under it — always there, under the thumb.
+     *  Sideways: the video fills the screen, the keys on its sides, shown / hidden by the remote button. */
+    private void arrange() {
+        portrait = getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT;
+        for (View v : new View[]{leftKeys, dpadView, bottomKeys}) {
+            if (v.getParent() != null) ((ViewGroup) v.getParent()).removeView(v);
+        }
+        FrameLayout.LayoutParams fl = (FrameLayout.LayoutParams) frame.getLayoutParams();
+        if (portrait) {
+            fl.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+            fl.topMargin = ui.dp(36);
+            leftKeys.setOrientation(LinearLayout.HORIZONTAL);
+            below.addView(leftKeys, new LinearLayout.LayoutParams(-2, -2));
+            int d = ui.dp(232);
+            LinearLayout.LayoutParams dp = new LinearLayout.LayoutParams(d, d);
+            dp.topMargin = ui.dp(22);
+            dp.bottomMargin = ui.dp(22);
+            below.addView(dpadView, dp);
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2);
+            bp.bottomMargin = ui.dp(28);
+            below.addView(bottomKeys, bp);
+            below.setVisibility(View.VISIBLE);
+            overlay.setVisibility(View.GONE);
+            if (handle != null) handle.setVisibility(View.GONE);
+        } else {
+            fl.gravity = Gravity.CENTER;
+            fl.topMargin = 0;
+            leftKeys.setOrientation(LinearLayout.VERTICAL);
+            FrameLayout.LayoutParams lpL = new FrameLayout.LayoutParams(-2, -2, Gravity.START | Gravity.CENTER_VERTICAL);
+            lpL.leftMargin = ui.dp(16);
+            overlay.addView(leftKeys, lpL);
+            overlay.addView(dpadView, dpadLp());
+            FrameLayout.LayoutParams lpB = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+            lpB.bottomMargin = ui.dp(14);
+            overlay.addView(bottomKeys, lpB);
+            below.setVisibility(View.GONE);
+            if (handle != null && session != null) handle.setVisibility(View.VISIBLE);
+        }
+        frame.setLayoutParams(fl);
     }
 
     @Override public void onWindowFocusChanged(boolean focus) {
@@ -241,7 +293,8 @@ public final class LiveActivity extends Activity implements SurfaceHolder.Callba
                 video.getHolder().getSurface(), new Events(gen, s));
         dec.start();
         status.setVisibility(View.GONE);
-        handle.setVisibility(View.VISIBLE);
+        handle.setVisibility(portrait ? View.GONE : View.VISIBLE);   // upright the keys are always under the video
+        if (!portrait) showOverlay();                              // sideways: the keys shown from the start
         chipRow.setVisibility(View.VISIBLE);
         badge.setVisibility(ts ? View.VISIBLE : View.GONE);
         updateChip(null);
@@ -511,6 +564,7 @@ public final class LiveActivity extends Activity implements SurfaceHolder.Callba
 
     private boolean onVideoTouch(MotionEvent e) {
         if (session == null) return true;
+        if (portrait && e.getActionMasked() == MotionEvent.ACTION_DOWN && e.getY() > frame.getBottom()) return false;
         int slop = ui.dp(28);
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
@@ -570,8 +624,7 @@ public final class LiveActivity extends Activity implements SurfaceHolder.Callba
 
     /** Restarts the 3 s auto-hide while the overlay is up. */
     private void bumpOverlay() {
-        h.removeCallbacks(hideOverlay);
-        if (overlay.getVisibility() == View.VISIBLE) h.postDelayed(hideOverlay, HIDE_MS);
+        h.removeCallbacks(hideOverlay);                       // it stays until the remote button hides it
     }
 
     private void toggleOverlay() {
@@ -689,25 +742,23 @@ public final class LiveActivity extends Activity implements SurfaceHolder.Callba
         overlay.setVisibility(View.GONE);
         root.addView(overlay, new FrameLayout.LayoutParams(-1, -1));
 
-        LinearLayout left = panel(true);
+        LinearLayout left = leftKeys = panel(true);
         left.addView(button(null, R.drawable.ic_n_close, L.t("Закрыть"), v -> finish()));
         left.addView(button("back", 0, L.t("Назад"), v -> press(KeyEvent.KEYCODE_BACK)));
         left.addView(button("home", 0, L.t("Домой"), v -> press(KeyEvent.KEYCODE_HOME)));
-        FrameLayout.LayoutParams lpL = new FrameLayout.LayoutParams(-2, -2, Gravity.START | Gravity.CENTER_VERTICAL);
-        lpL.leftMargin = ui.dp(16);
-        overlay.addView(left, lpL);
+        dpadView = dpad();
 
-        overlay.addView(dpad(), dpadLp());
-
-        LinearLayout bottom = panel(false);
+        LinearLayout bottom = bottomKeys = panel(false);
         bottom.addView(holdButton("spk_minus", 0, L.t("Тише"), KeyEvent.KEYCODE_VOLUME_DOWN));
         bottom.addView(button(null, R.drawable.ic_live_playpause, L.t("Пауза / воспроизведение"),
                 v -> press(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)));
         bottom.addView(holdButton("spk_plus", 0, L.t("Громче"), KeyEvent.KEYCODE_VOLUME_UP));
         bottom.addView(button(null, R.drawable.ic_live_keyboard, L.t("Клавиатура"), v -> showKeyboard()));
-        FrameLayout.LayoutParams lpB = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        lpB.bottomMargin = ui.dp(14);
-        overlay.addView(bottom, lpB);
+        // upright: the keys live in a column under the video (filled by arrange())
+        below = new LinearLayout(this);
+        below.setOrientation(LinearLayout.VERTICAL);
+        below.setGravity(Gravity.CENTER_HORIZONTAL);
+        root.addView(below, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
 
         // chip: latency · size · fps, and the Tailscale badge
         chipRow = new LinearLayout(this);
@@ -782,7 +833,7 @@ public final class LiveActivity extends Activity implements SurfaceHolder.Callba
 
     private FrameLayout.LayoutParams dpadLp() {
         FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(ui.dp(168), ui.dp(168), Gravity.END | Gravity.CENTER_VERTICAL);
-        p.rightMargin = ui.dp(16);
+        p.rightMargin = ui.dp(40);                                   // clear of the rounded corner / gesture edge
         return p;
     }
 

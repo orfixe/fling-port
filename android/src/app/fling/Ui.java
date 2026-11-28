@@ -47,6 +47,9 @@ final class Ui {
     final Context ctx;
     final boolean dark, black;
     final int page, card, fg, accent, green, orange, red, hairline;
+    /** Material 3 tonal buttons: the secondary container and its content colour — from the
+     *  wallpaper with Monet, a tint of the accent otherwise (they were neutral grey). */
+    final int tonal, onTonal;
 
     // ------------------------------------------------------------ themes (Settings → Appearance)
 
@@ -146,6 +149,13 @@ final class Ui {
         orange = dark ? 0xFFFF9F0A : 0xFFE08600;
         red = dark ? 0xFFFF453A : 0xFFFF3B30;
         hairline = fgA(0.12f);
+        if (you) {
+            tonal = ctx.getColor(dark ? android.R.color.system_accent2_800 : android.R.color.system_accent2_100);
+            onTonal = ctx.getColor(dark ? android.R.color.system_accent2_100 : android.R.color.system_accent2_900);
+        } else {
+            tonal = blend(black ? 0xFF000000 : card, accent, dark ? 0.2f : 0.12f);
+            onTonal = fg;
+        }
     }
 
     int dp(float v) { return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, ctx.getResources().getDisplayMetrics())); }
@@ -325,16 +335,16 @@ final class Ui {
 
     View key(String glyph, String label, float sizeDp, boolean accented, View.OnClickListener on) {
         FrameLayout f = new FrameLayout(ctx);
-        f.setBackground(rippleOval(accented ? accA(0.14f) : fgA(dark ? 0.1f : 0.06f)));
+        f.setBackground(rippleOval(accented ? accA(0.14f) : tonal));
         int s = dp(sizeDp);
         f.setLayoutParams(lp(s, s));
         if (glyph != null) {
             ImageView i = new ImageView(ctx);
-            i.setImageDrawable(new Glyph(glyph, accented ? accent : fg, 2.0f));
+            i.setImageDrawable(new Glyph(glyph, accented ? accent : onTonal, 2.0f));
             int is = Math.round(s * 0.46f);
             f.addView(i, new FrameLayout.LayoutParams(is, is, Gravity.CENTER));
         } else {
-            TextView t = text(label, sizeDp * 0.28f, accented ? accent : fg, true);
+            TextView t = text(label, sizeDp * 0.28f, accented ? accent : onTonal, true);
             f.addView(t, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
         }
         f.setClickable(true);
@@ -355,8 +365,8 @@ final class Ui {
     }
 
     void setChipActive(TextView t, boolean a) {
-        t.setBackground(rippleRound(a ? accA(0.16f) : fgA(dark ? 0.1f : 0.055f), 10));
-        t.setTextColor(a ? accent : fg);
+        t.setBackground(rippleRound(a ? accA(0.3f) : tonal, 10));
+        t.setTextColor(a ? accent : onTonal);
         t.setTypeface(Typeface.create(a ? "sans-serif-medium" : "sans-serif", Typeface.NORMAL));
     }
 
@@ -364,14 +374,100 @@ final class Ui {
         LinearLayout r = row();
         r.setGravity(Gravity.CENTER);
         r.setPadding(dp(6), dp(10), dp(6), dp(10));
-        r.setBackground(rippleRound(fgA(dark ? 0.1f : 0.055f), 10));
-        ImageView i = icon(glyph, fg, 16);
+        r.setBackground(rippleRound(tonal, 10));
+        ImageView i = icon(glyph, onTonal, 16);
         r.addView(i);
-        TextView t = text(label, 13, fg, false);
+        TextView t = text(label, 13, onTonal, false);
         t.setPadding(dp(6), 0, 0, 0);
         r.addView(t);
         r.setOnClickListener(on);
         return r;
+    }
+
+    // ------------------------------------------------------------ Material 3 switch
+
+    /** A Material Design 3 switch: a 52×32 dp track — outlined with a small grey thumb when off,
+     *  filled with the accent and a large thumb carrying a check mark when on — animated. */
+    final class M3Switch extends View {
+        boolean on;
+        private float t;                                   // 0 off … 1 on, animated
+        Runnable onChange;
+        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Path check = new android.graphics.Path();
+
+        M3Switch(boolean on) {
+            super(ctx);
+            this.on = on;
+            t = on ? 1 : 0;
+            setClickable(true);
+            setOnClickListener(v -> toggle());
+            describe();
+        }
+
+        void toggle() { set(!on, true); }
+
+        void set(boolean v, boolean user) {
+            if (v == on) return;
+            on = v;
+            android.animation.ValueAnimator a = android.animation.ValueAnimator.ofFloat(t, on ? 1 : 0).setDuration(170);
+            a.addUpdateListener(x -> { t = (float) x.getAnimatedValue(); invalidate(); });
+            a.start();
+            describe();
+            if (user) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
+            if (user && onChange != null) onChange.run();
+        }
+
+        private void describe() {
+            if (android.os.Build.VERSION.SDK_INT >= 30) setStateDescription(on ? "✓" : "—");
+        }
+
+        @Override protected void onMeasure(int w, int h) { setMeasuredDimension(dp(52), dp(32)); }
+
+        @Override protected void onDraw(Canvas c) {
+            float w = getWidth(), h = getHeight(), r = h / 2f, sw = dp(2);
+            int onC = accent;
+            boolean lightAccent = Color.luminance(accent) > 0.5f;
+            int onAccent = lightAccent ? 0xFF1C1B1F : 0xFFFFFFFF;
+            // track: outline when off, accent fill when on
+            RectF tr = new RectF(sw / 2, sw / 2, w - sw / 2, h - sw / 2);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(alpha(fg, 0.08f * (1 - t)));
+            c.drawRoundRect(tr, r, r, p);
+            if (t > 0) { p.setColor(alpha(onC, t)); c.drawRoundRect(tr, r, r, p); }
+            if (t < 1) {
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(sw);
+                p.setColor(alpha(fg, 0.45f * (1 - t)));
+                c.drawRoundRect(tr, r, r, p);
+            }
+            // thumb: 16 dp grey → 24 dp on the accent's contrast colour
+            float tr2 = dp(8) + (dp(12) - dp(8)) * t;
+            float cx = r + (w - 2 * r) * t, cy = h / 2f;
+            p.setStyle(Paint.Style.FILL);
+            int off = alpha(fg, 0.55f);
+            p.setColor(blend(off, onAccent, t));
+            c.drawCircle(cx, cy, tr2, p);
+            if (t > 0.6f) {                                    // the check mark
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(dp(2));
+                p.setStrokeCap(Paint.Cap.ROUND);
+                p.setStrokeJoin(Paint.Join.ROUND);
+                p.setColor(alpha(onC, (t - 0.6f) / 0.4f));
+                float k = dp(5);
+                check.reset();
+                check.moveTo(cx - k, cy);
+                check.lineTo(cx - k * 0.3f, cy + k * 0.7f);
+                check.lineTo(cx + k, cy - k * 0.6f);
+                c.drawPath(check, p);
+            }
+        }
+    }
+
+    static int blend(int a, int b, float t) {
+        int ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255, aa = (a >>> 24);
+        int br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255, ba = (b >>> 24);
+        return ((int) (aa + (ba - aa) * t) << 24) | ((int) (ar + (br - ar) * t) << 16)
+                | ((int) (ag + (bg - ag) * t) << 8) | (int) (ab + (bb - ab) * t);
     }
 
     // ------------------------------------------------------------ questions
@@ -402,7 +498,7 @@ final class Ui {
             b.setGravity(Gravity.CENTER);
             b.setMinHeight(dp(48));
             b.setPadding(dp(16), dp(12), dp(16), dp(12));
-            b.setBackground(rippleRound(main ? accA(dark ? 0.22f : 0.14f) : fgA(dark ? 0.1f : 0.055f), 14));
+            b.setBackground(rippleRound(main ? accA(dark ? 0.22f : 0.14f) : tonal, 14));
             b.setOnClickListener(v -> { d.dismiss(); if (act != null) act.run(); });
             box.addView(b, margins(lp(-1, -2), 0, main ? 20 : 8, 0, 0));
         }

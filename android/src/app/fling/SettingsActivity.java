@@ -18,6 +18,7 @@ import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.widget.FrameLayout;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
@@ -102,6 +103,7 @@ public class SettingsActivity extends Activity {
         buildLook();
         buildAccent();
         buildBehaviour();
+        buildYoutube();
         buildLanguage();
         buildAbout();
     }
@@ -138,7 +140,7 @@ public class SettingsActivity extends Activity {
         box.addView(seg, Ui.lp(-1, -2));
         c.addView(box);
         if (!cur.equals("light"))
-            c.addView(toggle("AMOLED", L.t("Полностью чёрный фон в тёмной теме. На экранах AMOLED экономит заряд батареи."),
+            c.addView(toggle("AMOLED", null,
                     "amoled", false, this::restyle));
     }
 
@@ -317,25 +319,68 @@ public class SettingsActivity extends Activity {
         r.setPadding(ui.dp(12), ui.dp(10), ui.dp(8), ui.dp(10));
         LinearLayout t = ui.col();
         t.addView(ui.text(title, 16, ui.fg, false));
-        TextView h = ui.text(hint, 13, ui.fgA(0.5f), false);
-        h.setLineSpacing(0, 1.15f);
-        h.setPadding(0, ui.dp(4), 0, 0);
-        t.addView(h);
+        if (hint != null && !hint.isEmpty()) {
+            TextView h = ui.text(hint, 13, ui.fgA(0.5f), false);
+            h.setLineSpacing(0, 1.15f);
+            h.setPadding(0, ui.dp(4), 0, 0);
+            t.addView(h);
+        }
         r.addView(t, Ui.lpW(1));
-        Switch sw = new Switch(this);
-        sw.setChecked(prefs.getBoolean(key, def));
-        int[][] states = {{android.R.attr.state_checked}, {}};
-        sw.setThumbTintList(new ColorStateList(states, new int[]{ui.accent, ui.dark ? 0xFFBDBDC2 : 0xFFFFFFFF}));
-        sw.setTrackTintList(new ColorStateList(states, new int[]{ui.accA(0.5f), ui.fgA(0.25f)}));
-        sw.setOnCheckedChangeListener((b, on) -> {
-            prefs.edit().putBoolean(key, on).apply();
+        Ui.M3Switch sw = ui.new M3Switch(prefs.getBoolean(key, def));   // Material Design 3
+        sw.onChange = () -> {
+            prefs.edit().putBoolean(key, sw.on).apply();
             if (after != null) after.run();
-        });
+        };
         sw.setContentDescription(title);
         r.addView(sw, ui.margins(Ui.lp(-2, -2), 12, 0, 0, 0));
         r.setOnClickListener(v -> sw.toggle());
         r.setBackground(ui.rippleRound(0, 12));
         return r;
+    }
+
+    // ------------------------------------------------------------ YouTube on the TV
+
+    /** Seeking YouTube on the TV: with keys (nothing to set up), or exactly — Fling linked to the
+     *  TV's YouTube with its code (the Lounge API: seek to a second, speed, next / previous). */
+    private void buildYoutube() {
+        section("YouTube");
+        LinearLayout c = card();
+        YtLounge yt = new YtLounge(this);
+        boolean exact = "lounge".equals(prefs.getString("yt_seek", "keys")) && yt.paired();
+        LinearLayout box = ui.col();
+        box.setPadding(ui.dp(12), ui.dp(12), ui.dp(12), ui.dp(6));
+        box.addView(ui.segmented(new String[]{L.t("Кнопками ±30 с"), L.t("Точно, по коду с ТВ")}, exact ? 1 : 0, idx -> {
+            if (idx == 0) { prefs.edit().putString("yt_seek", "keys").apply(); restyle(); return; }
+            if (yt.paired()) { prefs.edit().putString("yt_seek", "lounge").apply(); restyle(); return; }
+            EditText code = ui.field("1234 5678 9012", true);
+            code.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+            ui.ask(this, L.t("Подключить YouTube на ТВ"),
+                    L.t("На телевизоре откройте YouTube → Настройки → «Подключить телевизор по коду» и введите код с экрана."),
+                    code, new String[]{L.t("Подключить"), L.t("Отмена")},
+                    new Runnable[]{() -> new Thread(() -> {
+                        try {
+                            yt.pair(code.getText().toString());
+                            prefs.edit().putString("yt_seek", "lounge").apply();
+                            runOnUiThread(this::restyle);
+                        } catch (Exception e) {
+                            runOnUiThread(() -> android.widget.Toast.makeText(this, L.t("Не получилось: ") + e.getMessage(), android.widget.Toast.LENGTH_LONG).show());
+                        }
+                    }).start(), this::restyle});
+        }), Ui.lp(-1, -2));
+        c.addView(box);
+        TextView hint = ui.text(exact
+                ? L.f("Подключено: %s. Перемотка на секунду, скорость, следующее и предыдущее видео.", yt.screenName() == null ? "YouTube" : yt.screenName())
+                : L.t("±30 с кнопками пульта. Точный режим: перемотка полоской на секунду и скорость."), 13, ui.fgA(0.5f), false);
+        hint.setPadding(ui.dp(12), ui.dp(4), ui.dp(12), ui.dp(10));
+        c.addView(hint);
+        if (yt.paired()) {
+            c.addView(ui.separator());
+            c.addView(ui.row(L.t("Отключить YouTube на ТВ"), "close", null, false, v -> {
+                yt.forget();
+                prefs.edit().putString("yt_seek", "keys").apply();
+                restyle();
+            }));
+        }
     }
 
     // ------------------------------------------------------------ language, about

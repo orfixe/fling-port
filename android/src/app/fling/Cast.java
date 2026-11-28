@@ -42,6 +42,7 @@ final class Cast {
         double duration;
         long updatedAt;
         int volume = -1;
+        double rate = 1;                 // playback speed the receiver reports
         boolean muted;
         String title, subtitle, imageUrl, contentId, appName, appId;
 
@@ -51,7 +52,7 @@ final class Cast {
         double elapsedNow() {
             double e = elapsed;
             if ("PLAYING".equals(state) && updatedAt > 0)
-                e += (SystemClock.elapsedRealtime() - updatedAt) / 1000.0;
+                e += (SystemClock.elapsedRealtime() - updatedAt) / 1000.0 * (rate > 0 ? rate : 1);
             if (duration > 0 && e > duration) e = duration;
             return Math.max(0, e);
         }
@@ -61,7 +62,7 @@ final class Cast {
         Status copy() {
             Status s = new Status();
             s.state = state; s.elapsed = elapsed; s.duration = duration; s.updatedAt = updatedAt;
-            s.volume = volume; s.muted = muted; s.title = title; s.subtitle = subtitle;
+            s.volume = volume; s.muted = muted; s.title = title; s.subtitle = subtitle; s.rate = rate;
             s.imageUrl = imageUrl; s.contentId = contentId; s.appName = appName; s.appId = appId;
             return s;
         }
@@ -305,6 +306,7 @@ final class Cast {
                     st.elapsed = 0;
                 } else {
                     st.elapsed = m.optDouble("currentTime", 0);
+                    st.rate = m.optDouble("playbackRate", 1);
                     if (Double.isNaN(st.elapsed)) st.elapsed = 0;
                 }
                 st.updatedAt = SystemClock.elapsedRealtime();
@@ -533,6 +535,12 @@ final class Cast {
     /** Next (+1) or previous (-1) item of a queue loaded by load(list). */
     void queueJump(int by) {
         try { mediaCmd("QUEUE_UPDATE", new JSONObject().put("jump", by)); } catch (Exception ignored) {}
+    }
+
+    /** Playback speed (0.5–2×) of what Fling casts; the Default Media Receiver takes it. */
+    void setRate(double rate) {
+        synchronized (st) { st.elapsed = st.elapsedNow(); st.updatedAt = SystemClock.elapsedRealtime(); st.rate = rate; }
+        try { mediaCmd("SET_PLAYBACK_RATE", new JSONObject().put("playbackRate", rate)); } catch (Exception ignored) {}
     }
 
     void seekTo(double seconds) {
