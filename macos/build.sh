@@ -36,6 +36,7 @@ REF="${FLING_REF:-$(cat "$ROOT/macos/UPSTREAM_REF")}"
 git clone --quiet "$UPSTREAM_URL" "$WORK/fling"
 git -C "$WORK/fling" checkout --quiet "$REF"
 cp -R "$ROOT/macos/Sources/." "$WORK/fling/Sources/"
+[ -d "$ROOT/macos/Tests" ] && cp -R "$ROOT/macos/Tests/." "$WORK/fling/Tests/"
 
 (
   cd "$WORK/fling"
@@ -50,8 +51,11 @@ cp -R "$ROOT/macos/Sources/." "$WORK/fling/Sources/"
   cp "$BIN" "$APP/Contents/MacOS/Fling"
   # Port-specific plist (own bundle id) — not upstream com.damionrashford.fling
   cp "$ROOT/macos/Info.plist" "$APP/Contents/Info.plist"
-  codesign --force --deep --sign "$SIGN_ID" "$APP"
-  codesign --verify --verbose "$APP"
+  # Hardened runtime (macOS guard): no code injection through DYLD_* variables, no
+  # unsigned libraries, no debugger attach. The entitlements re-allow the microphone
+  # (voice search) and Apple Events (browser tab) under it.
+  codesign --force --deep --options runtime --entitlements "$ROOT/macos/Fling.entitlements" --sign "$SIGN_ID" "$APP"
+  codesign --verify --strict --verbose "$APP"
   echo "built: $APP"
 )
 

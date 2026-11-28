@@ -33,7 +33,8 @@ minisign -Vm SHA256SUMS.txt -p fling-release.pub   # the list is genuine
 sha256sum -c SHA256SUMS.txt --ignore-missing       # your file is on the list
 ```
 
-or with Fling's own tool: `fling-guard verify SHA256SUMS.txt`.
+or with Fling's own tool: `fling-guard verify SHA256SUMS.txt`. On a Mac, `macos/install.sh`
+does this by itself before it installs anything (see below).
 
 A copy that fails this check — or comes from anywhere else — is not Fling, whatever it
 calls itself. Forks are welcome, but they are signed with *their* key (or none), and
@@ -74,6 +75,77 @@ Builds from source (no signed list) run the same checks in **report-only** mode.
 - If the release key ever leaked, signatures would no longer prove anything: the key
   would be replaced and announced on the Releases page.
 - Code signing with an Authenticode certificate (SmartScreen reputation) is planned.
+
+## What protects you after the install (macOS)
+
+There is no separate guard process on the Mac: the checks are built into Fling Port itself
+(Swift, `macos/Sources/FlingKit/Guard/`) and use what macOS provides — code signatures
+(Security framework), the hardened runtime and the process tree (libproc).
+
+1. **Checked install.** `macos/install.sh` downloads `Fling` + `Info.plist` (or the zip),
+   `SHA256SUMS.txt` and `SHA256SUMS.txt.minisig`, checks the signature with the release key
+   above and every file's SHA-256 against the list. Anything that doesn't match → nothing is
+   installed. The check uses `minisign` (installed with Homebrew when it's missing), or the
+   Fling Port that is already installed and verified (`Fling --verify-release`, a built-in
+   minisign verifier: Ed25519 from CryptoKit, BLAKE2b in Swift). It also refuses a release
+   older than the installed one. `FLING_PORT_UNVERIFIED=1` skips the check for a build you made
+   yourself.
+2. **Self check at every start.** The whole app bundle must pass a strict code-signature check
+   (a changed, added or removed file breaks it), signed ad-hoc or by this Mac's own
+   "Fling Port Local" identity. A verified install carries a sealed receipt, and the SHA-256 of
+   the signed program is kept in `~/Library/Application Support/Fling Port/install.plist`;
+   the program on disk must still have it. A problem → you are told what is wrong and Fling
+   Port quits.
+3. **Every program Fling Port starts is checked first** — catt, osascript, openssl, and the
+   tools added later (adb, scrcpy, tailscale, brew). The path is resolved to the real file
+   (links in `~/.local/bin` or `/opt/homebrew/bin` are judged by what they point to). It may run
+   only if it is
+   - in a folder only an administrator can change (owned by root all the way up: `/usr/bin`,
+     `/bin`, root-installed `/usr/local/bin`…), or
+   - signed by Apple, a Developer ID or the Mac App Store (checked offline), or
+   - a program you allowed: unsigned programs (Homebrew builds, uv's Python…) are shown with
+     their path and SHA-256 and run only after you click *Allow*; Fling Port remembers those
+     exact bytes and asks again when they change (after `brew upgrade`). The Tools window
+     registers the tools it installs the same way, with the publisher's checksum where there is
+     one. List: `~/Library/Application Support/Fling Port/trusted-tools.json`.
+   - Scripts: the interpreter (`#!`, also `/usr/bin/env python3`) passes the same rules, and the
+     script file itself must be in an admin-only folder or allowed by its hash — `catt` (a
+     Python script from uv) is allowed together with its Python.
+
+   Unsigned code in a temporary folder (`/tmp`, `/var/folders`, `~/Downloads`, caches, the
+   Trash, other volumes) is refused outright. Every 5 s Fling Port also looks at all processes
+   below it: one started *by* its programs that these rules refuse is stopped (except below an
+   installer run such as `brew install`).
+4. **CPU watchdog.** A process started by Fling Port that keeps more than 30% of the whole
+   machine (all cores) busy for 90 s is stopped and you are told. Fling Port itself is never
+   stopped.
+5. **Hardened runtime.** The app is signed with `--options runtime`: no code injection through
+   `DYLD_*` variables, no unsigned libraries, no debugger attach. Only two exceptions are
+   granted: the microphone (voice search) and Apple Events (reading the browser's tab).
+6. Log: `~/Library/Logs/Fling Port/guard.log` (1 MB, two older files kept).
+
+Builds from source (`./macos/build.sh`, no verified receipt) run the same checks in
+**report-only** mode: everything is logged, nothing is refused or stopped
+(`defaults write app.orfixe.flingport guardMode enforce` turns enforcing on).
+
+### Honest limits (macOS)
+
+- Software running as *your* macOS user can replace the whole app, re-sign it ad-hoc, and
+  rewrite the receipt, the install record and the list of allowed programs. The checks catch
+  partial tampering, bad downloads and programs dropped next to Fling's tools — not malware
+  that already owns your account. Keep macOS up to date and XProtect on.
+- **No Gatekeeper, no notarization.** Those need an Apple Developer ID (a paid Apple
+  account), which this port doesn't have: the app is signed ad-hoc or with a self-made local
+  identity, so macOS itself vouches for nothing. That's why `install.sh` downloads with
+  `curl` (no quarantine) and checks the release signature itself.
+- Child processes are checked by the file they start from, not by what they load: a Python
+  you allowed can run any Python code, a script's imports aren't hashed. Programs Fling Port
+  didn't start are not watched. Checks happen just before the start (and every 5 s for
+  grandchildren), so a file swapped in between can slip through once.
+- Developer-ID signatures are checked offline: a revoked certificate isn't noticed until
+  macOS itself notices.
+- If the release key ever leaked, signatures would no longer prove anything: the key would be
+  replaced and announced on the Releases page.
 
 ## Other safeguards in the code
 

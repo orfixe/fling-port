@@ -52,7 +52,7 @@ func pinClean(_ s: String) -> String {
 func tr<S: StringProtocol>(_ s: S) -> String {
     let text = String(s)
     guard Lang.isRussian, !text.isEmpty else { return text }
-    if let ru = RU.exact[text] { return ru }
+    if let ru = RU.exact[text] ?? GuardL10n.ru[text] { return ru }   // + the guard's phrases (GuardUI.swift)
     for (rx, template) in RU.patterns {
         let range = NSRange(text.startIndex..., in: text)
         if rx.firstMatch(in: text, range: range) != nil {
