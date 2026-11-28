@@ -46,7 +46,13 @@ final class YtLounge {
 
     /** The code the TV shows in YouTube → Settings → Link with TV code (spaces allowed). */
     synchronized void pair(String code) throws IOException {
-        String body = post(API + "/pairing/get_screen", form("pairing_code", code.replaceAll("\\D", "")));
+        String digits = code.replaceAll("\\D", "");
+        if (digits.length() < 8) throw new IOException(L.t("Введите код с экрана YouTube на ТВ."));
+        String body;
+        try { body = post(API + "/pairing/get_screen", form("pairing_code", digits)); }
+        catch (HttpError e) {                                       // 404: no screen has this code (wrong or expired)
+            throw new IOException(e.code == 404 ? L.t("Код не подошёл — проверьте его на экране ТВ.") : L.t("YouTube не ответил, попробуйте ещё раз."));
+        }
         String screen = field(body, "screenId"), token = field(body, "loungeToken");
         if (screen == null || token == null) throw new IOException(L.t("Код не подошёл — проверьте его на экране ТВ."));
         prefs.edit().putString("screen", screen).putString("token", token).putString("name", field(body, "name")).apply();

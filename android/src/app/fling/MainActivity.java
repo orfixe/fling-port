@@ -1112,8 +1112,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         if (sam.handles(h)) { atv.launch(h, !link.isEmpty() ? link : pkg); return; }   // Samsung's own apps
         final boolean ownLink = link.contains("://") && !link.startsWith("http://") && !link.startsWith("https://")
                 && !link.startsWith("market://");
-        boolean adbMaybe = Adb.lastState == null || "ok".equals(Adb.lastState);
-        if (adbMaybe && pkg.matches("[A-Za-z][\\w]*(\\.[\\w]+)+")) {
+        // always try ADB first: a stale "unauthorized" / "closed" may be over (the TV allowed it since)
+        if (pkg.matches("[A-Za-z][\\w]*(\\.[\\w]+)+")) {
             bg(() -> {
                 boolean opened = false;
                 try {
@@ -2315,7 +2315,8 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private void showSetup() {
         final int TV = 0, ADB = 1, HELPER = 2, PAIR = 3, YT = 4, DONE = 5;
         final int[] step = {TV};
-        final int[] shown = {-1};                                   // the step the field was last set up for
+        final int[] shown = {-1};
+        adbAsks = 0;                                   // the step the field was last set up for
         final boolean[] skipped = new boolean[6];
         final android.app.Dialog d = new android.app.Dialog(this);
         d.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
@@ -2462,6 +2463,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             }
         };
         render[0].run();                                            // always from the TV list: step 1
+        d.setCanceledOnTouchOutside(false);                         // a tap beside it must not lose the steps
         d.setOnDismissListener(x -> { main.removeCallbacks(setupTick); setupDlg = null; });
         setupDlg = d;
         d.show();

@@ -348,6 +348,8 @@ final class L {
         e("Свой цвет", "Your own colour");
         e("Субтитры", "Subtitles");
         e("Первые шаги", "First steps");
+        e("Введите код с экрана YouTube на ТВ.", "Type the code from YouTube on the TV.");
+        e("YouTube не ответил, попробуйте ещё раз.", "YouTube didn't answer, try again.");
         e("Окно на ТВ так и не появилось? На ТВ выключите и снова включите «Отладка по сети» (или перезагрузите ТВ), затем нажмите «Проверить».", "No window on the TV? Turn Network debugging off and on again on the TV (or restart the TV), then press \"Check\".");
         e("Смотрите на ТВ: «Разрешить отладку?» — отметьте «Всегда разрешать с этого компьютера» и нажмите «Разрешить».", "Look at the TV: \"Allow debugging?\" — tick \"Always allow from this computer\" and press \"Allow\".");
         e("ТВ не получил разрешения. Нажмите «Проверить» — на ТВ снова появится запрос, у вас будет полторы минуты.", "The TV wasn't allowed. Press \"Check\" — the TV asks again, and you'll have a minute and a half.");
