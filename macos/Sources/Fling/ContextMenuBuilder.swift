@@ -59,6 +59,8 @@ struct ContextMenuBuilder {
         menu.addItem(action("Stop casting", key: ".", modifiers: [.command],
                             enabled: casting) { Task { await state.stopCasting() } })
         menu.addItem(.separator())
+        menu.addItem(LiveMenu.item(state: state))   // port: TV screen (scrcpy), LiveUI.swift
+        menu.addItem(.separator())
 
         let login = action("Open at Login") { LoginItem.toggle() }
         login.state = LoginItem.isEnabled ? .on : .off

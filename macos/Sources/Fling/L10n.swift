@@ -57,6 +57,7 @@ func tr<S: StringProtocol>(_ s: S) -> String {
         RU.exact,
         TailscaleRU.exact,
         RemoteRU.exact,
+        LiveL10n.ru,
     ]
     let patternTables: [[(NSRegularExpression, String)]] = [
         RU.patterns,

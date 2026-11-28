@@ -36,6 +36,23 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
   in the remote or the menu-bar icon's right-click menu.
 - macOS: **sleep timer** (15 min – 2 h) with a "the TV turns off in N min" strip and Cancel, plus
   explicit Turn on / Turn off, in the same "⋯" menu and right-click menu.
+- macOS: **LIVE — the TV's screen with the Mac's mouse and keyboard**, in its own window
+  (scrcpy over ADB, like Linux). "TV screen in its own window" and "Mouse on the TV, no
+  picture" are in the panel and in the right-click menu (TV screen (LIVE)); the same item
+  again closes it. Same as on the PC: low delay (the TV's encoder asked for realtime
+  priority and at most one frame held; a TV that refuses gets the plain start and is
+  remembered), quality Auto / Sharp / **Fast** (960 px at 60 frames/s) / Saver, "Mouse" (the
+  Mac's pointer, each click exactly there) by default or "TV cursor" (falls back to taps on
+  TVs without it), "Just watch", keyboard to the TV (on by default; the window comes to the
+  front so typing goes to the TV at once), TV sound on the Mac (Android 11+). Russian and
+  accented letters scrcpy can't type go through the TV remote instead. Options are
+  remembered; changing one reopens the picture.
+- macOS: LIVE finds scrcpy and adb where Homebrew and Android Studio put them; when one is
+  missing it says so in plain words and copies the install command (`brew install scrcpy`,
+  `brew install --cask android-platform-tools`). It connects ADB to the chosen TV by itself
+  (the wireless-debugging port the TV announces, or 5555) and says when the TV wants
+  "Allow" pressed or network debugging turned on.
+- macOS: quitting Fling closes the TV screen it opened (only Fling's own scrcpy).
 
 ## [0.5.8] - 2026-11-28
 
