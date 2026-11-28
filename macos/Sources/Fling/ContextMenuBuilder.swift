@@ -55,6 +55,7 @@ struct ContextMenuBuilder {
                             enabled: casting) { Task { await state.stopCasting() } })
         menu.addItem(.separator())
 
+        menu.addItem(action("Tools & Catalog…") { ToolsWindowController.shared.show(state: state) })
         let login = action("Open at Login") { LoginItem.toggle() }
         login.state = LoginItem.isEnabled ? .on : .off
         menu.addItem(login)

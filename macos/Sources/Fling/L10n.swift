@@ -53,6 +53,7 @@ func tr<S: StringProtocol>(_ s: S) -> String {
     let text = String(s)
     guard Lang.isRussian, !text.isEmpty else { return text }
     if let ru = RU.exact[text] { return ru }
+    if let ru = ToolsRU.lookup(text) { return ru }   // Tools window + Catalog (ToolsL10n.swift)
     for (rx, template) in RU.patterns {
         let range = NSRange(text.startIndex..., in: text)
         if rx.firstMatch(in: text, range: range) != nil {

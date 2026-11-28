@@ -10,6 +10,23 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+### Added
+
+- macOS: **Tools window** (right-click menu ▸ Tools & Catalog…) finds catt, adb and scrcpy
+  already on the Mac (Homebrew, uv, Android SDK, PATH) and shows each copy's path and version,
+  which one is used, the newest version the publisher offers and copies too old for Fling.
+  Install / Update runs `brew install` / `brew upgrade` (catt: `uv tool install`, getting uv
+  the way `macos/install.sh` does) only when clicked, with the command and its output shown;
+  without Homebrew it says in plain words what to install and links the official pages.
+- macOS: **Catalog** tab — the same official TV apps as the PC build (VLC, Kodi, Jellyfin,
+  Moonlight, LocalSend, Tailscale, Material Files, F-Droid) with the same checks before
+  anything reaches the TV: the publisher's SHA-256 (GitHub digest and checksum file must agree;
+  VideoLAN / Kodi checksum from the official host with redirects refused; Tailscale's own
+  `.sha256`; F-Droid's index verified through its signed `entry.jar` against the pinned
+  repository key, with no rollback to an older index), then the APK's package name and the
+  developer's pinned signing certificate (APK Signature Scheme v2/v3/v3.1 or v1). Shows which
+  apps are on the TV and their versions, installs, updates, opens and removes them over ADB.
+
 ## [0.5.8] - 2026-11-28
 
 ### Fixed
