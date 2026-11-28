@@ -61,7 +61,7 @@ SOCKET = "fling-panel"
 SEEK = 30
 GLOBAL_SHORTCUT = P.GLOBAL_SHORTCUT
 SHORTCUT_LABEL = P.SHORTCUT_LABEL
-VERSION = "0.6.2"
+VERSION = "0.6.3"
 
 # ---------------------------------------------------------------- config
 
@@ -2071,6 +2071,20 @@ class State(QObject):
         self.changed.emit()
 
     def _send_volume(self):
+        # An app started on the TV (YouTube from the TV's remote) has no Cast session to take a Cast
+        # volume: with ADB, set the TV's own volume, whatever plays; Cast only without it.
+        if self.ip and not SV.is_sv(self.device) and self.adb_ok():
+            ip, v = self.ip, self.volume
+
+            def work():
+                r = adb_cmd(ip, ["shell", "cmd", "media_session", "volume", "--stream", "3", "--get"], timeout=8)
+                m = re.search(r"range \[0\.\.(\d+)\]", r.stdout or "")
+                if not m:
+                    raise OSError("the TV didn't say its volume range")
+                level = round(v * int(m.group(1)) / 100)
+                adb_cmd(ip, ["shell", "cmd", "media_session", "volume", "--stream", "3", "--set", str(level)], timeout=8)
+            self.bg(work, lambda r, e: e and self._catt(["volume", str(v)]))
+            return
         self._catt(["volume", str(self.volume)])
 
     # TV volume (Android TV Remote): the level the TV itself reports, not the Cast app volume

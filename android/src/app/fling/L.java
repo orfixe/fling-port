@@ -346,6 +346,7 @@ final class L {
         e("Зелёный", "Green");
         e("Графит", "Graphite");
         e("Свой цвет", "Your own colour");
+        e("Субтитры", "Subtitles");
         e("Пульт и трансляция", "Remote and casting");
         e("Уведомление с кнопками", "Playback notification");
         e("Пульт в уведомлении", "Remote in the notification");

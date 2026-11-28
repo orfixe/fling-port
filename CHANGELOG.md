@@ -10,6 +10,23 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-11-28
+
+### Added
+
+- Android: **seek by dragging the progress bar**; the time shows where it will go, letting go
+  seeks. For an app started on the TV (YouTube from its remote) it goes in 10 s steps.
+- Android: in the now-playing card, **subtitles (CC), previous and next** for the TV's own
+  apps; the title is one running line instead of two cut ones.
+
+### Fixed
+
+- PC and Android: **volume did nothing for YouTube started on the TV** — the slider sent a
+  Cast volume, and such an app has no Cast session. With ADB it now sets the TV's own volume
+  (and the phone's volume keys do too); pause and seek also go over ADB without pairing.
+- Android: the remote no longer disappears when the TV has forgotten the phone but ADB works.
+- Android: "Now:" uses the TV's name for the app ("HDrezka App", not "Hdrezkaapp").
+
 ## [0.6.2] - 2026-11-28
 
 ### Fixed
@@ -743,7 +760,8 @@ unchanged.
 - Release clean-up: the APK's manual-IP hint now shows an example address
   instead of a real one, and the TV's name is hidden in the screenshots.
 
-[unreleased]: https://github.com/orfixe/fling-port/compare/v0.6.2...HEAD
+[unreleased]: https://github.com/orfixe/fling-port/compare/v0.6.3...HEAD
+[0.6.3]: https://github.com/orfixe/fling-port/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/orfixe/fling-port/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/orfixe/fling-port/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/orfixe/fling-port/compare/v0.5.8...v0.6.0

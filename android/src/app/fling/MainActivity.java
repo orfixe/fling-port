@@ -173,7 +173,13 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     private Ui.RefreshButton nowRefresh, linkRefresh;
     private View linkArtFrame;
     private TextView nowTitle, nowSub, nowEl, nowRem, nowHint;
-    private Ui.Progress nowProg;
+    private Ui.Slider nowProg;                    // the progress bar: drag it to seek
+    private View ccKey;
+    /** The TV's own volume over ADB ("volume is 8 in range [0..15]"), -1 while unknown. */
+    private volatile int tvVol = -1, tvVolMax = -1;
+    private boolean adbOk() { return "ok".equals(Adb.lastState); }
+    /** Media on the TV that Fling controls with keys (an app started on the TV, not Fling's cast). */
+    private boolean tvMedia() { return adbSt != null && adbSt.hasMedia() && (paired() || adbOk()); }
     private FrameLayout playKey;
     private ImageView playIcon;
     private Ui.Slider castVol;
@@ -433,7 +439,14 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         adbNext = now + 3000;
         bg(() -> {
             Cast.Status r = null;
-            try { r = adb.nowPlaying(h); } catch (Exception e) {
+            try {
+                r = adb.nowPlaying(h);
+                if (r != null && r.hasMedia()) {
+                    java.util.regex.Matcher vm = java.util.regex.Pattern.compile("volume is (\\d+) in range \\[0\\.\\.(\\d+)\\]")
+                            .matcher(adb.shell(h, "cmd media_session volume --stream 3 --get"));
+                    if (vm.find()) { tvVol = Integer.parseInt(vm.group(1)); tvVolMax = Integer.parseInt(vm.group(2)); }
+                }
+            } catch (Exception e) {
                 // ADB off, or waiting for "Allow debugging": do NOT keep re-prompting the TV
                 if ("unauthorized".equals(Adb.lastState))
                     adbNext = SystemClock.elapsedRealtime() + 300000;   // 5 min
@@ -454,6 +467,11 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
                 sync();
             });
         });
+    }
+
+    private boolean inQueue() {
+        Cast.Status v = view();
+        return v != null && CastService.queue.size() > 1 && CastService.queueIndex(v.contentId) >= 0;
     }
 
     private void connectDevice() {
@@ -921,7 +939,11 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         tileNames.clear();
         tileBadges.clear();
         List<String[]> list = apps();
-        for (String[] a : list) if (!a[2].isEmpty()) tileNames.put(a[2], a[0]);
+        for (String[] a : list) {                                     // a name made from the package -> the TV's own
+            String tvName = TvIcons.label(this, a[2]);
+            if (tvName != null && a[0].equals(labelFor(a[2]))) a[0] = tvName;
+            if (!a[2].isEmpty()) tileNames.put(a[2], a[0]);           // "Now: …" uses the same name
+        }
         boolean icons = false;
         for (String[] a : list) if (TvIcons.icon(this, a[2]) != null) { icons = true; break; }
         final int tileH = ui.dp(icons ? 50 : 38);                 // one height for every tile, "+" too
@@ -933,8 +955,6 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             if (i < list.size()) {
                 final int idx = i;
                 final String[] app = list.get(i);
-                String tvName = TvIcons.label(this, app[2]);           // a name made from the package -> the TV's own
-                if (tvName != null && app[0].equals(labelFor(app[2]))) app[0] = tvName;
                 final FrameLayout cell = new FrameLayout(this);
                 TextView c = ui.chip(app[0], v -> { if (!editTiles) launchTile(app); });
                 c.setTag(app[2]);
@@ -1413,7 +1433,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     // ================================================================ playback actions
 
     private void togglePlay() {
-        if (adbSt != null && adbSt.hasMedia() && paired()) {
+        if (tvMedia()) {
             tvKey(Atv.PLAY_PAUSE);
             adbSt.elapsed = adbSt.elapsedNow(); adbSt.updatedAt = SystemClock.elapsedRealtime();
             adbSt.state = adbSt.playing() ? "PAUSED" : "PLAYING";
@@ -1421,7 +1441,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             sync(); return;
         }
         if (st == null) return;
-        if (paired()) { tvKey(Atv.PLAY_PAUSE); return; }
+        if (paired() || (st.stuck() && adbOk())) { tvKey(Atv.PLAY_PAUSE); return; }
         if (st.stuck()) { showError(L.t("Телевизор игнорирует паузу по Chromecast (так ведёт себя YouTube на ТВ). Нажмите «Связать с ТВ» ниже — пауза будет работать как кнопка пульта.")); return; }
         if (st.playing()) cast.pause(); else cast.play();
         st = cast.status();   // Cast updates its status optimistically without onStatus
@@ -1429,27 +1449,61 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
     }
 
     private void seek(int s) {
-        if (adbSt != null && adbSt.hasMedia() && paired()) {
-            for (int i = 0; i < Math.max(1, Math.abs(s) / 10); i++) tvKey(s > 0 ? Atv.FFWD : Atv.REWIND);
-            adbNext = 0; main.postDelayed(this::pollAdb, 1500);
-            return;
-        }
-        if (st != null && st.stuck()) {
-            if (!paired()) { showError(L.t("Перемотка этого видео работает только после «Связать с ТВ» — кнопка ниже.")); return; }
-            for (int i = 0; i < 3; i++) tvKey(s > 0 ? Atv.FFWD : Atv.REWIND);
+        if (tvMedia() || (st != null && st.stuck())) {
+            if (!paired() && !adbOk()) { showError(L.t("Перемотка этого видео работает только после «Связать с ТВ» — кнопка ниже.")); return; }
+            seekKeys(Math.max(1, Math.abs(s) / 10) * (s > 0 ? 1 : -1));
             return;
         }
         cast.seekBy(s);
     }
 
+    /** n presses of fast-forward (n > 0) or rewind: ~10 s each in YouTube; one ADB command for all. */
+    private void seekKeys(int n) {
+        if (n == 0) return;
+        final int code = n > 0 ? Atv.FFWD : Atv.REWIND, k = Math.min(Math.abs(n), 60);
+        final String h = host;
+        if (!paired() && adbOk() && h != null) {
+            StringBuilder cmd = new StringBuilder("input keyevent");
+            for (int i = 0; i < k; i++) cmd.append(' ').append(code);
+            bg(() -> { try { adb.shell(h, cmd.toString()); } catch (Exception ignored) {} });
+        } else for (int i = 0; i < k; i++) tvKey(code);
+        adbNext = 0; main.postDelayed(this::pollAdb, 1500);
+    }
+
+    /** Drag on the progress bar: Fling's cast seeks exactly; an app on the TV by 10 s presses. */
+    private void seekTo(double target) {
+        Cast.Status v = view();
+        if (v == null) return;
+        if (tvMedia() || v.stuck()) seekKeys((int) Math.round((target - v.elapsedNow()) / 10.0));
+        else cast.seekTo(target);
+    }
+
+    private final Runnable seekNow = () -> {
+        Cast.Status v = view();
+        if (v != null && v.duration > 0) seekTo(v.duration * nowProg.value / 100.0);
+    };
+
+    /** The TV's own volume (0..100 on the slider) over ADB: absolute, works for any app. */
+    private void setTvVolume(int pct) {
+        final String h = host;
+        final int max = tvVolMax;
+        if (h == null || max <= 0) return;
+        final int level = Math.round(pct * max / 100f);
+        tvVol = level;
+        bg(() -> { try { adb.shell(h, "cmd media_session volume --stream 3 --set " + level); } catch (Exception ignored) {} });
+    }
+
     private final Runnable sendVolume = () -> {
-        if (volPending >= 0) { cast.setVolume(volPending); volPending = -1; st = cast.status(); }
+        if (volPending < 0) return;
+        if (adbOk() && tvVolMax > 0 && !isSamsung()) setTvVolume(volPending);   // the TV's volume, whatever plays
+        else { cast.setVolume(volPending); st = cast.status(); }
+        volPending = -1;
     };
 
     @Override public boolean onKeyDown(int code, KeyEvent e) {
         if ((code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN) && host != null && volKeys()) {
             boolean up = code == KeyEvent.KEYCODE_VOLUME_UP;
-            if (paired()) tvKey(up ? Atv.VOL_UP : Atv.VOL_DOWN);
+            if (paired() || adbOk()) tvKey(up ? Atv.VOL_UP : Atv.VOL_DOWN);
             else if (st != null && st.volume >= 0) {
                 int v = Math.max(0, Math.min(100, (volPending >= 0 ? volPending : st.volume) + (up ? 5 : -5)));
                 volPending = v;
@@ -1465,7 +1519,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
     @Override public boolean onKeyUp(int code, KeyEvent e) {
         if ((code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN) && host != null && volKeys()
-                && (paired() || (st != null && st.volume >= 0))) return true;
+                && (paired() || adbOk() || (st != null && st.volume >= 0))) return true;
         return super.onKeyUp(code, e);
     }
 
@@ -1715,13 +1769,23 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         });
         nowCard.addView(ui.artFrame(nowArt, nowRefresh), Ui.lp(-1, -2));
         nowTitle = ui.text("", 17, ui.fg, true);
-        nowTitle.setMaxLines(2);
-        nowTitle.setEllipsize(TextUtils.TruncateAt.END);
+        nowTitle.setSingleLine(true);                                  // one running line, not two cut ones
+        nowTitle.setEllipsize(TextUtils.TruncateAt.MARQUEE);
+        nowTitle.setMarqueeRepeatLimit(-1);
+        nowTitle.setHorizontallyScrolling(true);
+        nowTitle.setSelected(true);
         nowCard.addView(nowTitle, ui.margins(Ui.lp(-1, -2), 4, 12, 4, 0));
         nowSub = ui.text("", 14, ui.fgA(0.5f), false);
         nowCard.addView(nowSub, ui.margins(Ui.lp(-1, -2), 4, 4, 4, 0));
-        nowProg = ui.new Progress();
-        nowCard.addView(nowProg, ui.margins(Ui.lp(-1, ui.dp(4)), 4, 14, 4, 0));
+        nowProg = ui.new Slider();
+        nowProg.listener = (v, user) -> {
+            if (!user) return;
+            Cast.Status cs = view();
+            if (cs != null && cs.duration > 0) nowEl.setText(clock(cs.duration * v / 100.0));   // where it will go
+            main.removeCallbacks(seekNow);
+            main.postDelayed(seekNow, 450);                              // after the finger rests
+        };
+        nowCard.addView(nowProg, ui.margins(Ui.lp(-1, ui.dp(28)), 0, 8, 0, 0));
         LinearLayout times = ui.row();
         nowEl = ui.text("0:00", 12, ui.fgA(0.35f), false);
         nowEl.setFontFeatureSettings("tnum");
@@ -1740,9 +1804,9 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         playIcon = (ImageView) playKey.getChildAt(0);
         View fwd = seekFwd = ui.key("fwd30", null, 50, false, v -> seek(SEEK));
         // previous / next: only for a queue of phone files
-        prevKey = ui.key("prev", null, 42, false, v -> cast.queueJump(-1));
+        prevKey = ui.key("prev", null, 42, false, v -> { if (inQueue()) cast.queueJump(-1); else tvKey(Atv.PREV); });
         prevKey.setContentDescription(L.t("Предыдущий"));
-        nextKey = ui.key("next", null, 42, false, v -> cast.queueJump(1));
+        nextKey = ui.key("next", null, 42, false, v -> { if (inQueue()) cast.queueJump(1); else tvKey(Atv.NEXT); });
         nextKey.setContentDescription(L.t("Следующий"));
         ctl.addView(prevKey, ui.margins(Ui.lp(ui.dp(42), ui.dp(42)), 0, 0, 12, 0));
         ctl.addView(back);
@@ -1759,6 +1823,9 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
 
         LinearLayout vol = ui.row();
         vol.setPadding(ui.dp(4), 0, ui.dp(4), 0);
+        ccKey = ui.key(null, "CC", 36, false, v -> tvKey(Atv.CAPTIONS));   // subtitles on / off in the TV app
+        ccKey.setContentDescription(L.t("Субтитры"));
+        vol.addView(ccKey, ui.margins(Ui.lp(ui.dp(36), ui.dp(36)), 0, 0, 10, 0));
         vol.addView(ui.icon("spk_wave", ui.fgA(0.5f), 18));
         castVol = ui.new Slider();
         castVol.listener = (v, user) -> {
@@ -2121,7 +2188,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         double el = st.elapsedNow(), d = st.duration;
         nowEl.setText(clock(el));
         nowRem.setText(d > 0 && d > el ? "−" + clock(d - el) : "");
-        nowProg.set(d > 0 ? (float) (el / d) : 0);
+        nowProg.set(d > 0 ? (int) Math.round(el * 100 / d) : 0);
     }
 
     private static String appName(String pkg) {
@@ -2188,15 +2255,23 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
             playIcon.setImageDrawable(new Ui.Glyph(icon, ui.accent, 2.0f));
             nowHint.setText(stuck && !paired ? L.t("ТВ не принимает команды по Chromecast для этого видео. Нажмите «Связать с ТВ» ниже — пауза и перемотка будут работать как кнопки пульта.") : "");
             nowHint.setVisibility(stuck && !paired ? View.VISIBLE : View.GONE);
-            if (st.volume >= 0 && volPending < 0) { castVol.set(st.volume); castVolNum.setText(String.valueOf(st.volume)); }
-            boolean queue = CastService.queue.size() > 1 && CastService.queueIndex(st.contentId) >= 0;
-            prevKey.setVisibility(queue ? View.VISIBLE : View.GONE);
-            nextKey.setVisibility(queue ? View.VISIBLE : View.GONE);
+            if (volPending < 0) {
+                if (adbOk() && tvVolMax > 0 && tvVol >= 0 && !isSamsung()) {   // the TV's own volume
+                    castVol.set(Math.round(tvVol * 100f / tvVolMax));
+                    castVolNum.setText(String.valueOf(tvVol));
+                } else if (st.volume >= 0) { castVol.set(st.volume); castVolNum.setText(String.valueOf(st.volume)); }
+            }
+            boolean queue = inQueue();
+            boolean tvKeys = !queue && (tvMedia() || st.stuck()) && (paired() || adbOk());
+            prevKey.setVisibility(queue || tvKeys ? View.VISIBLE : View.GONE);
+            nextKey.setVisibility(queue || tvKeys ? View.VISIBLE : View.GONE);
+            ccKey.setVisibility(tvKeys ? View.VISIBLE : View.GONE);
+            nowProg.setEnabled(st.duration > 0);
             // five keys need 300 dp: on narrower phones a queue shows previous / play / next only
-            boolean seekKeys = !queue || getResources().getConfiguration().screenWidthDp >= 360;
+            boolean seekKeys = !(queue || tvKeys) || getResources().getConfiguration().screenWidthDp >= 360;
             seekBack.setVisibility(seekKeys ? View.VISIBLE : View.GONE);
             seekFwd.setVisibility(seekKeys ? View.VISIBLE : View.GONE);
-            int gap = ui.dp(queue ? (seekKeys ? 14 : 24) : 28);
+            int gap = ui.dp(queue || tvKeys ? (seekKeys ? 14 : 24) : 28);
             if (gap1.getLayoutParams().width != gap) { gap1.getLayoutParams().width = gap; gap2.getLayoutParams().width = gap; gap1.requestLayout(); gap2.requestLayout(); }
         }
         // media notification + lock-screen controls (CastService) while the TV plays a Cast session
@@ -2249,7 +2324,7 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         pinOk.setText(pairState.equals("verifying") ? "…" : L.t("Связать"));
         pinOk.setAlpha(pinEdit.getText().length() == 6 ? 1f : 0.4f);
         setupBox.setVisibility(idleLike && !paired ? View.VISIBLE : View.GONE);
-        ctlBox.setVisibility(idleLike && paired ? View.VISIBLE : View.GONE);
+        ctlBox.setVisibility(idleLike && (paired || (adbOk() && !isSamsung())) ? View.VISIBLE : View.GONE);
         samBox.setVisibility(isSamsung() ? View.VISIBLE : View.GONE);
         pinFail.setText(pairMsg);
         pinFail.setVisibility(pairState.equals("failed") && !pairMsg.isEmpty() ? View.VISIBLE : View.GONE);
