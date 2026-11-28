@@ -10,6 +10,20 @@ by Damion Rashford and Tatiana; see [CREDITS.md](CREDITS.md).
 
 ## [Unreleased]
 
+- macOS: **ADB in one click**, as on the PC: Fling finds adb (Homebrew, Android SDK, PATH; if it's
+  missing the panel says `brew install android-platform-tools` — nothing is installed silently),
+  finds the TV's ADB ports by mDNS, keeps each TV's own port, waits for "Allow" on the TV, asks
+  for the 6-digit code only when the TV shows "Pair with code", says how to turn debugging on
+  and connects by itself once it is; IP and ports by hand under "By hand…".
+- macOS: **what really plays on the TV** (title, artist, position, artwork from a YouTube search)
+  from the TV's media session over ADB — every 3 s with the panel open, 10 s while something
+  plays, once a minute when idle; only for a TV that already allowed this Mac (no prompts).
+- macOS: **TV screenshot** over ADB, saved to ~/Pictures/Fling and opened; black DRM shots explained.
+- macOS: **install an APK on the TV**: file picker (several files = one split app), drop on the
+  ADB block, or Finder "Open With → Fling Port".
+- macOS: Fling runs its own adb server on its own port and stops only that one on quit —
+  Android Studio's adb is left alone.
+
 ## [0.5.8] - 2026-11-28
 
 ### Fixed
