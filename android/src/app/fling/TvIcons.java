@@ -22,13 +22,13 @@ import java.util.regex.Pattern;
 /** The real names and icons of the TV's apps, read on the TV itself.
  *
  *  ADB alone gives only package names (labels and icons are resources inside each APK). So a
- *  3 KB program (assets/tv-icons.dex, source android/tvtool/Icons.java) is pushed to
+ *  small program (assets/tv-icons.dex, source android/tvtool/Icons.java) is pushed to
  *  /data/local/tmp — as scrcpy-server is — and run with app_process: it asks the TV's
  *  PackageManager and prints "package TAB label TAB base64 PNG" per app. Icons are kept on the
  *  phone (files/tv-icons), names in prefs, so the tiles show them without ADB later. */
 final class TvIcons {
     private static final String DEVICE_PATH = "/data/local/tmp/fling-icons.dex";
-    private static final int SIZE = 96;
+    private static final int SIZE = 192;                  // xxxhdpi-sharp on any phone
     private static final Pattern PKG = Pattern.compile("[A-Za-z][\\w]*(\\.[\\w]+)+");
     private static final Map<String, Bitmap> mem = new ConcurrentHashMap<>();
     private static final Map<String, String> labels = new ConcurrentHashMap<>();
@@ -36,10 +36,20 @@ final class TvIcons {
 
     private TvIcons() {}
 
+    private static final int ICON_VERSION = 2;           // 2: 192 px from the app's xxxhdpi drawable
+
     private static File dir(Context c) {
         File d = new File(c.getFilesDir(), "tv-icons");
         //noinspection ResultOfMethodCallIgnored
         d.mkdirs();
+        SharedPreferences p = names(c);
+        if (p.getInt("_version", 1) != ICON_VERSION) {     // older, blurrier icons: fetched again
+            File[] old = d.listFiles();
+            if (old != null) for (File f : old) //noinspection ResultOfMethodCallIgnored
+                f.delete();
+            mem.clear();
+            p.edit().putInt("_version", ICON_VERSION).apply();
+        }
         return d;
     }
 
@@ -94,31 +104,55 @@ final class TvIcons {
         List<String> ok = new ArrayList<>();
         for (String p : pkgs) if (p != null && PKG.matcher(p).matches() && !ok.contains(p)) ok.add(p);
         if (ok.isEmpty()) return 0;
+        StringBuilder args = new StringBuilder(String.valueOf(SIZE));
+        for (String p : ok) args.append(' ').append(p);   // validated package names only: they go through the TV's shell
+        return save(c, run(c, adb, host, args.toString(), 60000), ok).size();
+    }
+
+    /** Every app the TV's launcher lists, with its name and icon saved; the packages, in order. */
+    static List<String> allApps(Context c, Adb adb, String host) throws Exception {
+        return save(c, run(c, adb, host, "apps " + SIZE, 90000), null);
+    }
+
+    /** The TV itself: model, android, screen, refresh, ram_total/free, disk_total/free, uptime, apps. */
+    static Map<String, String> info(Context c, Adb adb, String host) throws Exception {
+        Map<String, String> m = new java.util.LinkedHashMap<>();
+        for (String line : run(c, adb, host, "info", 20000).split("\n")) {
+            String[] f = line.trim().split("\t", 2);
+            if (f.length == 2) m.put(f[0], f[1]);
+        }
+        return m;
+    }
+
+    /** Pushes the helper when the TV has another version, runs it with these arguments. */
+    private static String run(Context c, Adb adb, String host, String args, int timeoutMs) throws Exception {
         byte[] dex = asset(c);
-        int got = 0;
         try (AdbLink link = AdbLink.open(adb, host, 5555)) {
             String have = "";
             try { have = link.shell("sha256sum " + DEVICE_PATH + " 2>/dev/null", 5000).trim(); } catch (Exception ignored) {}
             if (!have.startsWith(sha256(dex))) link.push(dex, DEVICE_PATH, 0100644);
-            StringBuilder cmd = new StringBuilder("CLASSPATH=" + DEVICE_PATH + " app_process / app.fling.tv.Icons " + SIZE);
-            for (String p : ok) cmd.append(' ').append(p);   // validated package names only: they go through the TV's shell
-            String out = link.shell(cmd.toString(), 60000);
-            SharedPreferences.Editor e = names(c).edit();
-            for (String line : out.split("\n")) {
-                String[] f = line.trim().split("\t", -1);
-                if (f.length < 3 || !ok.contains(f[0]) || f[2].isEmpty()) continue;
-                try {
-                    byte[] png = Base64.decode(f[2], Base64.DEFAULT);
-                    Bitmap b = BitmapFactory.decodeByteArray(png, 0, png.length);
-                    if (b == null) continue;
-                    try (FileOutputStream o = new FileOutputStream(new File(dir(c), f[0] + ".png"))) { o.write(png); }
-                    mem.put(f[0], b);
-                    if (!f[1].trim().isEmpty()) { e.putString(f[0], f[1].trim()); labels.put(f[0], f[1].trim()); }
-                    got++;
-                } catch (IllegalArgumentException ignored) {}   // a broken line: skip it
-            }
-            e.apply();
+            return link.shell("CLASSPATH=" + DEVICE_PATH + " app_process / app.fling.tv.Icons " + args, timeoutMs);
         }
+    }
+
+    /** "pkg TAB label TAB png" lines → files and names; the packages that came with an icon. */
+    private static List<String> save(Context c, String out, List<String> only) throws Exception {
+        List<String> got = new ArrayList<>();
+        SharedPreferences.Editor e = names(c).edit();
+        for (String line : out.split("\n")) {
+            String[] f = line.trim().split("\t", -1);
+            if (f.length < 3 || !PKG.matcher(f[0]).matches() || (only != null && !only.contains(f[0])) || f[2].isEmpty()) continue;
+            try {
+                byte[] png = Base64.decode(f[2], Base64.DEFAULT);
+                Bitmap b = BitmapFactory.decodeByteArray(png, 0, png.length);
+                if (b == null) continue;
+                try (FileOutputStream o = new FileOutputStream(new File(dir(c), f[0] + ".png"))) { o.write(png); }
+                mem.put(f[0], b);
+                if (!f[1].trim().isEmpty()) { e.putString(f[0], f[1].trim()); labels.put(f[0], f[1].trim()); }
+                got.add(f[0]);
+            } catch (IllegalArgumentException ignored) {}   // a broken line: skip it
+        }
+        e.apply();
         return got;
     }
 

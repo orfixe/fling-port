@@ -3233,9 +3233,34 @@ class CornerBar(QWidget):
         self.compact.setToolTip("Полный вид" if compact else "Компактный вид")
 
 
+ICON_SIZES = (16, 20, 24, 32, 40, 48, 64, 96, 128, 256)
+
+
 def tray_icon(casting=False):
-    """Fling logo: rounded blue→violet square with a screen and cast dots."""
-    return QIcon(logo_pixmap(64, casting))
+    """Every size drawn from the vector, not one bitmap scaled: sharp in the tray, the taskbar
+    and Alt+Tab at any display scale."""
+    ic = QIcon()
+    for n in ICON_SIZES:
+        ic.addPixmap(logo_pixmap(n, casting))
+    return ic
+
+
+def write_ico(path):
+    """A Windows .ico with one PNG per size (each drawn at its size, so 16 px isn't a blur)."""
+    import struct
+    from PyQt6.QtCore import QBuffer, QByteArray, QIODevice
+    images = []
+    for n in ICON_SIZES:
+        ba = QByteArray(); buf = QBuffer(ba); buf.open(QIODevice.OpenModeFlag.WriteOnly)
+        logo_pixmap(n).save(buf, "PNG")
+        images.append((n, bytes(ba)))
+    out = struct.pack("<HHH", 0, 1, len(images))
+    offset = 6 + 16 * len(images)
+    for n, data in images:
+        out += struct.pack("<BBBBHHII", n % 256, n % 256, 0, 0, 1, 32, len(data), offset)
+        offset += len(data)
+    with open(path, "wb") as f:
+        f.write(out + b"".join(d for _, d in images))
 
 
 def logo_pixmap(size=64, casting=False, dpr=1.0):
@@ -7949,7 +7974,7 @@ def main():
     app.setQuitOnLastWindowClosed(False)
     app.setWindowIcon(tray_icon())
     if cmd == "--make-icon":                       # installer: write fling.ico
-        logo_pixmap(256).save(sys.argv[2])
+        write_ico(sys.argv[2])
         return 0
     if send_to_running(cmd):
         return 0

@@ -556,6 +556,14 @@ final class Ui {
                 case "down": poly(c, false, s, .28f, .38f, .5f, .64f, .72f, .38f); break;
                 case "left": poly(c, false, s, .62f, .28f, .36f, .5f, .62f, .72f); break;
                 case "right": poly(c, false, s, .38f, .28f, .64f, .5f, .38f, .72f); break;
+                case "more": {                      // ⋯ : three dots
+                    p.setStyle(Paint.Style.FILL);
+                    float r = s * .07f;
+                    c.drawCircle(s * .26f, m, r, p);
+                    c.drawCircle(m, m, r, p);
+                    c.drawCircle(s * .74f, m, r, p);
+                    break;
+                }
                 case "power":
                     c.drawArc(new RectF(s * .2f, s * .22f, s * .8f, s * .82f), -60, 300, false, p);
                     c.drawLine(m, s * .14f, m, s * .5f, p);

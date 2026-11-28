@@ -1161,16 +1161,16 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         bg(() -> {
             List<String> pkgs = new ArrayList<>();
             try {
+                pkgs = TvIcons.allApps(this, adb, h);             // the helper: every launcher app, named, with icons
+                pkgs.removeAll(HIDDEN);
+            } catch (Exception e) {
+                Diag.log("icons", "apps from the TV: " + e.getMessage());
+            }
+            if (pkgs.isEmpty()) try {                              // the older way: names from packages
                 String out = adb.shell(h, "cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.LEANBACK_LAUNCHER");
                 pkgs = launcherPackages(out);
                 if (pkgs.isEmpty()) pkgs = launcherPackages(adb.shell(h, "pm list packages -3"));
             } catch (Exception ignored) {}
-            try {                                                  // their real names and icons, once
-                List<String> need = TvIcons.missing(this, pkgs);
-                if (!need.isEmpty()) TvIcons.fetch(this, adb, h, need);
-            } catch (Exception e) {
-                Diag.log("icons", "from the TV: " + e.getMessage());
-            }
             final List<String> found = pkgs;
             main.post(() -> {
                 if (isFinishing() || isDestroyed()) return;
@@ -2126,6 +2126,9 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         tvNow.setPadding(0, ui.dp(4), 0, 0);
         hv.addView(tvNow);
         hdr.addView(hv, Ui.lpW(1));
+        View more = ui.key("more", null, 40, false, v -> showTvInfo());
+        more.setContentDescription(L.t("О телевизоре"));
+        hdr.addView(more, ui.margins(Ui.lp(ui.dp(40), ui.dp(40)), 0, 0, 8, 0));
         hdr.addView(ui.key("power", null, 40, false, v -> tvKey(Atv.POWER)));
         ctlBox.addView(hdr);
 
@@ -2520,6 +2523,106 @@ public class MainActivity extends Activity implements Atv.Listener, Cast.Listene
         setupTick.run();
         tvPicked = false;
         openPicker();                                               // the TVs first, on top; then the steps
+    }
+
+    // ================================================================ the TV itself (the helper's "info")
+
+    /** Model, Android, screen, memory and storage of the TV, read by the helper; and what can be
+     *  done to it: close the app on screen, clear the apps' cache, its settings, restart. */
+    private void showTvInfo() {
+        final String h = host;
+        if (h == null) { showError(L.t("Устройство не выбрано")); return; }
+        if (!adbOk()) {
+            showError(L.t("Сведения о ТВ и действия с ним работают через отладку по Wi‑Fi — Настройки → «Первые шаги»."));
+            return;
+        }
+        say(L.t("Спрашиваю ТВ…"));
+        bg(() -> {
+            Map<String, String> m;
+            try { m = TvIcons.info(this, adb, h); }
+            catch (Exception e) { main.post(() -> { hideNotice.run(); showError(L.t("ТВ не ответил: ") + e.getMessage()); }); return; }
+            final Map<String, String> info = m;
+            main.post(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                hideNotice.run();
+                LinearLayout col = ui.col();
+                String[][] rows = {
+                        {L.t("Модель"), nz(info.get("manufacturer"), "") + " " + nz(info.get("model"), "")},
+                        {"Android", nz(info.get("android"), "?") + (info.get("security") != null ? " · " + L.f("патч %s", info.get("security")) : "")},
+                        {L.t("Экран"), nz(info.get("screen"), "?").replace("x", " × ") + (info.get("refresh") != null ? " · " + info.get("refresh") + " Гц" : "")},
+                        {L.t("Память"), L.f("свободно %s из %s", gb(info.get("ram_free")), gb(info.get("ram_total")))},
+                        {L.t("Хранилище"), L.f("свободно %s из %s", gb(info.get("disk_free")), gb(info.get("disk_total")))},
+                        {L.t("Работает"), uptime(info.get("uptime"))},
+                        {L.t("Приложений"), nz(info.get("apps"), "?")}};
+                for (String[] r : rows) {
+                    LinearLayout row = ui.row();
+                    row.setPadding(0, ui.dp(6), 0, ui.dp(6));
+                    row.addView(ui.text(r[0], 14, ui.fgA(0.55f), false), Ui.lpW(1));
+                    TextView v = ui.text(r[1].trim(), 14, ui.fg, false);
+                    v.setGravity(Gravity.END);
+                    row.addView(v, Ui.lpW(1.4f));
+                    col.addView(row);
+                }
+                final String app = tvApp != null && !HIDDEN.contains(tvApp) ? tvApp : null;
+                List<String> labels = new ArrayList<>();
+                List<Runnable> acts = new ArrayList<>();
+                if (app != null) {
+                    labels.add(L.f("Закрыть «%s»", appName(app)));
+                    acts.add(() -> tvShell(h, "am force-stop " + app, L.f("«%s» закрыто", appName(app))));
+                }
+                labels.add(L.t("Очистить кэш приложений"));
+                acts.add(() -> clearTvCache(h, info.get("disk_free")));
+                labels.add(L.t("Настройки ТВ"));
+                acts.add(() -> tvShell(h, "am start -a android.settings.SETTINGS", null));
+                labels.add(L.t("Перезагрузить ТВ"));
+                acts.add(() -> ui.ask(this, L.t("Перезагрузить ТВ?"), L.t("Телевизор выключится и включится снова — около минуты."), null,
+                        new String[]{L.t("Перезагрузить"), L.t("Отмена")},
+                        new Runnable[]{() -> tvShell(h, "reboot", L.t("ТВ перезагружается…")), null}));
+                labels.add(L.t("Закрыть"));
+                acts.add(null);
+                ui.ask(this, nz(devName, L.t("Телевизор")), null, col, labels.toArray(new String[0]), acts.toArray(new Runnable[0]));
+            });
+        });
+    }
+
+    private void tvShell(String h, String cmd, String done) {
+        bg(() -> {
+            try {
+                adb.shell(h, cmd);
+                if (done != null) main.post(() -> toast(done));
+            } catch (Exception e) { main.post(() -> showError(L.t("ТВ не ответил: ") + e.getMessage())); }
+        });
+    }
+
+    /** `pm trim-caches` asks Android to free that much from every app's cache; then how much it freed. */
+    private void clearTvCache(String h, String freeBefore) {
+        say(L.t("Очищаю кэш…"));
+        bg(() -> {
+            String msg;
+            try {
+                adb.shell(h, "pm trim-caches 999G");
+                Map<String, String> after = TvIcons.info(this, adb, h);
+                long freed = parseLong(after.get("disk_free")) - parseLong(freeBefore);
+                msg = freed > 1 << 20 ? L.f("Освобождено %s", gb(String.valueOf(freed))) : L.t("Кэш уже был пуст");
+            } catch (Exception e) { msg = L.t("ТВ не ответил: ") + e.getMessage(); }
+            final String m = msg;
+            main.post(() -> { hideNotice.run(); toast(m); });
+        });
+    }
+
+    private static long parseLong(String s) { try { return Long.parseLong(s); } catch (Exception e) { return 0; } }
+
+    private static String gb(String bytes) {
+        long b = parseLong(bytes);
+        if (b <= 0) return "?";
+        return b >= 1L << 30 ? String.format(java.util.Locale.ROOT, "%.1f ГБ", b / (double) (1L << 30)).replace("ГБ", L.t("ГБ"))
+                : (b >> 20) + " " + L.t("МБ");
+    }
+
+    private static String uptime(String secs) {
+        long s = parseLong(secs);
+        long d = s / 86400, hh = s % 86400 / 3600, mm = s % 3600 / 60;
+        return d > 0 ? L.f("%d д %d ч", d, hh) : hh > 0 ? L.f("%d ч %d мин", hh, mm) : L.f("%d мин", mm);
     }
 
     /** Short tips, one at a time, over the real screen (Tour); the long guide stays one tap away. */

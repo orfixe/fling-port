@@ -38,7 +38,17 @@ final class Welcome {
         Rings rings = new Rings(a, ui);
         logoBox.addView(rings, new FrameLayout.LayoutParams(-1, -1));
         ImageView logo = new ImageView(a);
-        logo.setImageResource(R.mipmap.ic_launcher);
+        // the vector logo, sharp at any size; its bubbles rise again every few seconds
+        logo.setImageResource(R.drawable.ic_fling_logo_anim);
+        if (logo.getDrawable() instanceof android.graphics.drawable.AnimatedVectorDrawable) {
+            android.graphics.drawable.AnimatedVectorDrawable avd = (android.graphics.drawable.AnimatedVectorDrawable) logo.getDrawable();
+            avd.registerAnimationCallback(new android.graphics.drawable.Animatable2.AnimationCallback() {
+                @Override public void onAnimationEnd(android.graphics.drawable.Drawable d) {
+                    logo.postDelayed(() -> { if (logo.isAttachedToWindow()) avd.start(); }, 2600);
+                }
+            });
+            logo.post(avd::start);
+        }
         logoBox.addView(logo, new FrameLayout.LayoutParams(ui.dp(96), ui.dp(96), Gravity.CENTER));
         col.addView(logoBox, new LinearLayout.LayoutParams(ui.dp(240), ui.dp(220)));
 

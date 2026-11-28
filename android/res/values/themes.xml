@@ -6,6 +6,11 @@
         <item name="android:windowBackground">@color/page</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!-- Android 12+: the launch splash animates the icon (bubbles rise, the dot lights up) -->
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_fling_splash</item>
+        <item name="android:windowSplashScreenAnimationDuration">1000</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#4A6CFF</item>
+        <item name="android:windowSplashScreenBackground">@color/page</item>
     </style>
     <color name="page">#F2F2F7</color>
 </resources>
