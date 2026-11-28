@@ -53,6 +53,9 @@ struct ContextMenuBuilder {
         }))
 
         menu.addItem(.separator())
+        // Port: scenes and the sleep timer (RemoteMore.swift)
+        RemoteStatusMenu.items(state: state).forEach { menu.addItem($0) }
+        menu.addItem(.separator())
         menu.addItem(action("Stop casting", key: ".", modifiers: [.command],
                             enabled: casting) { Task { await state.stopCasting() } })
         menu.addItem(.separator())

@@ -52,8 +52,19 @@ func pinClean(_ s: String) -> String {
 func tr<S: StringProtocol>(_ s: S) -> String {
     let text = String(s)
     guard Lang.isRussian, !text.isEmpty else { return text }
-    if let ru = RU.exact[text] ?? TailscaleRU.exact[text] { return ru }   // port: + L10n+Tailscale.swift
-    for (rx, template) in RU.patterns + TailscaleRU.patterns {
+    // port: one line per extra table (L10n+*.swift files of each feature)
+    let exactTables: [[String: String]] = [
+        RU.exact,
+        TailscaleRU.exact,
+        RemoteRU.exact,
+    ]
+    let patternTables: [[(NSRegularExpression, String)]] = [
+        RU.patterns,
+        TailscaleRU.patterns,
+        RemoteRU.patterns,
+    ]
+    for table in exactTables { if let ru = table[text] { return ru } }
+    for (rx, template) in patternTables.joined() {
         let range = NSRange(text.startIndex..., in: text)
         if rx.firstMatch(in: text, range: range) != nil {
             return RU.fixList(rx.stringByReplacingMatches(in: text, range: range, withTemplate: template))

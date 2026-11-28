@@ -87,8 +87,8 @@ reports are welcome.
 | One-click **Connect TV** window | ✓ | ✓ | — | — |
 | Scroll / swipe anywhere = d-pad | ✓ | ✓ | ✓ | ✓ |
 | Phone volume keys, Quick Settings tile | — | — | ✓ | — |
-| Remote modes (touchpad, numbers, media keys), favourite apps, scenes | ✓ | ✓ | — | — |
-| Sleep timer for the TV | ✓ | ✓ | ✓ | — |
+| Remote modes (touchpad, numbers, media keys), favourite apps, scenes | ✓ | ✓ | — | ✓ |
+| Sleep timer for the TV | ✓ | ✓ | ✓ | ✓ |
 | Queue, playlists (m3u / pls), photo slideshow, subtitles, resume | ✓ | ✓ | queue ³ | — |
 | Cast photos, videos and music from the phone (Share → Cast to TV) | — | — | ✓ | — |
 | Playback notification with lock-screen controls | — | — | ✓ | — |

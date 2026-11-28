@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: BSL-1.0
 // Fling's Sources/Fling/RemoteView.swift (https://github.com/tatianathevisionary/fling) by
 // Damion Rashford and Tatiana, Boost Software License 1.0 (macos/LICENSE-fling.txt),
-// modified by orfixe and the Fling port contributors: keyboard button, TV volume slider.
+// modified by orfixe and the Fling port contributors: keyboard button, TV volume slider,
+// remote modes, favourite apps, scenes and the sleep timer (RemoteModes / FavoriteAppsGrid / RemoteMore).
 import SwiftUI
 import Combine
 import FlingKit
@@ -148,8 +149,9 @@ struct RemoteView: View {
     private var controls: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            appGrid
-            dpad
+            SleepTimerRow(state: state)                  // port: "the TV turns off in N min"
+            FavoriteAppsGrid(state: state)               // port: favourite apps per TV (was appGrid)
+            RemoteModes(state: state) { dpad }           // port: Arrows · Touchpad · Numbers · Media
             if let vol = state.tvVolume {
                 TVVolumeRow(state: state, volume: vol)   // the TV reports its volume: a slider
             } else {
@@ -171,6 +173,7 @@ struct RemoteView: View {
             }
             Spacer()
             if showBadge { keyboardBadge }
+            RemoteMoreMenu(state: state)                 // port: scenes, sleep timer, on / off
             KeyButton(symbol: "power", size: 26, state: state, code: ATVKeyCode.power)
                 .help(tr(powerHelp))
         }
@@ -189,18 +192,6 @@ struct RemoteView: View {
         case false?: return "Turn TV on"
         case nil:    return "Toggle TV power"
         }
-    }
-
-    private var appGrid: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4),
-                  spacing: 4) {
-            ForEach(TVApp.catalog) { app in
-                AppChip(name: app.name, active: app.package == state.tvCurrentApp) {
-                    Task { await state.launchTVApp(app) }
-                }
-            }
-        }
-        .padding(.horizontal, 12).padding(.bottom, 8)
     }
 
     /// Classic remote layout — Back and Home flank the OK row.
